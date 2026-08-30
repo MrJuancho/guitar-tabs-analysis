@@ -1,12 +1,18 @@
 # Agent credentials/auth. settings.json es la config compartida del
 # proyecto (hooks del hold-out) y sí se commitea; settings.local.json y
-# todo lo demás bajo .claude/ es personal/local.
+# todo lo demás bajo .claude/ es personal/local. Las skills de Spec Kit
+# (.claude/skills/) no son credenciales ni estado local -- son
+# infraestructura reproducible (pinneada a la versión de `specify` vía
+# .specify/integrations/*.manifest.json), así que se trackean igual que
+# hooks/ y agents/, no por default de .claude/*.
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
 !.claude/hooks/*
 !.claude/agents/
 !.claude/agents/*
+!.claude/skills/
+!.claude/skills/**
 .gemini/
 
 # Python
