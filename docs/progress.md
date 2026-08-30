@@ -17,12 +17,23 @@ estado real de este proyecto, no la plantilla.
 
 ## En qué quedó la última sesión
 
-(vacío -- todavía no hay ninguna sesión registrada)
+Arnés de hooks verificado con evidencia real del transcript (Stop hook:
+331ms corriendo `gauntlet-fast`, contra 21ms de un falso positivo
+anterior). `gauntlet-template` actualizado a v1.5.0 (pathspec `**/*.py` y
+diff-vacío-en-CI corregidos, recipe `gauntlet-ci` nuevo). Spec Kit
+instalado (`specify init --here --integration claude`) y trackeado
+(`.specify/`, `.claude/skills/`) sin tocar `.claude/settings.json`.
 
 ## Qué sigue
 
-(vacío)
+Correr `/speckit-constitution`, pasándole explícitamente que `SECTION_3`
+(workflow/quality gates) debe remitir a `AGENTS.md` por referencia en vez
+de repetirlo -- la plantilla infiere de "README, docs" si no se le da
+input, y el detalle operativo (4 capas, roles, fail-open/fail-closed) ya
+vive en AGENTS.md. Después: branch protection con los checks que este PR
+registre.
 
 ## Bloqueado / pendiente de decisión
 
-(vacío)
+`uv.lock` sigue sin trackear (untracked) en el repo -- no evaluado
+todavía si debería commitearse o si falta una entrada en `.gitignore`.
