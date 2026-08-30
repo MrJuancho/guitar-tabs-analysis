@@ -42,12 +42,12 @@ jobs:
       - name: Sincronizar entorno
         run: uv sync
 
-      # gauntlet = gauntlet-fast (ruff + mypy --strict) + ruff format --check
-      # + lint-imports + tests/unit+integration+property con cobertura ≥90%.
-      # No se reimplementa la lógica acá -- se invoca el mismo target que
-      # corre localmente, para que CI y desarrollo local nunca diverjan.
-      - name: just gauntlet
-        run: just gauntlet
+      # gauntlet-ci = ruff check + mypy --strict sobre TODO el árbol (no el
+      # diff acotado de gauntlet-fast/gauntlet -- en un checkout limpio de CI
+      # ese diff está siempre vacío, ver justfile) + ruff format --check +
+      # lint-imports + tests/unit+integration+property con cobertura ≥90%.
+      - name: just gauntlet-ci
+        run: just gauntlet-ci
 
   holdout:
     # Separado a propósito de `verificacion`: si esta pasa pero holdout

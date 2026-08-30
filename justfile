@@ -56,6 +56,24 @@ gauntlet: gauntlet-fast
     uv run lint-imports
     uv run pytest tests/unit tests/integration tests/property --cov=src --cov-fail-under=90
 
+# Pre-merge en CI -- corre TODO el árbol siempre, nunca acotado a un diff.
+# `gauntlet-fast` calcula su diff contra HEAD (pensado para el hook local,
+# sobre cambios sin commitear en el working tree); en un checkout limpio de
+# CI ese diff está vacío por construcción -- no hay ninguna diferencia entre
+# el working tree y HEAD justo después de `actions/checkout`, sin importar
+# cuánto cambió el PR contra `main`. Invocar `gauntlet-fast` sin argumentos
+# ahí haría que ruff/mypy nunca corrieran, con "Sin cambios .py que
+# revisar." y exit 0 -- el mismo patrón de compuerta en verde sin haber
+# verificado nada (ADR-0001 sección 7). El único job de CI que debe llamar
+# a este recipe, no a `gauntlet`, es `verificacion` en
+# `.github/workflows/guantelete.yml`.
+gauntlet-ci:
+    uv run ruff check src tests
+    uv run mypy --strict src
+    uv run ruff format --check src tests
+    uv run lint-imports
+    uv run pytest tests/unit tests/integration tests/property --cov=src --cov-fail-under=90
+
 # Pre-merge / CI. Incluye retención y mutación del diff.
 gauntlet-full: gauntlet
     uv run pytest tests/holdout
