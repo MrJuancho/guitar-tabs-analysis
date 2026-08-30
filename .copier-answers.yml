@@ -1,0 +1,13 @@
+# Changes here will be overwritten by Copier; no las edites a mano.
+# `copier update` compara este archivo contra las respuestas actuales para
+# decidir qué cambió -- sin él, `copier update` no tiene forma de saber qué
+# valores se usaron para generar este proyecto.
+_commit: v1.4.0
+_src_path: gh:MrJuancho/gauntlet-template
+author_email: juancho131401@gmail.com
+author_name: MrJuancho (Juan Davila)
+package_name: guitar_tabs_analysis
+project_name: Guitar Tabs Analysis
+python_version: '3.12'
+stack: python-data
+

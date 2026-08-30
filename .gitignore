@@ -1,0 +1,42 @@
+# Agent credentials/auth. settings.json es la config compartida del
+# proyecto (hooks del hold-out) y sí se commitea; settings.local.json y
+# todo lo demás bajo .claude/ es personal/local.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/*
+!.claude/agents/
+!.claude/agents/*
+.gemini/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+
+# mutmut (árbol de mutantes generado, se reconstruye por corrida)
+mutants/
+.hypothesis/
+.mutmut-cache
+
+# import-linter (cache de análisis, se reconstruye por corrida -- visto en
+# una corrida real de `just gauntlet` sobre un proyecto generado, no
+# supuesto)
+.import_linter_cache/
+
+# worktrees de aislamiento para reviewer/data-auditor (just worktree-revision)
+.worktrees/
+
+# Artefactos de datos generados por el pipeline -- no son fuente.
+# TODO: ajusta estas rutas a donde tu pipeline real escriba sus capas.
+data/silver/*
+!data/silver/.gitkeep
+data/gold/*
+!data/gold/.gitkeep

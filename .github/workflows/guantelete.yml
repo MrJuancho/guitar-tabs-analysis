@@ -1,0 +1,99 @@
+name: Guantelete
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  doctor:
+    # Corre primero y sola. Si falta una herramienta del guantelete (mypy,
+    # mutmut, import-linter, just...), TODO lo demás se salta -- sin esto,
+    # una herramienta ausente en el runner hace que el gate correspondiente
+    # "pase" por omisión, en vez de fallar visiblemente.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Instalar just
+        uses: extractions/setup-just@v3
+
+      - name: Sincronizar entorno
+        run: uv sync
+
+      - name: just doctor
+        run: just doctor
+
+  verificacion:
+    needs: doctor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Instalar just
+        uses: extractions/setup-just@v3
+
+      - name: Sincronizar entorno
+        run: uv sync
+
+      # gauntlet = gauntlet-fast (ruff + mypy --strict) + ruff format --check
+      # + lint-imports + tests/unit+integration+property con cobertura ≥90%.
+      # No se reimplementa la lógica acá -- se invoca el mismo target que
+      # corre localmente, para que CI y desarrollo local nunca diverjan.
+      - name: just gauntlet
+        run: just gauntlet
+
+  holdout:
+    # Separado a propósito de `verificacion`: si esta pasa pero holdout
+    # falla, es la señal de que un cambio se afinó a los tests visibles en
+    # vez de resolver el problema real.
+    needs: [doctor, verificacion]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sincronizar entorno
+        run: uv sync
+
+      - name: Tests de retención (hold-out, NO visibles para agentes de código)
+        id: holdout
+        run: uv run pytest tests/holdout
+
+      - name: Diagnóstico si el hold-out falla
+        if: failure() && steps.holdout.outcome == 'failure'
+        run: |
+          echo "::error::La suite visible pasó pero la de retención (tests/holdout) no. Esto normalmente significa que el cambio se afinó a los tests visibles en vez de resolver el problema real -- tests/holdout/ no es editable por agentes de código (ver AGENTS.md, .claudeignore). Revisa la lógica del cambio, no los tests de retención."
+
+  mutacion:
+    # Informativo, no bloqueante hasta que el proyecto decida un umbral de
+    # mutation score por módulo (ver AGENTS.md). Corre solo sobre los
+    # módulos tocados en el diff -- correr todos los mutantes en cada PR es
+    # inviable (ver `just audit`, nocturno).
+    needs: doctor
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Instalar just
+        uses: extractions/setup-just@v3
+
+      - name: Sincronizar entorno
+        run: uv sync
+
+      - name: just mutation-diff
+        run: just mutation-diff
