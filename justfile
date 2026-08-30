@@ -29,8 +29,14 @@ gauntlet-fast *files:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -z "{{ files }}" ]; then
-        targets=$(git diff --name-only --diff-filter=d HEAD -- \
-            'src/guitar_tabs_analysis/**/*.py' 'tests/**/*.py' 2>/dev/null || true)
+        # Sin ':(glob)', git no le da significado especial a '**': el patrón
+        # exige un '/' literal entre '**' y '*.py', así que un archivo
+        # directamente bajo el paquete (p.ej. __init__.py) no tiene ese '/' y
+        # NO matchea -- queda fuera de ruff/mypy en silencio. Se pide el
+        # árbol completo a git y se filtra la extensión afuera, sin depender
+        # de la semántica de wildmatch.
+        targets=$(git diff --name-only --diff-filter=d HEAD -- src tests 2>/dev/null \
+            | grep '\.py$' || true)
     else
         targets="{{ files }}"
     fi
@@ -97,8 +103,14 @@ mutation-diff:
         echo "  Configura un remoto con 'main' publicado, o crea una rama local 'main', antes de correr gauntlet-full." >&2
         exit 1
     fi
-    mods=$(git diff --name-only --diff-filter=d "$base"...HEAD -- 'src/guitar_tabs_analysis/**/*.py' \
-           | sed 's|src/||; s|/|.|g; s|\.py$||; s|\.__init__$||' | sort -u)
+    # Mismo problema de wildmatch que en gauntlet-fast (ver comentario ahí):
+    # sin ':(glob)', 'src/guitar_tabs_analysis/**/*.py' no matcheaba ningún .py
+    # directamente bajo el paquete -- __init__.py incluido -- así que también
+    # se saltaba mutation-diff en silencio. Filtrando la extensión afuera de
+    # git en vez de con el pathspec.
+    mods=$(git diff --name-only --diff-filter=d "$base"...HEAD -- src \
+           | grep '\.py$' \
+           | sed 's|src/||; s|/|.|g; s|\.py$||; s|\.__init__$||' | sort -u || true)
     if [ -z "$mods" ]; then echo "Sin módulos modificados."; exit 0; fi
     for m in $mods; do
         # src/guitar_tabs_analysis/__init__.py (el paquete raíz) colapsa a
