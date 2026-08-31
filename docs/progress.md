@@ -17,21 +17,20 @@ estado real de este proyecto, no la plantilla.
 
 ## En qué quedó la última sesión
 
-Arnés de hooks verificado con evidencia real del transcript (Stop hook:
-331ms corriendo `gauntlet-fast`, contra 21ms de un falso positivo
-anterior). `gauntlet-template` actualizado a v1.5.0 (pathspec `**/*.py` y
-diff-vacío-en-CI corregidos, recipe `gauntlet-ci` nuevo). Spec Kit
-instalado (`specify init --here --integration claude`) y trackeado
-(`.specify/`, `.claude/skills/`) sin tocar `.claude/settings.json`.
+`/speckit-constitution` corrido desde `docs/constitucion-fuente.md` v2
+(contenido acordado, no un borrador) → `.specify/memory/constitution.md`
+v1.1.0. `SECTION_3` remite a `AGENTS.md` en vez de duplicar proceso; los 3
+`ABIERTO` (VII métrica, VII presupuesto, VIII determinismo) quedaron sin
+rellenar, cada uno con su criterio de cierre (dos en `/plan`, presupuesto
+tras medir). Corregida la Governance de v1.0.0: decía que bloqueaban
+`/specify`, pero la fuente v2 fija el cierre en `/plan`, no antes.
 
 ## Qué sigue
 
-Correr `/speckit-constitution`, pasándole explícitamente que `SECTION_3`
-(workflow/quality gates) debe remitir a `AGENTS.md` por referencia en vez
-de repetirlo -- la plantilla infiere de "README, docs" si no se le da
-input, y el detalle operativo (4 capas, roles, fail-open/fail-closed) ya
-vive en AGENTS.md. Después: branch protection con los checks que este PR
-registre.
+Por instrucción explícita, NO se corrió `/speckit-specify` -- sesión
+aparte. Pendiente sin resolver: confirmar si `plan-template.md`/
+`spec-template.md`/`tasks-template.md` asumen algún Core Principle por
+nombre o número, antes del primer `/plan`.
 
 ## Bloqueado / pendiente de decisión
 
