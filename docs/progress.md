@@ -6,33 +6,35 @@ changelog (eso ya vive en los ADRs y en git). Cada sesión reemplaza el
 contenido de las tres secciones de abajo con el estado actual; no agrega
 al final ni conserva versiones previas.
 
-Límite duro: 40 líneas en todo el archivo, este comentario incluido. Si no
-entra, resume más -- el punto es que sea barato de leer al empezar una
-sesión nueva, no que sea completo.
+Límite duro: 40 líneas, este comentario incluido. Si no entra, resume más.
 
-Generado una sola vez por Copier al crear el proyecto (`_skip_if_exists`)
--- `copier update` nunca vuelve a tocarlo después: para entonces contiene
-estado real de este proyecto, no la plantilla.
+Generado una sola vez por Copier (`_skip_if_exists`) -- `copier update`
+nunca vuelve a tocarlo después.
 -->
 
 ## En qué quedó la última sesión
 
-`/speckit-constitution` corrido desde `docs/constitucion-fuente.md` v2
-(contenido acordado, no un borrador) → `.specify/memory/constitution.md`
-v1.1.0. `SECTION_3` remite a `AGENTS.md` en vez de duplicar proceso; los 3
-`ABIERTO` (VII métrica, VII presupuesto, VIII determinismo) quedaron sin
-rellenar, cada uno con su criterio de cierre (dos en `/plan`, presupuesto
-tras medir). Corregida la Governance de v1.0.0: decía que bloqueaban
-`/specify`, pero la fuente v2 fija el cierre en `/plan`, no antes.
+Feature 001 (lectura-tema-slakh2100), T001-T006 en verde (`just
+gauntlet`): deps soundfile/pyyaml/numpy + override de mypy; tipos
+`PistaAudio`/`PistaGuitarra`/`LecturaTema` (frozen; `PistaAudio` con
+`eq=False` por el `ndarray`) y las 3 excepciones del contrato;
+`tests/fixtures/slakh2100_fixture.py` parametrizable por stem (longitud
+distinta, `audio_rendered=true` sin archivo, `audio_rendered=false`
+coherente); `_leer_metadata`/`_decodificar_audio` en `slakh2100.py`. Cada
+pieza: test rojo → commit → implementación → commit, por separado.
+`leer_tema()` NO existe todavía (T013, fuera de este slice).
 
 ## Qué sigue
 
-Por instrucción explícita, NO se corrió `/speckit-specify` -- sesión
-aparte. Pendiente sin resolver: confirmar si `plan-template.md`/
-`spec-template.md`/`tasks-template.md` asumen algún Core Principle por
-nombre o número, antes del primer `/plan`.
+`tasks.md` T007+: tests rojos de `leer_tema()` (T007-T012 US1, T014 US2,
+T015-T018 US3), luego su implementación (T013, T019-T021), P1→P2→P3.
+Después Fase 6 (T022-T024): gauntlet completo, mutation testing, y
+validación manual con dataset real.
 
 ## Bloqueado / pendiente de decisión
 
-`uv.lock` sigue sin trackear (untracked) en el repo -- no evaluado
-todavía si debería commitearse o si falta una entrada en `.gitignore`.
+Nada bloqueado. Para T023: `just mutation ingestion.slakh2100` deja
+10/41 mutantes vivos -- 2 equivalentes (mayúsculas en literal, como el
+`.encode("UTF-8")` ya en AGENTS.md), el resto brecha real de cobertura
+en `_decodificar_audio` (fallback `"float64"`, `always_2d`) y en
+`_leer_metadata` (`encoding=None`). `uv.lock` sin trackear (heredado).
