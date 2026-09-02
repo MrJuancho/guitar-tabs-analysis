@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from guitar_tabs_analysis.ingestion.slakh2100 import leer_tema
+import pytest
+
+from guitar_tabs_analysis.ingestion.slakh2100 import ArchivoAudioNoLegibleError, leer_tema
 from tests.fixtures.slakh2100_fixture import EspecificacionStem, construir_tema_sintetico
 
 
@@ -105,3 +107,33 @@ def test_tema_sin_pistas_de_guitarra_devuelve_mezcla_y_coleccion_vacia(tmp_path:
 
     assert resultado.tema_id == "Track00004"
     assert resultado.guitarras == []
+
+
+def test_guitarra_prometida_pero_ausente_en_disco_lanza_archivo_no_legible(
+    tmp_path: Path,
+) -> None:
+    """Clarification 2026-09-01 / FR-012: un stem con `audio_rendered:
+    true` en metadata pero cuyo `.flac` no esta en disco falla con
+    `ArchivoAudioNoLegibleError`, distinto del mensaje de identificador
+    inexistente."""
+    root_dir = construir_tema_sintetico(
+        tmp_path,
+        tema_id="Track00005",
+        stems=(
+            EspecificacionStem(
+                identificador="S01",
+                inst_class="Guitar",
+                audio_rendered=True,
+                escribir_archivo=False,
+            ),
+        ),
+    )
+
+    with pytest.raises(ArchivoAudioNoLegibleError) as excinfo:
+        leer_tema("Track00005", root_dir)
+
+    assert excinfo.value.tema_id == "Track00005"
+    assert excinfo.value.archivo == "stems/S01.flac"
+    assert str(excinfo.value) == (
+        "No se pudo leer el archivo de audio 'stems/S01.flac' del tema 'Track00005'."
+    )
