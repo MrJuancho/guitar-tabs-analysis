@@ -16,6 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import soundfile as sf
 
 from guitar_tabs_analysis.ingestion.slakh2100 import (
     ArchivoAudioNoLegibleError,
@@ -24,6 +25,7 @@ from guitar_tabs_analysis.ingestion.slakh2100 import (
     PistaAudio,
     PistaGuitarra,
     TemaNoExisteError,
+    _decodificar_audio,
     _leer_metadata,
 )
 from tests.fixtures.slakh2100_fixture import EspecificacionStem, construir_tema_sintetico
@@ -143,3 +145,35 @@ def test_leer_metadata_de_tema_sin_stems_devuelve_diccionario_vacio_de_stems(
 def test_leer_metadata_lanza_si_el_archivo_no_existe(tmp_path: Path) -> None:
     with pytest.raises(OSError):
         _leer_metadata(tmp_path / "TrackInexistente")
+
+
+# ---------------------------------------------------------------------
+# T006: _decodificar_audio (soundfile, dtype nativo, sin reescalado).
+# ---------------------------------------------------------------------
+
+
+def test_decodificar_audio_conserva_dtype_y_muestras_sin_reescalar(tmp_path: Path) -> None:
+    muestras_originales = np.array([0, 1, -1, 32767, -32768], dtype=np.int16)
+    ruta = tmp_path / "pista.flac"
+    sf.write(str(ruta), muestras_originales, 44100, subtype="PCM_16")
+
+    pista = _decodificar_audio(ruta)
+
+    assert pista.frecuencia_muestreo == 44100
+    assert pista.muestras.dtype == np.int16
+    np.testing.assert_array_equal(pista.muestras, muestras_originales)
+
+
+def test_decodificar_audio_respeta_la_frecuencia_de_muestreo_del_archivo(tmp_path: Path) -> None:
+    muestras = np.array([1, 2, 3], dtype=np.int16)
+    ruta = tmp_path / "pista_22050.flac"
+    sf.write(str(ruta), muestras, 22050, subtype="PCM_16")
+
+    pista = _decodificar_audio(ruta)
+
+    assert pista.frecuencia_muestreo == 22050
+
+
+def test_decodificar_audio_lanza_sin_traducir_si_el_archivo_no_existe(tmp_path: Path) -> None:
+    with pytest.raises(sf.LibsndfileError):
+        _decodificar_audio(tmp_path / "no_existe.flac")
