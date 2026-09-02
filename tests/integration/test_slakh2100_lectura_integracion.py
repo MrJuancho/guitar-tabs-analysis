@@ -14,7 +14,11 @@ from pathlib import Path
 
 import pytest
 
-from guitar_tabs_analysis.ingestion.slakh2100 import ArchivoAudioNoLegibleError, leer_tema
+from guitar_tabs_analysis.ingestion.slakh2100 import (
+    ArchivoAudioNoLegibleError,
+    LongitudInconsistenteError,
+    leer_tema,
+)
 from tests.fixtures.slakh2100_fixture import EspecificacionStem, construir_tema_sintetico
 
 
@@ -157,4 +161,28 @@ def test_mix_ausente_en_disco_lanza_archivo_no_legible(tmp_path: Path) -> None:
     assert excinfo.value.archivo == "mix.flac"
     assert str(excinfo.value) == (
         "No se pudo leer el archivo de audio 'mix.flac' del tema 'Track00006'."
+    )
+
+
+def test_guitarra_con_longitud_distinta_a_la_mezcla_lanza_longitud_inconsistente(
+    tmp_path: Path,
+) -> None:
+    """spec.md Acceptance Scenario US3.2 / FR-011: la mezcla y una pista
+    de guitarra del mismo tema con distinta longitud fallan con
+    `LongitudInconsistenteError`, sin recortar ni rellenar ninguno de los
+    dos audios."""
+    root_dir = construir_tema_sintetico(
+        tmp_path,
+        tema_id="Track00007",
+        n_muestras_mezcla=200,
+        stems=(EspecificacionStem(identificador="S01", inst_class="Guitar", n_muestras=150),),
+    )
+
+    with pytest.raises(LongitudInconsistenteError) as excinfo:
+        leer_tema("Track00007", root_dir)
+
+    assert excinfo.value.tema_id == "Track00007"
+    assert excinfo.value.identificador_origen == "S01"
+    assert str(excinfo.value) == (
+        "La pista 'S01' del tema 'Track00007' tiene una longitud distinta a la de la mezcla."
     )
