@@ -177,6 +177,6 @@ def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
             audio=_decodificar_audio(stems_dir / f"{identificador}.flac"),
         )
         for identificador, stem_meta in metadata.get("stems", {}).items()
-        if stem_meta.get("inst_class") == "Guitar"
+        if stem_meta.get("inst_class") == "Guitar" and stem_meta.get("audio_rendered") is True
     ]
     return LecturaTema(tema_id=tema_id, mezcla=mezcla, guitarras=guitarras)
