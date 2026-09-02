@@ -157,8 +157,22 @@ def _decodificar_audio(path: Path) -> PistaAudio:
 
 
 # ---------------------------------------------------------------------
-# leer_tema (T013) -- camino feliz de User Story 1.
+# leer_tema (T013, T019, T020) -- camino feliz de User Story 1 más los
+# modos de fallo de User Story 3.
 # ---------------------------------------------------------------------
+
+
+def _decodificar_o_fallar(path: Path, tema_dir: Path, tema_id: str) -> PistaAudio:
+    """Decodifica `path` traduciendo cualquier error de `soundfile`/E-S
+    (archivo ausente o no legible) a `ArchivoAudioNoLegibleError(tema_id,
+    archivo)` (T020, FR-012). `archivo` es la ruta de `path` relativa a
+    `tema_dir` (p. ej. `"mix.flac"`, `"stems/S01.flac"`) -- mismo formato
+    tanto para la mezcla como para cualquier guitarra."""
+    try:
+        return _decodificar_audio(path)
+    except (OSError, sf.LibsndfileError) as error:
+        archivo = str(path.relative_to(tema_dir))
+        raise ArchivoAudioNoLegibleError(tema_id, archivo) from error
 
 
 def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
@@ -174,18 +188,20 @@ def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
     Assumptions), sin garantía adicional más allá de eso.
 
     Lanza `TemaNoExisteError` (FR-010) si `root_dir/tema_id` no existe
-    como directorio -- verificado antes de leer nada más."""
+    como directorio -- verificado antes de leer nada más. Lanza
+    `ArchivoAudioNoLegibleError` (FR-012) si `mix.flac` o el `.flac` de
+    cualquier guitarra elegible está ausente o no se puede decodificar."""
     tema_dir = root_dir / tema_id
     if not tema_dir.is_dir():
         raise TemaNoExisteError(tema_id)
     metadata = _leer_metadata(tema_dir)
-    mezcla = _decodificar_audio(tema_dir / "mix.flac")
+    mezcla = _decodificar_o_fallar(tema_dir / "mix.flac", tema_dir, tema_id)
 
     stems_dir = tema_dir / metadata.get("audio_dir", "stems")
     guitarras = [
         PistaGuitarra(
             identificador_origen=identificador,
-            audio=_decodificar_audio(stems_dir / f"{identificador}.flac"),
+            audio=_decodificar_o_fallar(stems_dir / f"{identificador}.flac", tema_dir, tema_id),
         )
         for identificador, stem_meta in metadata.get("stems", {}).items()
         if stem_meta.get("inst_class") == "Guitar" and stem_meta.get("audio_rendered") is True
