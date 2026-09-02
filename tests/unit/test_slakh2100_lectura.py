@@ -27,6 +27,7 @@ from guitar_tabs_analysis.ingestion.slakh2100 import (
     TemaNoExisteError,
     _decodificar_audio,
     _leer_metadata,
+    leer_tema,
 )
 from tests.fixtures.slakh2100_fixture import EspecificacionStem, construir_tema_sintetico
 
@@ -177,3 +178,27 @@ def test_decodificar_audio_respeta_la_frecuencia_de_muestreo_del_archivo(tmp_pat
 def test_decodificar_audio_lanza_sin_traducir_si_el_archivo_no_existe(tmp_path: Path) -> None:
     with pytest.raises(sf.LibsndfileError):
         _decodificar_audio(tmp_path / "no_existe.flac")
+
+
+# ---------------------------------------------------------------------
+# T010: leer_tema excluye stems Guitar con audio_rendered=False, sin
+# lanzar excepción (spec.md Acceptance Scenario US1.6, FR-013).
+# ---------------------------------------------------------------------
+
+
+def test_leer_tema_excluye_guitarra_no_renderizada_sin_lanzar_excepcion(
+    tmp_path: Path,
+) -> None:
+    root_dir = construir_tema_sintetico(
+        tmp_path,
+        tema_id="Track00020",
+        stems=(
+            EspecificacionStem(identificador="S01", inst_class="Guitar", audio_rendered=True),
+            EspecificacionStem(identificador="S02", inst_class="Guitar", audio_rendered=False),
+        ),
+    )
+
+    resultado = leer_tema("Track00020", root_dir)
+
+    identificadores = {guitarra.identificador_origen for guitarra in resultado.guitarras}
+    assert identificadores == {"S01"}
