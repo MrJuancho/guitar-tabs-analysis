@@ -15,6 +15,7 @@ import dataclasses
 
 import numpy as np
 import pytest
+
 from guitar_tabs_analysis.ingestion.slakh2100 import (
     ArchivoAudioNoLegibleError,
     LecturaTema,
