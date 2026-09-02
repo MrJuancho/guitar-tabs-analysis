@@ -37,7 +37,4 @@ Nada bloqueado. Para T023: `just mutation ingestion.slakh2100` deja
 10/41 mutantes vivos -- 2 equivalentes (mayúsculas en literal, como el
 `.encode("UTF-8")` ya en AGENTS.md), el resto brecha real de cobertura
 en `_decodificar_audio` (fallback `"float64"`, `always_2d`) y en
-`_leer_metadata` (`encoding=None`). `uv.lock` y los artefactos de
-`specs/001-.../` (spec/plan/research/data-model/contracts/quickstart/
-checklists) llevaban toda la sesión sin trackear -- ya commiteados y
-pusheados al cierre de esta sesión.
+`_leer_metadata` (`encoding=None`).
