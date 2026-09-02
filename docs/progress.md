@@ -14,27 +14,25 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 001 (lectura-tema-slakh2100), T001-T006 en verde (`just
-gauntlet`): deps soundfile/pyyaml/numpy + override de mypy; tipos
-`PistaAudio`/`PistaGuitarra`/`LecturaTema` (frozen; `PistaAudio` con
-`eq=False` por el `ndarray`) y las 3 excepciones del contrato;
-`tests/fixtures/slakh2100_fixture.py` parametrizable por stem (longitud
-distinta, `audio_rendered=true` sin archivo, `audio_rendered=false`
-coherente); `_leer_metadata`/`_decodificar_audio` en `slakh2100.py`. Cada
-pieza: test rojo → commit → implementación → commit, por separado.
-`leer_tema()` NO existe todavía (T013, fuera de este slice).
+Feature 001, Fase 3 (User Story 1/P1/MVP) completa y en verde (`just
+gauntlet`): T007-T013. `leer_tema()` construida incrementalmente --
+T007/T009/T010 confirmados en rojo antes de extender el filtro
+(`inst_class`, luego `audio_rendered`); T008/T011/T012 pasaron en verde
+de inmediato por generalización del bucle/construcción. Property tests
+muestrean `subtype` de la intersección real entre `_SUBTYPE_A_DTYPE` y
+lo que admite el contenedor FLAC (PCM_16/PCM_24; PCM_32/FLOAT/DOUBLE
+rompen `sf.write(".flac")`).
 
 ## Qué sigue
 
-`tasks.md` T007+: tests rojos de `leer_tema()` (T007-T012 US1, T014 US2,
-T015-T018 US3), luego su implementación (T013, T019-T021), P1→P2→P3.
-Después Fase 6 (T022-T024): gauntlet completo, mutation testing, y
-validación manual con dataset real.
+`tasks.md` T014+: T014 (US2, colección vacía, ya la da el filtro de
+T013); T015-T021 (US3: `TemaNoExisteError`/`ArchivoAudioNoLegibleError`/
+`LongitudInconsistenteError`, test rojo primero cada uno); T022-T024
+(Polish: gauntlet completo, mutation testing, validación manual).
 
 ## Bloqueado / pendiente de decisión
 
-Nada bloqueado. Para T023: `just mutation ingestion.slakh2100` deja
-10/41 mutantes vivos -- 2 equivalentes (mayúsculas en literal, como el
-`.encode("UTF-8")` ya en AGENTS.md), el resto brecha real de cobertura
-en `_decodificar_audio` (fallback `"float64"`, `always_2d`) y en
-`_leer_metadata` (`encoding=None`).
+Nada bloqueado. Para T023: `just mutation ingestion.slakh2100` (sin el
+prefijo `guitar_tabs_analysis.` -- con él, duplica y falla) deja 19
+mutantes vivos sobre el módulo -- brecha real, sin equivalentes
+evidentes, pendiente de inspección en T023.
