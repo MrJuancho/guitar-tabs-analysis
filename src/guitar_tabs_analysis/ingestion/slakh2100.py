@@ -18,9 +18,11 @@ contrato completo.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy.typing as npt
+import yaml
 
 # ---------------------------------------------------------------------
 # Tipos de dominio (T003) -- todos inmutables: son el resultado de una
@@ -103,3 +105,21 @@ class LongitudInconsistenteError(Exception):
             f"La pista '{identificador_origen}' del tema '{tema_id}' tiene una "
             "longitud distinta a la de la mezcla."
         )
+
+
+# ---------------------------------------------------------------------
+# Helpers de E/S de bajo nivel (T005/T006) -- sin `leer_tema()` todavía.
+# ---------------------------------------------------------------------
+
+
+def _leer_metadata(tema_dir: Path) -> dict[str, Any]:
+    """Parsea `tema_dir/metadata.yaml` con PyYAML (research.md #2).
+
+    Deja propagar sin traducir cualquier error de E/S (archivo/directorio
+    ausente) o de parseo -- traducirlo a `TemaNoExisteError` es
+    responsabilidad de `leer_tema()` (T019, fuera de este slice), no de
+    este helper de bajo nivel.
+    """
+    with (tema_dir / "metadata.yaml").open(encoding="utf-8") as archivo:
+        metadata: dict[str, Any] = yaml.safe_load(archivo)
+    return metadata
