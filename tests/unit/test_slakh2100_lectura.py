@@ -12,6 +12,7 @@ sesiones futuras.
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -23,7 +24,9 @@ from guitar_tabs_analysis.ingestion.slakh2100 import (
     PistaAudio,
     PistaGuitarra,
     TemaNoExisteError,
+    _leer_metadata,
 )
+from tests.fixtures.slakh2100_fixture import EspecificacionStem, construir_tema_sintetico
 
 # ---------------------------------------------------------------------
 # T003: PistaAudio, PistaGuitarra, LecturaTema y las tres excepciones.
@@ -102,3 +105,41 @@ def test_longitud_inconsistente_error_incluye_tema_y_pista() -> None:
     assert error.identificador_origen == "S01"
     assert "Track00001" in str(error)
     assert "S01" in str(error)
+
+
+# ---------------------------------------------------------------------
+# T005: _leer_metadata (parseo de metadata.yaml con PyYAML).
+# ---------------------------------------------------------------------
+
+
+def test_leer_metadata_expone_inst_class_y_audio_rendered_por_stem(tmp_path: Path) -> None:
+    root_dir = construir_tema_sintetico(
+        tmp_path,
+        tema_id="Track00010",
+        stems=(
+            EspecificacionStem(identificador="S01", inst_class="Guitar", audio_rendered=True),
+            EspecificacionStem(identificador="S02", inst_class="Bass", audio_rendered=False),
+        ),
+    )
+
+    metadata = _leer_metadata(root_dir / "Track00010")
+
+    assert metadata["stems"]["S01"]["inst_class"] == "Guitar"
+    assert metadata["stems"]["S01"]["audio_rendered"] is True
+    assert metadata["stems"]["S02"]["inst_class"] == "Bass"
+    assert metadata["stems"]["S02"]["audio_rendered"] is False
+
+
+def test_leer_metadata_de_tema_sin_stems_devuelve_diccionario_vacio_de_stems(
+    tmp_path: Path,
+) -> None:
+    root_dir = construir_tema_sintetico(tmp_path, tema_id="Track00011", stems=())
+
+    metadata = _leer_metadata(root_dir / "Track00011")
+
+    assert metadata["stems"] == {}
+
+
+def test_leer_metadata_lanza_si_el_archivo_no_existe(tmp_path: Path) -> None:
+    with pytest.raises(OSError):
+        _leer_metadata(tmp_path / "TrackInexistente")
