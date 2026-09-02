@@ -190,7 +190,11 @@ def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
     Lanza `TemaNoExisteError` (FR-010) si `root_dir/tema_id` no existe
     como directorio -- verificado antes de leer nada más. Lanza
     `ArchivoAudioNoLegibleError` (FR-012) si `mix.flac` o el `.flac` de
-    cualquier guitarra elegible está ausente o no se puede decodificar."""
+    cualquier guitarra elegible está ausente o no se puede decodificar.
+    Lanza `LongitudInconsistenteError` (FR-011) si alguna guitarra
+    elegible tiene distinta longitud (número de muestras) que la mezcla
+    -- ninguno de los dos arrays se recorta ni se rellena, solo se
+    comparan."""
     tema_dir = root_dir / tema_id
     if not tema_dir.is_dir():
         raise TemaNoExisteError(tema_id)
@@ -206,4 +210,7 @@ def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
         for identificador, stem_meta in metadata.get("stems", {}).items()
         if stem_meta.get("inst_class") == "Guitar" and stem_meta.get("audio_rendered") is True
     ]
+    for guitarra in guitarras:
+        if len(guitarra.audio.muestras) != len(mezcla.muestras):
+            raise LongitudInconsistenteError(tema_id, guitarra.identificador_origen)
     return LecturaTema(tema_id=tema_id, mezcla=mezcla, guitarras=guitarras)
