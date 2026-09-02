@@ -40,9 +40,7 @@ def test_permite_stem_no_renderizado_coherentemente_sin_archivo(tmp_path: Path) 
     root_dir = construir_tema_sintetico(
         tmp_path,
         tema_id="Track00002",
-        stems=(
-            EspecificacionStem(identificador="S02", inst_class="Guitar", audio_rendered=False),
-        ),
+        stems=(EspecificacionStem(identificador="S02", inst_class="Guitar", audio_rendered=False),),
     )
 
     tema_dir = root_dir / "Track00002"
