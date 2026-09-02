@@ -206,3 +206,20 @@ def test_leer_tema_excluye_guitarra_no_renderizada_sin_lanzar_excepcion(
 
     identificadores = {guitarra.identificador_origen for guitarra in resultado.guitarras}
     assert identificadores == {"S01"}
+
+
+# ---------------------------------------------------------------------
+# T015: leer_tema lanza TemaNoExisteError con mensaje completo cuando el
+# tema_id no corresponde a ningun directorio del conjunto (spec.md
+# Acceptance Scenario US3.1, FR-010).
+# ---------------------------------------------------------------------
+
+
+def test_leer_tema_lanza_tema_no_existe_error_con_mensaje_completo(tmp_path: Path) -> None:
+    root_dir = construir_tema_sintetico(tmp_path, tema_id="Track00001", stems=())
+
+    with pytest.raises(TemaNoExisteError) as excinfo:
+        leer_tema("Track99999", root_dir)
+
+    assert excinfo.value.tema_id == "Track99999"
+    assert str(excinfo.value) == "El tema 'Track99999' no existe en el conjunto Slakh2100."
