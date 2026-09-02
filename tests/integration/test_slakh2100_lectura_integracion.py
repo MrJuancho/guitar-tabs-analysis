@@ -63,3 +63,25 @@ def test_tema_con_varias_guitarras_devuelve_todas_sin_fusionar(tmp_path: Path) -
     identificadores = {guitarra.identificador_origen for guitarra in resultado.guitarras}
     assert identificadores == {"S01", "S02", "S03"}
     assert len(resultado.guitarras) == 3
+
+
+def test_tema_con_bajo_electrico_no_incluye_el_bajo_entre_las_guitarras(tmp_path: Path) -> None:
+    """spec.md Acceptance Scenario US1.3 / FR-004: un bajo eléctrico
+    agrupado junto a las guitarras no debe aparecer en la colección
+    devuelta."""
+    root_dir = construir_tema_sintetico(
+        tmp_path,
+        tema_id="Track00003",
+        stems=(
+            EspecificacionStem(identificador="S01", inst_class="Guitar"),
+            EspecificacionStem(
+                identificador="S02", inst_class="Bass", midi_program_name="Electric Bass"
+            ),
+        ),
+    )
+
+    resultado = leer_tema("Track00003", root_dir)
+
+    identificadores = {guitarra.identificador_origen for guitarra in resultado.guitarras}
+    assert identificadores == {"S01"}
+    assert "S02" not in identificadores
