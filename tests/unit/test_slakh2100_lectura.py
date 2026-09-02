@@ -93,23 +93,25 @@ def test_lectura_tema_es_inmutable() -> None:
 def test_tema_no_existe_error_incluye_el_identificador() -> None:
     error = TemaNoExisteError("Track99999")
     assert error.tema_id == "Track99999"
-    assert "Track99999" in str(error)
+    assert str(error) == "El tema 'Track99999' no existe en el conjunto Slakh2100."
 
 
 def test_archivo_audio_no_legible_error_incluye_tema_y_archivo() -> None:
     error = ArchivoAudioNoLegibleError("Track00001", "stems/S01.flac")
     assert error.tema_id == "Track00001"
     assert error.archivo == "stems/S01.flac"
-    assert "Track00001" in str(error)
-    assert "stems/S01.flac" in str(error)
+    assert str(error) == (
+        "No se pudo leer el archivo de audio 'stems/S01.flac' del tema 'Track00001'."
+    )
 
 
 def test_longitud_inconsistente_error_incluye_tema_y_pista() -> None:
     error = LongitudInconsistenteError("Track00001", "S01")
     assert error.tema_id == "Track00001"
     assert error.identificador_origen == "S01"
-    assert "Track00001" in str(error)
-    assert "S01" in str(error)
+    assert str(error) == (
+        "La pista 'S01' del tema 'Track00001' tiene una longitud distinta a la de la mezcla."
+    )
 
 
 # ---------------------------------------------------------------------
