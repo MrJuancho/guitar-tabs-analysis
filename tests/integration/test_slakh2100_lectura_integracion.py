@@ -30,3 +30,36 @@ def test_tema_con_una_unica_guitarra_devuelve_mezcla_y_esa_pista(tmp_path: Path)
     assert resultado.tema_id == "Track00001"
     assert len(resultado.guitarras) == 1
     assert resultado.guitarras[0].identificador_origen == "S01"
+
+
+def test_tema_con_varias_guitarras_devuelve_todas_sin_fusionar(tmp_path: Path) -> None:
+    """spec.md Acceptance Scenario US1.2: guitarra limpia, distorsionada y
+    acústica -> las tres presentes por separado, cada una con su propio
+    identificador de origen."""
+    root_dir = construir_tema_sintetico(
+        tmp_path,
+        tema_id="Track00002",
+        stems=(
+            EspecificacionStem(
+                identificador="S01",
+                inst_class="Guitar",
+                midi_program_name="Clean Electric Guitar",
+            ),
+            EspecificacionStem(
+                identificador="S02",
+                inst_class="Guitar",
+                midi_program_name="Distortion Guitar",
+            ),
+            EspecificacionStem(
+                identificador="S03",
+                inst_class="Guitar",
+                midi_program_name="Acoustic Guitar",
+            ),
+        ),
+    )
+
+    resultado = leer_tema("Track00002", root_dir)
+
+    identificadores = {guitarra.identificador_origen for guitarra in resultado.guitarras}
+    assert identificadores == {"S01", "S02", "S03"}
+    assert len(resultado.guitarras) == 3
