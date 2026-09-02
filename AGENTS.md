@@ -349,9 +349,14 @@ guantelete, provócalo -- no asumas que el código implica el comportamiento.
 ## Deuda conocida
 
 <!-- PROJECT-SPECIFIC -->
-Reemplaza esta sección por la deuda real de `Guitar Tabs Analysis` a medida
-que aparezca (mutantes sin matar anotados, gates en rojo a propósito con
-causa conocida, componentes del guantelete sin verificar en vivo todavía).
-El template no trae deuda propia -- el esqueleto de ejemplo se genera con
-`just gauntlet` en verde.
+- **`just doctor` no verifica que `uv.lock` esté sincronizado con
+  `pyproject.toml`.** Detectado el 2026-09-01: T001 de la feature
+  001-lectura-tema-slakh2100 cambió `[project].dependencies` y corrió
+  `uv sync`, pero nadie commiteó `uv.lock` -- ningún gate del guantelete lo
+  atrapó porque ninguno lo verifica. El chequeo existe y es barato
+  (`uv lock --check`, sale no-cero si el lock no corresponde al
+  `pyproject.toml`); falta agregarlo a `just doctor` para que sea mecánico
+  en vez de depender de que alguien se acuerde. Candidato para el próximo
+  slice de mejora del arnés -- y, si se confirma útil aquí, proponerlo
+  upstream en `gauntlet-template`, no solo parchearlo en este proyecto.
 <!-- /PROJECT-SPECIFIC -->
