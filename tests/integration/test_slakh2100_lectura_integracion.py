@@ -137,3 +137,24 @@ def test_guitarra_prometida_pero_ausente_en_disco_lanza_archivo_no_legible(
     assert str(excinfo.value) == (
         "No se pudo leer el archivo de audio 'stems/S01.flac' del tema 'Track00005'."
     )
+
+
+def test_mix_ausente_en_disco_lanza_archivo_no_legible(tmp_path: Path) -> None:
+    """FR-012: `mix.flac` ausente para un tema cuyo directorio si existe
+    falla con `ArchivoAudioNoLegibleError` identificando el tema y el
+    archivo -- distinto de `TemaNoExisteError`."""
+    root_dir = construir_tema_sintetico(
+        tmp_path,
+        tema_id="Track00006",
+        stems=(EspecificacionStem(identificador="S01", inst_class="Guitar"),),
+        escribir_mix=False,
+    )
+
+    with pytest.raises(ArchivoAudioNoLegibleError) as excinfo:
+        leer_tema("Track00006", root_dir)
+
+    assert excinfo.value.tema_id == "Track00006"
+    assert excinfo.value.archivo == "mix.flac"
+    assert str(excinfo.value) == (
+        "No se pudo leer el archivo de audio 'mix.flac' del tema 'Track00006'."
+    )
