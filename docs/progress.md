@@ -14,27 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 001 completa hasta Fase 5: US1(P1)+US2(P2)+US3(P3) en verde
-(`just gauntlet`, 48 tests). T014-T021 con rojo confirmado por
-escenario, commits separados test/fix. T014 (colección vacía) no
-necesitaba fix -- se verificó rompiendo el filtro temporalmente y
-confirmando fallo, luego se revirtió. T019 (`TemaNoExisteError`), T020
-(`ArchivoAudioNoLegibleError` vía `_decodificar_o_fallar`, cubre mezcla
-y guitarras) y T021 (`LongitudInconsistenteError`), en ese orden. Los
-tres tests de excepción afirman `str(error) == "..."` completo.
+T023 (mutation testing sobre `ingestion.slakh2100`) hecho. Retriage
+completo: 17 sobrevivientes, T019-T021 no agregaron ninguno nuevo (los
+tres modos de fallo de US3 quedan bien cubiertos). 2 resueltos con
+`# pragma: no mutate` (equivalentes confirmados en `_leer_metadata`), 2
+documentados como equivalentes sin pragma en `_decodificar_audio`
+(pragma-arlos apagaría cobertura real de argumentos vecinos en la misma
+línea). Quedan 13 sin tocar, sujetos a la decisión de abajo. `just
+gauntlet` verde (48 tests, cobertura 98%).
 
 ## Qué sigue
 
-`tasks.md` T022-T024 (Polish, sin empezar): T022 `just gauntlet` ya
-verde; T023 mutation testing sobre `ingestion.slakh2100` -- triage
-precargado (sesión previa, 17 sobrevivientes: 1 equivalente confirmado,
-16 generalidad no ejercitada por Slakh mono/16-bit), pero T019-T021
-agregaron código nuevo no retriageado aún; T024 validación manual con
-dataset real.
+`tasks.md` T024: validación manual de `quickstart.md` contra una copia
+local real de Slakh2100 (fuera de CI). T022 viene en verde como efecto
+colateral de T023, pero no se marcó -- fuera del alcance pedido.
 
 ## Bloqueado / pendiente de decisión
 
-Nada bloqueado. Pendiente heredada de T023: si `_decodificar_audio`/
-`_leer_metadata` deben simplificarse a mono/16-bit depende de qué
-formatos exija el separador de hito 2 (GuitarSet/EGFxSet) -- se decide
-viendo eso, no antes.
+Sin ejecutar: tasks.md#T023 documenta dos posiciones sobre si
+`_decodificar_audio`/`leer_tema` son el lector de Slakh2100 o el
+general del proyecto. Recomendación escrita: simplificar (Posición A)
+los 13 sobrevivientes restantes, con más urgencia en
+`metadata.get("audio_dir"/"stems", ...)` (sin respaldo documental) que
+en el fallback de `dtype` (research.md #1 sí lo justifica). Decidir
+antes de tocar esas líneas.

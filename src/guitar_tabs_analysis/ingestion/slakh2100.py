@@ -134,7 +134,14 @@ def _leer_metadata(tema_dir: Path) -> dict[str, Any]:
     responsabilidad de `leer_tema()` (T019, fuera de este slice), no de
     este helper de bajo nivel.
     """
-    with (tema_dir / "metadata.yaml").open(encoding="utf-8") as archivo:
+    # `encoding="utf-8"` sobrevive a dos mutaciones (T023, tasks.md): el
+    # nombre del códec en mayúsculas (Python lo normaliza sin distinguir
+    # caso, mismo patrón que `.encode("UTF-8")` en AGENTS.md) y
+    # `encoding=None` (cae al locale del proceso -- indistinguible de
+    # "utf-8" salvo con contenido no-ASCII, que `metadata.yaml` nunca
+    # tiene según data-model.md). Ambos son equivalentes confirmados, no
+    # generalidad pendiente.
+    with (tema_dir / "metadata.yaml").open(encoding="utf-8") as archivo:  # pragma: no mutate
         metadata: dict[str, Any] = yaml.safe_load(archivo)
     return metadata
 
@@ -151,6 +158,17 @@ def _decodificar_audio(path: Path) -> PistaAudio:
     """
     info = sf.info(str(path))
     dtype = _SUBTYPE_A_DTYPE.get(info.subtype, "float64")
+    # `always_2d=False`: dos mutaciones sobre este valor (`None`,
+    # omitirlo) sobreviven como equivalentes confirmados contra el propio
+    # código de `soundfile` (`SoundFile._create_empty_array` hace `if
+    # always_2d or self.channels > 1`, un chequeo de verdad donde `None`
+    # y `False` son indistinguibles; y el default de la firma ya es
+    # `False`) -- cierto para cualquier archivo, mono o no. No se marca
+    # con `# pragma: no mutate` (T023, tasks.md): el pragma de mutmut
+    # excluye por línea completa, y esta línea comparte otros argumentos
+    # (`dtype`, la ruta) cuyas mutaciones sí son reales y están cubiertas
+    # -- pragma-arla apagaría esa cobertura real solo para silenciar dos
+    # sobrevivientes ya documentados como equivalentes.
     muestras, frecuencia_muestreo = sf.read(str(path), dtype=dtype, always_2d=False)
     return PistaAudio(muestras=muestras, frecuencia_muestreo=frecuencia_muestreo)
 
