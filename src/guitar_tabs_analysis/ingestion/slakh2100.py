@@ -3,14 +3,13 @@ contrato de import-linter): dado el identificador de un tema y la raíz
 local del dataset, `leer_tema()` devuelve el audio de la mezcla y la
 colección de audios de sus pistas de guitarra.
 
-Este módulo, en su estado actual (T003, T005-T013 de
-`specs/001-lectura-tema-slakh2100/tasks.md`), cubre el camino feliz
-completo de User Story 1 (P1/MVP): tipos de dominio inmutables,
-excepciones del contrato, los dos helpers de E/S de bajo nivel
-(`_leer_metadata`, `_decodificar_audio`) y `leer_tema()` en sí --
-todavía sin los modos de fallo de User Story 3 (`TemaNoExisteError`/
-`ArchivoAudioNoLegibleError`/`LongitudInconsistenteError` no se lanzan
-todavía desde `leer_tema()`; eso es T019-T021, fuera de este slice).
+Este módulo, en su estado actual (T003, T005-T021 de
+`specs/001-lectura-tema-slakh2100/tasks.md`), cubre las tres user
+stories completas: el camino feliz de User Story 1 (P1/MVP), la
+colección vacía de User Story 2 (P2, sin código adicional -- el filtro
+de T013 ya la produce) y los tres modos de fallo de User Story 3 (P3):
+`TemaNoExisteError` (T019), `ArchivoAudioNoLegibleError` (T020) y
+`LongitudInconsistenteError` (T021).
 
 Ver `specs/001-lectura-tema-slakh2100/data-model.md` y
 `specs/001-lectura-tema-slakh2100/contracts/leer_tema.md` para el

@@ -84,7 +84,7 @@ Proyecto único (`src/`, `tests/` en la raíz), tal como fija `plan.md#Project S
 
 ### Tests for User Story 2
 
-- [ ] T014 [P] [US2] Integration test: tema sin ninguna pista etiquetada como guitarra en sus metadatos → mezcla + colección vacía, sin excepción, en `tests/integration/test_slakh2100_lectura_integracion.py` (Acceptance Scenario US2.1, FR-009/SC-002).
+- [X] T014 [P] [US2] Integration test: tema sin ninguna pista etiquetada como guitarra en sus metadatos → mezcla + colección vacía, sin excepción, en `tests/integration/test_slakh2100_lectura_integracion.py` (Acceptance Scenario US2.1, FR-009/SC-002).
 
 ### Implementation for User Story 2
 
@@ -102,16 +102,16 @@ Sin tareas de implementación adicionales: el filtro de `leer_tema` construido e
 
 ### Tests for User Story 3
 
-- [ ] T015 [P] [US3] Unit test: `tema_id` inexistente → `TemaNoExisteError` cuyo mensaje incluye el identificador, en `tests/unit/test_slakh2100_lectura.py` (Acceptance Scenario US3.1, FR-010).
-- [ ] T016 [P] [US3] Integration test: mezcla y una pista de guitarra del mismo tema con distinta longitud → `LongitudInconsistenteError` con tema + pista, sin recortar ni rellenar ninguno de los dos audios, en `tests/integration/test_slakh2100_lectura_integracion.py` (Acceptance Scenario US3.2, FR-011).
-- [ ] T017 [US3] Integration test: guitarra con `audio_rendered: true` en metadata pero cuyo archivo `.flac` está ausente en disco → `ArchivoAudioNoLegibleError` con tema + archivo, en `tests/integration/test_slakh2100_lectura_integracion.py` (Clarification 2026-09-01, FR-012) (mismo archivo que T016, después de T016).
-- [ ] T018 [US3] Integration test: `mix.flac` ausente en disco para un tema cuyo directorio sí existe → `ArchivoAudioNoLegibleError` con tema + archivo, en `tests/integration/test_slakh2100_lectura_integracion.py` (FR-012) (mismo archivo, después de T017).
+- [X] T015 [P] [US3] Unit test: `tema_id` inexistente → `TemaNoExisteError` cuyo mensaje incluye el identificador, en `tests/unit/test_slakh2100_lectura.py` (Acceptance Scenario US3.1, FR-010).
+- [X] T016 [P] [US3] Integration test: mezcla y una pista de guitarra del mismo tema con distinta longitud → `LongitudInconsistenteError` con tema + pista, sin recortar ni rellenar ninguno de los dos audios, en `tests/integration/test_slakh2100_lectura_integracion.py` (Acceptance Scenario US3.2, FR-011).
+- [X] T017 [US3] Integration test: guitarra con `audio_rendered: true` en metadata pero cuyo archivo `.flac` está ausente en disco → `ArchivoAudioNoLegibleError` con tema + archivo, en `tests/integration/test_slakh2100_lectura_integracion.py` (Clarification 2026-09-01, FR-012) (mismo archivo que T016, después de T016).
+- [X] T018 [US3] Integration test: `mix.flac` ausente en disco para un tema cuyo directorio sí existe → `ArchivoAudioNoLegibleError` con tema + archivo, en `tests/integration/test_slakh2100_lectura_integracion.py` (FR-012) (mismo archivo, después de T017).
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] En `leer_tema`, verificar la existencia de `root_dir/tema_id` antes de leer nada y lanzar `TemaNoExisteError(tema_id)` si no existe, en `src/guitar_tabs_analysis/ingestion/slakh2100.py` (FR-010) (depende de T013).
-- [ ] T020 [US3] En `_decodificar_audio`/`leer_tema`, capturar los errores de `soundfile` o de archivo ausente al leer la mezcla o cualquier guitarra, y relanzar como `ArchivoAudioNoLegibleError(tema_id, archivo)`, en `src/guitar_tabs_analysis/ingestion/slakh2100.py` (FR-012) (depende de T013; mismo archivo, después de T019).
-- [ ] T021 [US3] En `leer_tema`, comparar la longitud de cada `PistaGuitarra` contra la mezcla y lanzar `LongitudInconsistenteError(tema_id, identificador_origen)` ante cualquier discrepancia, sin mutar ninguno de los dos arrays, en `src/guitar_tabs_analysis/ingestion/slakh2100.py` (FR-011) (depende de T013; mismo archivo, después de T020).
+- [X] T019 [US3] En `leer_tema`, verificar la existencia de `root_dir/tema_id` antes de leer nada y lanzar `TemaNoExisteError(tema_id)` si no existe, en `src/guitar_tabs_analysis/ingestion/slakh2100.py` (FR-010) (depende de T013).
+- [X] T020 [US3] En `_decodificar_audio`/`leer_tema`, capturar los errores de `soundfile` o de archivo ausente al leer la mezcla o cualquier guitarra, y relanzar como `ArchivoAudioNoLegibleError(tema_id, archivo)`, en `src/guitar_tabs_analysis/ingestion/slakh2100.py` (FR-012) (depende de T013; mismo archivo, después de T019).
+- [X] T021 [US3] En `leer_tema`, comparar la longitud de cada `PistaGuitarra` contra la mezcla y lanzar `LongitudInconsistenteError(tema_id, identificador_origen)` ante cualquier discrepancia, sin mutar ninguno de los dos arrays, en `src/guitar_tabs_analysis/ingestion/slakh2100.py` (FR-011) (depende de T013; mismo archivo, después de T020).
 
 **Checkpoint**: Las tres user stories funcionan de forma independiente; los tres modos de fallo del contrato están cubiertos.
 
