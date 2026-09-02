@@ -61,18 +61,18 @@ Proyecto único (`src/`, `tests/` en la raíz), tal como fija `plan.md#Project S
 
 > Escribir estos tests primero, confirmarlos en rojo contra el `leer_tema` aún no implementado.
 
-- [ ] T007 [P] [US1] Integration test: tema con una única pista de guitarra → mezcla + exactamente esa pista con su identificador de origen correcto, en `tests/integration/test_slakh2100_lectura_integracion.py` (spec.md Acceptance Scenario US1.1).
-- [ ] T008 [US1] Integration test: tema con varias guitarras (limpia/distorsionada/acústica) → todas presentes, sin fusionar, en `tests/integration/test_slakh2100_lectura_integracion.py` (Acceptance Scenario US1.2) (mismo archivo que T007, después de T007).
-- [ ] T009 [US1] Integration test: tema con bajo eléctrico junto a guitarras → el bajo no aparece en la colección devuelta, en `tests/integration/test_slakh2100_lectura_integracion.py` (Acceptance Scenario US1.3) (mismo archivo, después de T008).
-- [ ] T010 [P] [US1] Unit test: una pista con `inst_class == "Guitar"` pero `audio_rendered == false` se excluye de la colección, sin lanzar excepción, en `tests/unit/test_slakh2100_lectura.py` (spec.md Acceptance Scenario US1.6, **FR-013**).
-- [ ] T011 [P] [US1] Property test (Hypothesis): para cualquier tema sintético generado, la mezcla y cada guitarra devuelta comparten longitud y frecuencia de muestreo, y esa frecuencia coincide con la declarada en `metadata.yaml`, en `tests/property/test_slakh2100_lectura_property.py` (Acceptance Scenario US1.4, FR-006/FR-007).
-- [ ] T012 [US1] Property test (Hypothesis): las muestras devueltas (mezcla y cada guitarra) son idénticas, entero a entero, a las muestras usadas para generar el `.flac` sintético — sin resampleo/normalización (Acceptance Scenario US1.5, SC-005) — **y además** son finitas y están dentro del rango representable por su `dtype` de origen (`np.isfinite(...).all()` más un chequeo de rango; FR-008), en `tests/property/test_slakh2100_lectura_property.py` (mismo archivo que T011, después de T011).
+- [X] T007 [P] [US1] Integration test: tema con una única pista de guitarra → mezcla + exactamente esa pista con su identificador de origen correcto, en `tests/integration/test_slakh2100_lectura_integracion.py` (spec.md Acceptance Scenario US1.1).
+- [X] T008 [US1] Integration test: tema con varias guitarras (limpia/distorsionada/acústica) → todas presentes, sin fusionar, en `tests/integration/test_slakh2100_lectura_integracion.py` (Acceptance Scenario US1.2) (mismo archivo que T007, después de T007).
+- [X] T009 [US1] Integration test: tema con bajo eléctrico junto a guitarras → el bajo no aparece en la colección devuelta, en `tests/integration/test_slakh2100_lectura_integracion.py` (Acceptance Scenario US1.3) (mismo archivo, después de T008).
+- [X] T010 [P] [US1] Unit test: una pista con `inst_class == "Guitar"` pero `audio_rendered == false` se excluye de la colección, sin lanzar excepción, en `tests/unit/test_slakh2100_lectura.py` (spec.md Acceptance Scenario US1.6, **FR-013**).
+- [X] T011 [P] [US1] Property test (Hypothesis): para cualquier tema sintético generado, la mezcla y cada guitarra devuelta comparten longitud y frecuencia de muestreo, y esa frecuencia coincide con la declarada en `metadata.yaml`, en `tests/property/test_slakh2100_lectura_property.py` (Acceptance Scenario US1.4, FR-006/FR-007).
+- [X] T012 [US1] Property test (Hypothesis): las muestras devueltas (mezcla y cada guitarra) son idénticas, entero a entero, a las muestras usadas para generar el `.flac` sintético — sin resampleo/normalización (Acceptance Scenario US1.5, SC-005) — **y además** son finitas y están dentro del rango representable por su `dtype` de origen (`np.isfinite(...).all()` más un chequeo de rango; FR-008), en `tests/property/test_slakh2100_lectura_property.py` (mismo archivo que T011, después de T011).
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implementar `leer_tema(tema_id: str, root_dir: Path) -> LecturaTema` en `src/guitar_tabs_analysis/ingestion/slakh2100.py`: leer metadata (T005), decodificar la mezcla (T006), filtrar stems con `inst_class == "Guitar"` y `audio_rendered == true` (excluye bajo por FR-004 y no renderizados por **FR-013**), decodificar cada uno, construir `LecturaTema` — camino feliz únicamente, sin los modos de fallo de US3 todavía (depende de T003, T005, T006).
+- [X] T013 [US1] Implementar `leer_tema(tema_id: str, root_dir: Path) -> LecturaTema` en `src/guitar_tabs_analysis/ingestion/slakh2100.py`: leer metadata (T005), decodificar la mezcla (T006), filtrar stems con `inst_class == "Guitar"` y `audio_rendered == true` (excluye bajo por FR-004 y no renderizados por **FR-013**), decodificar cada uno, construir `LecturaTema` — camino feliz únicamente, sin los modos de fallo de US3 todavía (depende de T003, T005, T006).
 
-**Checkpoint**: User Story 1 funciona y se puede validar de forma independiente (T007-T012 en verde).
+**Checkpoint**: User Story 1 funciona y se puede validar de forma independiente (T007-T012 en verde) -- ✅ hecho.
 
 ---
 
