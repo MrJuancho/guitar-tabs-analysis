@@ -14,26 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 001, Fase 3 (User Story 1/P1/MVP) completa y en verde (`just
-gauntlet`): T007-T013, `leer_tema()` construida con rojo confirmado por
-escenario (T007/T009/T010), el resto en verde por generalización.
-
-Además, fuera de `tasks.md`: triage de mutation testing sobre el módulo
-(19→17 sobrevivientes) -- 1 equivalente confirmado, 2 corregidos
-(mensajes de excepción sin afirmar completos; nueva regla en AGENTS.md
-"Tests de excepciones..."), 16 son generalidad no ejercitada por Slakh
-(mono/16-bit) que T023 no debe cerrar con tests fabricados.
+Feature 001 completa hasta Fase 5: US1(P1)+US2(P2)+US3(P3) en verde
+(`just gauntlet`, 48 tests). T014-T021 con rojo confirmado por
+escenario, commits separados test/fix. T014 (colección vacía) no
+necesitaba fix -- se verificó rompiendo el filtro temporalmente y
+confirmando fallo, luego se revirtió. T019 (`TemaNoExisteError`), T020
+(`ArchivoAudioNoLegibleError` vía `_decodificar_o_fallar`, cubre mezcla
+y guitarras) y T021 (`LongitudInconsistenteError`), en ese orden. Los
+tres tests de excepción afirman `str(error) == "..."` completo.
 
 ## Qué sigue
 
-`tasks.md` T014+: T014 (US2, ya la da el filtro de T013); T015-T021
-(US3, test rojo primero cada uno); T022-T024 (Polish -- T023 ya trae el
-triage precargado en `tasks.md`, no arranca en blanco).
+`tasks.md` T022-T024 (Polish, sin empezar): T022 `just gauntlet` ya
+verde; T023 mutation testing sobre `ingestion.slakh2100` -- triage
+precargado (sesión previa, 17 sobrevivientes: 1 equivalente confirmado,
+16 generalidad no ejercitada por Slakh mono/16-bit), pero T019-T021
+agregaron código nuevo no retriageado aún; T024 validación manual con
+dataset real.
 
 ## Bloqueado / pendiente de decisión
 
-Nada bloqueado. T023 tiene una decisión de diseño pendiente y explícita
-(no una duda abierta): si `_decodificar_audio`/`_leer_metadata` deben
-simplificarse a lo que Slakh2100 usa (mono/16-bit) depende de qué
+Nada bloqueado. Pendiente heredada de T023: si `_decodificar_audio`/
+`_leer_metadata` deben simplificarse a mono/16-bit depende de qué
 formatos exija el separador de hito 2 (GuitarSet/EGFxSet) -- se decide
-viendo eso, no antes. Detalle completo en `tasks.md` T023.
+viendo eso, no antes.
