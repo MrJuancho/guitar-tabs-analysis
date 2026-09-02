@@ -14,14 +14,15 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-T023 (mutation testing sobre `ingestion.slakh2100`) hecho. Retriage
-completo: 17 sobrevivientes, T019-T021 no agregaron ninguno nuevo (los
-tres modos de fallo de US3 quedan bien cubiertos). 2 resueltos con
-`# pragma: no mutate` (equivalentes confirmados en `_leer_metadata`), 2
-documentados como equivalentes sin pragma en `_decodificar_audio`
-(pragma-arlos apagaría cobertura real de argumentos vecinos en la misma
-línea). Quedan 13 sin tocar, sujetos a la decisión de abajo. `just
-gauntlet` verde (48 tests, cobertura 98%).
+T023 (mutation testing, `ingestion.slakh2100`) avanzó en dos pasadas:
+pragma de equivalentes (17→15 sobrevivientes) y, esta sesión,
+simplificación del grupo `audio_dir`/`stems` (15→6). `leer_tema` ya no
+lee `metadata.get("audio_dir", "stems")` ni `.get("stems", {})` --
+`"stems"` es ruta fija y `metadata["stems"]` propaga `KeyError` nativo
+si falta (archivo corrupto, no un default silencioso). `just gauntlet`
+verde sin tocar ningún test (48 tests) -- confirma que esa generalidad
+no estaba ejercitada. `contracts/leer_tema.md`/`data-model.md` no
+necesitaron cambios: ninguno documentaba esa generalidad.
 
 ## Qué sigue
 
@@ -31,10 +32,9 @@ colateral de T023, pero no se marcó -- fuera del alcance pedido.
 
 ## Bloqueado / pendiente de decisión
 
-Sin ejecutar: tasks.md#T023 documenta dos posiciones sobre si
-`_decodificar_audio`/`leer_tema` son el lector de Slakh2100 o el
-general del proyecto. Recomendación escrita: simplificar (Posición A)
-los 13 sobrevivientes restantes, con más urgencia en
-`metadata.get("audio_dir"/"stems", ...)` (sin respaldo documental) que
-en el fallback de `dtype` (research.md #1 sí lo justifica). Decidir
-antes de tocar esas líneas.
+Sin ejecutar, fuera de esta sesión: los 4 sobrevivientes de
+`_SUBTYPE_A_DTYPE.get(info.subtype, "float64")` en `_decodificar_audio`.
+Criterio de cierre en tasks.md#T023: depende de qué formatos exija el
+`/plan` de hito 2 (GuitarSet/EGFxSet, grabaciones propias) -- si son
+PCM_16/mono, se simplifica igual que `audio_dir`/`stems`; si no, se
+cubre con un fixture del subtype real, no uno inventado.

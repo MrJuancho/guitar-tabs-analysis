@@ -177,63 +177,99 @@ Sin tareas de implementación adicionales: el filtro de `leer_tema` construido e
         documentados de forma permanente (razonamiento en el comentario
         del código, junto a la línea).
 
-      - **13 pendientes de una decisión de diseño, sin ejecutar todavía**
-        (ver más abajo): 4 en `_decodificar_audio` (fallback
+      - **9 RESUELTOS (sesión 2026-09-02, segunda pasada)**: el grupo
+        `metadata.get("audio_dir", "stems")` (7 mutaciones sobre clave y
+        valor) y `metadata.get("stems", {}).items()` (2 mutaciones sobre
+        el default) -- ver "Grupo `audio_dir`/`stems`: resuelto" más
+        abajo.
+      - **6 pendientes de una decisión de diseño, sin ejecutar todavía**
+        (ver "Decisión abierta" más abajo): `_decodificar_audio`, fallback
         `_SUBTYPE_A_DTYPE.get(info.subtype, "float64")` -- valores
-        `None`, omitido, `"XXfloat64XX"`, `"FLOAT64"`) + 9 en `leer_tema`
-        (`metadata.get("audio_dir", "stems")`: 7 mutaciones sobre clave y
-        valor; `metadata.get("stems", {}).items()`: 2 mutaciones sobre el
-        default).
+        `None`, omitido, `"XXfloat64XX"`, `"FLOAT64"` (4 mutantes) más
+        `always_2d=None`/omitido (2, documentados como equivalentes en el
+        punto anterior, sin pragma).
 
-      **Resultado**: mutation score del módulo sube de 17 a 15
-      sobrevivientes; los 15 restantes son 2 equivalentes documentados
-      (permanentes, no se pueden pragma-ar sin perder cobertura real) y
-      13 pendientes de la decisión de diseño de abajo.
+      **Resultado acumulado**: mutation score del módulo bajó de 17 a 15
+      sobrevivientes (pragma de encoding) y luego de 15 a **6**
+      (simplificación de `audio_dir`/`stems`, ver abajo). Quedan 2
+      equivalentes documentados (permanentes) + 4 pendientes de la
+      decisión de `_SUBTYPE_A_DTYPE`.
 
-      ### Decisión pendiente: ¿`_decodificar_audio` es el lector de Slakh2100 o el lector de audio del proyecto?
+      ### Grupo `audio_dir`/`stems`: resuelto
 
-      Los 4 mutantes del fallback de `_SUBTYPE_A_DTYPE.get(...)` y los 9
-      de `metadata.get("audio_dir"/"stems", ...)` sobreviven porque
+      **Antes**: 15 sobrevivientes (6 `_decodificar_audio` + 9
+      `leer_tema`). **Después**: 6 (solo `_decodificar_audio`, sin
+      cambios). Los 9 de `leer_tema` desaparecieron porque el código que
+      los generaba ya no existe -- no por un test nuevo que los mate,
+      confirmado revisando `mutmut results` (los IDs de `leer_tema` que
+      sobrevivían simplemente dejaron de listarse, no aparecen como
+      "killed").
+
+      Cambio en `src/guitar_tabs_analysis/ingestion/slakh2100.py`,
+      dentro de `leer_tema`:
+      - `tema_dir / metadata.get("audio_dir", "stems")` →
+        `tema_dir / "stems"`. `"audio_dir"` no aparece en `research.md`
+        ni en `data-model.md` -- el layout de directorio ya está fijado
+        por research.md #6 (`TrackXXXXX/{metadata.yaml, mix.flac,
+        stems/*.flac}`), así que la generalidad no solo estaba sin
+        ejercitar, estaba sin respaldo documental: nada en el conjunto
+        real produce un valor distinto de `"stems"`.
+      - `metadata.get("stems", {}).items()` → `metadata["stems"].items()`.
+        `data-model.md` ("Metadatos de origen") documenta `stems.<id>.*`
+        como parte fija del esquema de `metadata.yaml`, no como opcional.
+        Un `metadata.yaml` sin la clave `stems` es un archivo corrupto,
+        no un tema legítimo sin guitarras (ese caso ya está cubierto por
+        FR-009/US2 vía una `stems` vacía `{}`, que sigue funcionando
+        igual que antes). Se deja que el `KeyError` nativo de Python
+        propague sin envolverlo en una excepción nueva del dominio: el
+        contrato (`contracts/leer_tema.md`) no define un modo de fallo
+        para metadata malformado, y agregar uno no estaba en el alcance
+        de esta simplificación -- extenderlo es una decisión de diseño
+        separada, no una consecuencia mecánica de borrar un default.
+
+      Verificación: `just gauntlet` en verde sin tocar ningún test
+      existente (48 tests) -- confirma que la generalidad borrada
+      realmente no estaba ejercitada, tal como decía el triage.
+      `contracts/leer_tema.md` y `data-model.md` no necesitaron cambios:
+      ninguno de los dos documentaba `audio_dir` ni un default para
+      `stems` -- el código, no la documentación, era lo que divergía.
+
+      ### Decisión abierta: ¿`_decodificar_audio` es el lector de Slakh2100 o el lector de audio del proyecto? (NO se toca sin resolver esto)
+
+      Quedan 4 sobrevivientes activos (más los 2 equivalentes
+      documentados, que no dependen de esta decisión): el fallback
+      `_SUBTYPE_A_DTYPE.get(info.subtype, "float64")` sobrevive porque
       Slakh2100 (research.md: mono, 44.1kHz, 16-bit siempre; distribuido
-      enteramente en `.flac`) nunca ejercita esas ramas -- el único
-      `subtype` real es `PCM_16` (mapeado) y el `.flac` de Slakh solo
-      puede traer subtypes PCM de todos modos (el contenedor no admite
-      `FLOAT`/`DOUBLE`, que igual están en el mapa). No se pueden matar
-      sin fabricar un archivo con un subtype que Slakh2100 nunca produce
-      -- exactamente lo que AGENTS.md prohíbe.
+      enteramente en `.flac`) nunca ejercita esa rama -- el único
+      `subtype` real es `PCM_16` (mapeado), y el propio contenedor
+      `.flac` de Slakh solo puede traer subtypes PCM de todos modos (no
+      admite `FLOAT`/`DOUBLE`, que igual están en el mapa). No se puede
+      matar sin fabricar un archivo con un subtype que Slakh2100 nunca
+      produce -- exactamente lo que AGENTS.md prohíbe.
 
-      **Hallazgo adicional (no en el triage original)**: la clave
-      `"audio_dir"` no aparece en ningún lado de `research.md` ni
-      `data-model.md` -- el esquema documentado de `metadata.yaml` solo
-      lista `stems.<id>.{inst_class, audio_rendered}` (data-model.md
-      "Metadatos de origen"). La fuente citada por research.md #2
-      (`ethman/slakh-utils`) tampoco se referencia para este campo. La
-      fixture (`tests/fixtures/slakh2100_fixture.py`) sí lo escribe
-      (`"audio_dir": "stems"`, siempre ese valor), pero eso fue decisión
-      de implementación de T013, no un requisito trazado a research.md.
-      Esto es evidencia adicional a favor de la Posición A para ese caso
-      puntual (no aplica al fallback de `dtype`/`always_2d`, que sí tiene
-      respaldo en research.md #1).
+      A diferencia de `audio_dir`/`stems`, esta generalidad SÍ tiene
+      respaldo documental: research.md #1 justifica `soundfile`
+      explícitamente por su capacidad de leer el `subtype` real y
+      exponer un `dtype` sin reescalado, un mecanismo pensado en general,
+      no acotado a un único subtype. Por eso esta decisión queda abierta
+      en vez de resolverse junto con `audio_dir`/`stems`.
 
-      **Posición A -- es el lector de Slakh2100, simplificar ahora:**
+      **Posición A -- es el lector de Slakh2100, simplificar:**
       - El módulo se llama, se documenta y se numera por tareas
         (T003, T005-T021) como lectura de Slakh2100, no como un lector
         general -- `_decodificar_audio` es una función privada
         (`_`-prefijada), no expuesta como API compartida; ningún otro
         módulo la importa hoy.
-      - research.md #1 justifica `soundfile` citando específicamente el
-        formato de Slakh2100 ("se distribuye enteramente en .flac"), y
-        data-model.md documenta la forma `(n_muestras,)` como consecuencia
+      - data-model.md documenta la forma `(n_muestras,)` como consecuencia
         de que "Slakh2100 es mono" -- el mono/16-bit no es un supuesto
         implícito, es la base documentada del diseño actual.
       - Constitución/AGENTS.md son explícitos: no diseñar para
         necesidades hipotéticas futuras, y no perseguir mutation score
         subiendo generalidad que el conjunto actual no puede ejercitar.
-      - Si hito 2 (GuitarSet/EGFxSet) necesita otros subtypes/canales,
-        esa decisión se toma con el spec de hito 2 en mano (qué formatos
-        exige realmente, no una suposición de hoy) -- puede reusar este
-        código promoviéndolo a un módulo compartido en ese momento, con
-        su propio test rojo antes del fix, tal como pide AGENTS.md.
+      - Si hito 2 necesita otros subtypes/canales, esa decisión se toma
+        con el spec de hito 2 en mano -- puede reusar este código
+        promoviéndolo a un módulo compartido en ese momento, con su
+        propio test rojo antes del fix, tal como pide AGENTS.md.
 
       **Posición B -- ya es (o debería tratarse como) el lector general
       del proyecto, mantener la generalidad:**
@@ -256,18 +292,23 @@ Sin tareas de implementación adicionales: el filtro de `leer_tema` construido e
         verdad.
 
       **Recomendación (no ejecutada -- pendiente de confirmación)**:
-      Posición A para los 9 mutantes de `metadata.get("audio_dir"/
-      "stems", ...)` -- ninguno de los dos tiene respaldo documental
-      (ni siquiera como generalidad "razonable" de biblioteca, a
-      diferencia de `dtype`) y el hallazgo adicional de arriba los hace
-      indefendibles incluso bajo la Posición B. Para los 4 mutantes de
-      `dtype` fallback: **Posición A también**, pero con menos urgencia
-      -- el argumento de research.md #1 sobre `soundfile` no exige
-      mantener el mapeo de subtypes que Slakh2100 nunca usa, y simplificar
-      ahora no impide reintroducir la generalidad completa cuando el
-      spec de hito 2 la pida con requisitos concretos en mano. Ninguna de
-      las dos simplificaciones se ejecutó en esta sesión -- queda para
-      cuando se confirme la decisión.
+      Posición A, pero sin la urgencia que tenía `audio_dir`/`stems` --
+      el argumento de research.md #1 sobre `soundfile` no exige mantener
+      el mapeo de subtypes que Slakh2100 nunca usa, y simplificar ahora
+      no impide reintroducir la generalidad completa cuando el spec de
+      hito 2 la pida con requisitos concretos en mano.
+
+      **Criterio de cierre**: esta decisión se cierra cuando el `/plan`
+      de la feature de separación (hito 2) especifique qué formatos
+      exige leer de GuitarSet/EGFxSet (¿mono o estéreo?, ¿qué subtypes
+      reales traen sus archivos?) y qué formato traen las grabaciones
+      propias usadas en la verificación cualitativa (Principio VI) --
+      no antes, y no por inferencia/suposición en esta feature. Si esos
+      formatos resultan ser PCM_16/mono como Slakh2100, se simplifica
+      igual que `audio_dir`/`stems`; si no, la generalidad se mantiene y
+      se le agrega la cobertura real que le falta (un fixture con un
+      subtype/canal efectivamente usado por esos datasets, no uno
+      inventado para subir el score).
 - [ ] T024 Ejecutar la validación manual de `quickstart.md` contra una copia local real de Slakh2100 (fuera de CI) y confirmar que el resultado coincide con lo esperado.
 
 ---

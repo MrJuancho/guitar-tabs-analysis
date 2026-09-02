@@ -218,13 +218,13 @@ def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
     metadata = _leer_metadata(tema_dir)
     mezcla = _decodificar_o_fallar(tema_dir / "mix.flac", tema_dir, tema_id)
 
-    stems_dir = tema_dir / metadata.get("audio_dir", "stems")
+    stems_dir = tema_dir / "stems"
     guitarras = [
         PistaGuitarra(
             identificador_origen=identificador,
             audio=_decodificar_o_fallar(stems_dir / f"{identificador}.flac", tema_dir, tema_id),
         )
-        for identificador, stem_meta in metadata.get("stems", {}).items()
+        for identificador, stem_meta in metadata["stems"].items()
         if stem_meta.get("inst_class") == "Guitar" and stem_meta.get("audio_rendered") is True
     ]
     for guitarra in guitarras:
