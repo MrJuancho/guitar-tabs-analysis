@@ -152,3 +152,30 @@ def _decodificar_audio(path: Path) -> PistaAudio:
     dtype = _SUBTYPE_A_DTYPE.get(info.subtype, "float64")
     muestras, frecuencia_muestreo = sf.read(str(path), dtype=dtype, always_2d=False)
     return PistaAudio(muestras=muestras, frecuencia_muestreo=frecuencia_muestreo)
+
+
+# ---------------------------------------------------------------------
+# leer_tema (T013) -- camino feliz de User Story 1. Todavía sin filtrar
+# por `inst_class`/`audio_rendered`: ese filtro lo añaden T009/T010 en
+# slices separados, cada uno con su propio test rojo primero.
+# ---------------------------------------------------------------------
+
+
+def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
+    """Lee la mezcla y las pistas de guitarra del tema `tema_id` bajo
+    `root_dir` (contracts/leer_tema.md). Camino feliz únicamente en este
+    slice -- sin `TemaNoExisteError`/`ArchivoAudioNoLegibleError`/
+    `LongitudInconsistenteError` todavía (T019-T021, fuera de alcance)."""
+    tema_dir = root_dir / tema_id
+    metadata = _leer_metadata(tema_dir)
+    mezcla = _decodificar_audio(tema_dir / "mix.flac")
+
+    stems_dir = tema_dir / metadata.get("audio_dir", "stems")
+    guitarras = [
+        PistaGuitarra(
+            identificador_origen=identificador,
+            audio=_decodificar_audio(stems_dir / f"{identificador}.flac"),
+        )
+        for identificador in metadata.get("stems", {})
+    ]
+    return LecturaTema(tema_id=tema_id, mezcla=mezcla, guitarras=guitarras)
