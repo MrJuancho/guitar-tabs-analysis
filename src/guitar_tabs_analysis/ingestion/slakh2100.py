@@ -1,14 +1,16 @@
 """Lectura de un tema de Slakh2100 (capa `ingestion`, nivel más bajo del
 contrato de import-linter): dado el identificador de un tema y la raíz
-local del dataset, `leer_tema()` (T013, todavía no implementada en este
-slice) devolverá el audio de la mezcla y la colección de audios de sus
-pistas de guitarra.
+local del dataset, `leer_tema()` devuelve el audio de la mezcla y la
+colección de audios de sus pistas de guitarra.
 
-Este módulo, en su estado actual (T003/T005/T006 de
-`specs/001-lectura-tema-slakh2100/tasks.md`), solo trae los tipos de
-dominio inmutables, las excepciones del contrato, y los dos helpers de
-E/S de bajo nivel (`_leer_metadata`, `_decodificar_audio`) -- sin
-`leer_tema()` en sí, que es la Fase 3 en adelante de `tasks.md`.
+Este módulo, en su estado actual (T003, T005-T013 de
+`specs/001-lectura-tema-slakh2100/tasks.md`), cubre el camino feliz
+completo de User Story 1 (P1/MVP): tipos de dominio inmutables,
+excepciones del contrato, los dos helpers de E/S de bajo nivel
+(`_leer_metadata`, `_decodificar_audio`) y `leer_tema()` en sí --
+todavía sin los modos de fallo de User Story 3 (`TemaNoExisteError`/
+`ArchivoAudioNoLegibleError`/`LongitudInconsistenteError` no se lanzan
+todavía desde `leer_tema()`; eso es T019-T021, fuera de este slice).
 
 Ver `specs/001-lectura-tema-slakh2100/data-model.md` y
 `specs/001-lectura-tema-slakh2100/contracts/leer_tema.md` para el
@@ -121,7 +123,7 @@ class LongitudInconsistenteError(Exception):
 
 
 # ---------------------------------------------------------------------
-# Helpers de E/S de bajo nivel (T005/T006) -- sin `leer_tema()` todavía.
+# Helpers de E/S de bajo nivel (T005/T006).
 # ---------------------------------------------------------------------
 
 
@@ -155,17 +157,25 @@ def _decodificar_audio(path: Path) -> PistaAudio:
 
 
 # ---------------------------------------------------------------------
-# leer_tema (T013) -- camino feliz de User Story 1. Todavía sin filtrar
-# por `inst_class`/`audio_rendered`: ese filtro lo añaden T009/T010 en
-# slices separados, cada uno con su propio test rojo primero.
+# leer_tema (T013) -- camino feliz de User Story 1.
 # ---------------------------------------------------------------------
 
 
 def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
     """Lee la mezcla y las pistas de guitarra del tema `tema_id` bajo
-    `root_dir` (contracts/leer_tema.md). Camino feliz únicamente en este
-    slice -- sin `TemaNoExisteError`/`ArchivoAudioNoLegibleError`/
-    `LongitudInconsistenteError` todavía (T019-T021, fuera de alcance)."""
+    `root_dir` (contracts/leer_tema.md).
+
+    Una pista cuenta para `guitarras` si y solo si `inst_class == "Guitar"`
+    (FR-003; excluye bajo eléctrico y otras familias vía FR-004) **y**
+    `audio_rendered is True` (FR-013: un stem de guitarra sin renderizar
+    se excluye en silencio, no dispara ninguna excepción). El orden de
+    `guitarras` sigue el orden de `metadata["stems"]` tal como lo entrega
+    PyYAML -- determinista para un mismo `metadata.yaml` (spec.md
+    Assumptions), sin garantía adicional más allá de eso.
+
+    Camino feliz únicamente en este slice -- sin `TemaNoExisteError`/
+    `ArchivoAudioNoLegibleError`/`LongitudInconsistenteError` todavía
+    (T019-T021, User Story 3, fuera de alcance de este slice)."""
     tema_dir = root_dir / tema_id
     metadata = _leer_metadata(tema_dir)
     mezcla = _decodificar_audio(tema_dir / "mix.flac")

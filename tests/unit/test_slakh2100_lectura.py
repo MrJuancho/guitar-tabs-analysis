@@ -1,12 +1,14 @@
-"""Tests unitarios para los tipos, excepciones y helpers de E/S del
-módulo `ingestion.slakh2100` (T003, T005, T006 de
+"""Tests unitarios para los tipos, excepciones, helpers de E/S y
+`leer_tema()` del módulo `ingestion.slakh2100` (T003, T005, T006, T010 de
 `specs/001-lectura-tema-slakh2100/tasks.md`).
 
-No prueba `leer_tema()` en sí -- esa función (y sus tests de
-clasificación guitarra/bajo, colección vacía, discrepancia de longitud)
-es la Fase 3-5 (T007 en adelante) de `tasks.md`, fuera del alcance de
-este archivo por ahora. Este archivo lo seguirán llenando T010/T015 en
-sesiones futuras.
+Los tests de integración end-to-end de `leer_tema()` (varias guitarras,
+exclusión de bajo eléctrico) viven en
+`tests/integration/test_slakh2100_lectura_integracion.py` -- este archivo
+cubre unidades aisladas más el caso unitario de exclusión silenciosa de
+FR-013 (T010). Los modos de fallo de User Story 3 (T015 en adelante:
+`TemaNoExisteError`/`ArchivoAudioNoLegibleError`/
+`LongitudInconsistenteError`) quedan fuera de este slice.
 """
 
 from __future__ import annotations
