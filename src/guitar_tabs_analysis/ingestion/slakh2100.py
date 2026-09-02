@@ -173,10 +173,11 @@ def leer_tema(tema_id: str, root_dir: Path) -> LecturaTema:
     PyYAML -- determinista para un mismo `metadata.yaml` (spec.md
     Assumptions), sin garantía adicional más allá de eso.
 
-    Camino feliz únicamente en este slice -- sin `TemaNoExisteError`/
-    `ArchivoAudioNoLegibleError`/`LongitudInconsistenteError` todavía
-    (T019-T021, User Story 3, fuera de alcance de este slice)."""
+    Lanza `TemaNoExisteError` (FR-010) si `root_dir/tema_id` no existe
+    como directorio -- verificado antes de leer nada más."""
     tema_dir = root_dir / tema_id
+    if not tema_dir.is_dir():
+        raise TemaNoExisteError(tema_id)
     metadata = _leer_metadata(tema_dir)
     mezcla = _decodificar_audio(tema_dir / "mix.flac")
 
