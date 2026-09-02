@@ -22,7 +22,20 @@ from pathlib import Path
 from typing import Any
 
 import numpy.typing as npt
+import soundfile as sf
 import yaml
+
+# Mapeo subtype de libsndfile -> dtype de numpy que lo representa sin
+# reescalado (research.md #1) -- el `float64` que da `soundfile` por
+# defecto SÍ reescala los enteros a [-1.0, 1.0], lo que FR-005 prohíbe.
+_SUBTYPE_A_DTYPE: dict[str, str] = {
+    "PCM_16": "int16",
+    "PCM_24": "int32",
+    "PCM_32": "int32",
+    "PCM_U8": "uint8",
+    "FLOAT": "float32",
+    "DOUBLE": "float64",
+}
 
 # ---------------------------------------------------------------------
 # Tipos de dominio (T003) -- todos inmutables: son el resultado de una
@@ -123,3 +136,19 @@ def _leer_metadata(tema_dir: Path) -> dict[str, Any]:
     with (tema_dir / "metadata.yaml").open(encoding="utf-8") as archivo:
         metadata: dict[str, Any] = yaml.safe_load(archivo)
     return metadata
+
+
+def _decodificar_audio(path: Path) -> PistaAudio:
+    """Decodifica `path` con `soundfile`, leyendo con el `dtype` que
+    coincide con el `subtype` real del archivo (research.md #1) -- nunca
+    el `float64` reescalado que da `soundfile` por defecto.
+
+    Deja propagar sin traducir cualquier error de `soundfile`/E/S (p. ej.
+    `soundfile.LibsndfileError` ante un archivo ausente o corrupto) --
+    convertirlo en `ArchivoAudioNoLegibleError` es responsabilidad de
+    `leer_tema()` (T020, fuera de este slice).
+    """
+    info = sf.info(str(path))
+    dtype = _SUBTYPE_A_DTYPE.get(info.subtype, "float64")
+    muestras, frecuencia_muestreo = sf.read(str(path), dtype=dtype, always_2d=False)
+    return PistaAudio(muestras=muestras, frecuencia_muestreo=frecuencia_muestreo)
