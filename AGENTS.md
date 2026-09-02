@@ -164,6 +164,26 @@ confirmados en el proyecto de referencia: `unit="D"` vs `unit="d"` en
 pandas (mismo alias), `.encode("utf-8")` vs `.encode("UTF-8")` (Python
 normaliza el nombre del códec).
 
+### Tests de excepciones: afirma el mensaje completo, no solo que los identificadores aparezcan
+
+Un test que solo comprueba `assert "Track00001" in str(error)` deja pasar
+cualquier mutación del texto explicativo del mensaje -- el identificador
+sigue ahí, pero "longitud distinta a la de la mezcla" puede convertirse en
+cualquier otra cosa sin que el test lo note. Validado en
+`guitar-tabs-analysis` con tres excepciones del mismo módulo
+(`TemaNoExisteError`, `ArchivoAudioNoLegibleError`,
+`LongitudInconsistenteError`) que compartían exactamente esta forma débil
+-- mutation testing solo destapó mutantes sobrevivientes en una de las
+tres en una corrida dada, pero las otras dos tenían el mismo hueco sin
+ejercitar; no era un mutante aislado, era un patrón en toda la superficie
+de errores del módulo.
+
+Regla: un test de una excepción con mensaje afirma el mensaje completo
+(`assert str(error) == "..."` o equivalente), no solo que los valores
+interpolados aparezcan como substring. Si el mensaje cambia por una razón
+legítima, el test se actualiza junto con él -- ese costo es menor que el
+de un mensaje roto que ningún test detecta.
+
 ## Roles de agente: un escritor, verificadores con contexto limpio
 
 **No es un enjambre de escritores en paralelo -- eso falla.** La evidencia

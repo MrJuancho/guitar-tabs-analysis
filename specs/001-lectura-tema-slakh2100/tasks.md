@@ -120,7 +120,34 @@ Sin tareas de implementación adicionales: el filtro de `leer_tema` construido e
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 - [ ] T022 [P] Correr `just gauntlet` (ruff format --check + lint-imports + mypy --strict + tests/unit+integration+property con cobertura ≥90%) y corregir cualquier hallazgo.
-- [ ] T023 [P] Correr `just mutation guitar_tabs_analysis.ingestion.slakh2100` sobre el módulo nuevo y resolver mutantes sobrevivientes (AGENTS.md; constitución Principio X).
+- [ ] T023 [P] Correr `just mutation ingestion.slakh2100` (el `module` de la
+      recipe ya antepone `guitar_tabs_analysis.` -- pasarlo completo
+      duplica el prefijo y falla) sobre el módulo y resolver mutantes
+      sobrevivientes (AGENTS.md; constitución Principio X).
+
+      **Triage ya hecho sobre T007-T013** (sesión 2026-09-01, 19
+      sobrevivientes de esa corrida — la corrida de T023 puede dar un
+      número distinto si el módulo cambió desde entonces, pero la
+      categorización sigue aplicando):
+      - 1 equivalente confirmado (`_leer_metadata`, `encoding="UTF-8"` vs
+        `"utf-8"` -- mismo patrón que `.encode("UTF-8")` ya documentado en
+        AGENTS.md). Anotar con `# pragma: no mutate`.
+      - 2 eran defecto de aserción real, ya corregido fuera de este slice
+        (mensajes de excepción sin afirmar completos -- ver AGENTS.md
+        "Tests de excepciones: afirma el mensaje completo").
+      - 16 son generalidad no ejercitada por Slakh2100 (mono, 16-bit
+        siempre -- research.md): fallback `metadata.get("audio_dir",
+        "stems")`/`.get("stems", {})`, fallback `"float64"` para subtype
+        no mapeado, y `always_2d`. **No cerrarlos escribiendo tests para
+        casos que Slakh no puede producir** -- eso es fabricar evidencia
+        de mutation score (AGENTS.md, "Mutation score: 90%, nunca 100%").
+        La opción real es simplificar (borrar la generalidad no
+        ejercitada). Antes de decidir: **¿este lector es específico de
+        Slakh2100, o es el lector de audio del proyecto en general?** El
+        hito 2 usa GuitarSet/EGFxSet y la verificación cualitativa usa
+        música propia -- si alguno de esos formatos no es mono/16-bit,
+        simplificar ahora borra generalidad que hará falta después. Decidir
+        viendo qué formatos exige el separador (hito 2), no antes.
 - [ ] T024 Ejecutar la validación manual de `quickstart.md` contra una copia local real de Slakh2100 (fuera de CI) y confirmar que el resultado coincide con lo esperado.
 
 ---
