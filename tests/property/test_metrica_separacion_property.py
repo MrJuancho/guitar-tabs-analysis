@@ -90,7 +90,7 @@ def test_invariantes_estructurales_de_emparejar_tema(
         for identificador, muestras in estimaciones_raw
     }
 
-    reporte = emparejar_tema(referencias, estimaciones)
+    reporte = emparejar_tema("TrackProp", referencias, estimaciones)
 
     # Ninguna referencia se omite del reporte (FR-005, SC-002).
     assert len(reporte.emparejadas) + len(reporte.sin_pareja) == len(referencias)

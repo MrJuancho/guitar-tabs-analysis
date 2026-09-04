@@ -27,8 +27,9 @@ def test_una_referencia_una_estimacion_que_la_aproxima() -> None:
     referencia = referencia_sintetica(identificador_origen="S01", muestras=onda)
     estimacion = estimacion_sintetica(identificador="sep_S01", muestras=onda + ruido)
 
-    reporte = emparejar_tema([referencia], [estimacion])
+    reporte = emparejar_tema("Track00001", [referencia], [estimacion])
 
+    assert reporte.tema_id == "Track00001"
     assert reporte.num_referencias == 1
     assert reporte.num_estimaciones_recibidas == 1
     assert reporte.sin_pareja == []
@@ -51,7 +52,7 @@ def test_varias_referencias_cada_una_emparejada_con_una_estimacion_distinta() ->
             estimacion_sintetica(identificador=f"sep_{identificador}", muestras=onda + ruido)
         )
 
-    reporte = emparejar_tema(referencias, estimaciones)
+    reporte = emparejar_tema("Track00001", referencias, estimaciones)
 
     assert reporte.sin_pareja == []
     assert len(reporte.emparejadas) == 3
@@ -79,7 +80,7 @@ def test_mas_referencias_que_estimaciones_las_sobrantes_sin_pareja() -> None:
         identificador="sep_S01", muestras=onda_senoidal(n_muestras=1000, frecuencia_onda=220.0)
     )
 
-    reporte = emparejar_tema(referencias, [estimacion])
+    reporte = emparejar_tema("Track00001", referencias, [estimacion])
 
     assert reporte.num_referencias == 3
     assert reporte.num_estimaciones_recibidas == 1
@@ -99,7 +100,7 @@ def test_cero_estimaciones_todas_las_referencias_sin_pareja() -> None:
         for i in range(1, 3)
     ]
 
-    reporte = emparejar_tema(referencias, [])
+    reporte = emparejar_tema("Track00001", referencias, [])
 
     assert reporte.num_estimaciones_recibidas == 0
     assert reporte.emparejadas == []
@@ -117,7 +118,7 @@ def test_verificacion_respuesta_conocida_referencia_como_su_propia_estimacion() 
         referencias.append(referencia_sintetica(identificador_origen=f"S0{i}", muestras=onda))
         estimaciones.append(estimacion_sintetica(identificador=f"sep_S0{i}", muestras=onda.copy()))
 
-    reporte = emparejar_tema(referencias, estimaciones)
+    reporte = emparejar_tema("Track00001", referencias, estimaciones)
 
     assert reporte.sin_pareja == []
     assert len(reporte.emparejadas) == 3
@@ -134,7 +135,7 @@ def test_referencia_de_energia_nula_entre_otras_con_energia() -> None:
     referencia_normal = referencia_sintetica(identificador_origen="S_normal", muestras=onda)
     estimacion = estimacion_sintetica(identificador="sep_S_normal", muestras=onda.copy())
 
-    reporte = emparejar_tema([referencia_silenciosa, referencia_normal], [estimacion])
+    reporte = emparejar_tema("Track00001", [referencia_silenciosa, referencia_normal], [estimacion])
 
     assert len(reporte.sin_pareja) == 1
     assert reporte.sin_pareja[0].identificador_referencia == "S_silenciosa"
@@ -157,7 +158,7 @@ def test_estimacion_asignada_silenciosa_se_reporta_sin_pareja_no_emparejada() ->
         identificador="sep_S01_silencio", muestras=silencio(800)
     )
 
-    reporte = emparejar_tema([referencia], [estimacion_silenciosa])
+    reporte = emparejar_tema("Track00001", [referencia], [estimacion_silenciosa])
 
     assert reporte.emparejadas == []
     assert len(reporte.sin_pareja) == 1

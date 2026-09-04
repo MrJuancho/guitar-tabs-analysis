@@ -81,6 +81,7 @@ no necesita filtrarla antes de construir la matriz de costos.
 
 ```python
 def emparejar_tema(
+    tema_id: str,
     referencias: list[PistaGuitarra],
     estimaciones: list[Estimacion],
 ) -> ReporteTema:
@@ -89,7 +90,14 @@ def emparejar_tema(
 
 Implementa User Story 1 completa: calcula SI-SDR entre cada referencia y
 cada estimación candidata, resuelve la asignación óptima uno a uno
-(research.md #2), y produce el reporte de un tema individual.
+(research.md #2), y produce el reporte de un tema individual. `tema_id`
+es un parámetro explícito (hallazgo 2026-09-04, corregido antes de
+implementar T017: una versión anterior de este contrato lo llamaba
+"parámetro implícito" sin declararlo en la firma — mismo patrón de
+brecha que ya se corrigió una vez para `si_sdr()`, ver research.md #7) —
+no se infiere de nada, solo se usa para poblar `ReporteTema.tema_id` y
+para identificar el tema en cualquier `EstimacionIncompatibleError` que
+se propague.
 
 ### Precondiciones
 
@@ -98,9 +106,9 @@ cada estimación candidata, resuelve la asignación óptima uno a uno
   Edge Cases de `spec.md`).
 - Cada par `(referencia, estimacion)` que participa en el cálculo cumple
   las precondiciones de `si_sdr` — si no, `EstimacionIncompatibleError`
-  se propaga con el `tema_id` (parámetro implícito: el llamador debe usar
-  el mismo `tema_id` que usará al construir `ReporteTema.tema_id`, ver
-  nota bajo la tabla de fallos).
+  se propaga tal como la lanza `si_sdr()` (con los identificadores de la
+  referencia y la estimación, no con `tema_id` — ver nota bajo la tabla
+  de fallos).
 
 ### Postcondiciones (éxito)
 
@@ -180,8 +188,10 @@ Para cualquier invocación que no falle:
    con prioridad sobre la condición 1 si ambas aplican (research.md #10).
 3. `resultado.num_temas_evaluados == len(entradas) - len(resultado.exclusiones)`.
 4. `resultado.reportes_por_tema` contiene exactamente un `ReporteTema` por
-   cada `EntradaConjunto` no excluida, producido por `emparejar_tema`
-   sobre sus `referencias`/`estimaciones`.
+   cada `EntradaConjunto` no excluida, producido por
+   `emparejar_tema(entrada.tema_id, entrada.referencias, entrada.estimaciones)`
+   — el `tema_id` del reporte es el mismo de la `EntradaConjunto`, nunca
+   uno derivado o distinto.
 5. `resultado.mediana` es la mediana de todos los valores por referencia
    de `resultado.reportes_por_tema` — `si_sdr` de cada `emparejada`, y
    `-inf` por cada `sin_pareja` (FR-008) — agrupados en un solo conjunto,
