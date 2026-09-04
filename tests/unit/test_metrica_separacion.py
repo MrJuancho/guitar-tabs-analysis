@@ -269,3 +269,18 @@ def test_si_sdr_con_distinta_frecuencia_de_muestreo_levanta_estimacion_incompati
         si_sdr(referencia, estimacion)
     assert exc_info.value.identificador_referencia == "S07"
     assert exc_info.value.identificador_estimacion == "sep_S07"
+
+
+def test_si_sdr_con_referencia_y_estimacion_ambas_de_energia_nula_gana_referencia() -> None:
+    # Caso ambos-cero: la prioridad (gana ReferenciaEnergiaNulaError, no
+    # el -inf por convención) ya era el comportamiento correcto por el
+    # orden de los `if` -- este test cierra la brecha de cobertura sobre
+    # ese comportamiento y lo deja explícito, no corrige un defecto
+    # (AGENTS.md: la regla de test-rojo-primero no aplica al cerrar
+    # cobertura sobre código ya correcto). research.md #5.
+    referencia = referencia_sintetica(identificador_origen="S08", muestras=silencio(200))
+    estimacion = estimacion_sintetica(identificador="sep_S08", muestras=silencio(200))
+
+    with pytest.raises(ReferenciaEnergiaNulaError) as exc_info:
+        si_sdr(referencia, estimacion)
+    assert exc_info.value.identificador_referencia == "S08"

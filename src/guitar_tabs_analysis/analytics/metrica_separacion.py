@@ -196,11 +196,23 @@ def si_sdr(referencia: PistaGuitarra, estimacion: Estimacion) -> float:
     s = audio_referencia.muestras.astype(np.float64)
     shat = audio_estimacion.muestras.astype(np.float64)
 
+    # Ambas energías se calculan ANTES de ramificar -- no por eficiencia,
+    # sino para que la prioridad de abajo sea una decisión visible, no un
+    # accidente del orden de los `if` (research.md #5, "Caso ambos-cero").
     energia_referencia = float(np.dot(s, s))
+    energia_estimacion = float(np.dot(shat, shat))
+
+    # Caso ambos-cero (referencia Y estimación con energía nula a la vez):
+    # gana ReferenciaEnergiaNulaError, nunca el -inf por convención de la
+    # estimación. Decisión explícita, no casualidad de que este chequeo
+    # esté escrito primero: la energía nula de la referencia es la falla
+    # más fundamental -- sin ella no hay ninguna proyección que formar,
+    # independientemente de qué tan mala sea la estimación. La convención
+    # -inf presupone una proyección bien definida sobre la que medir el
+    # residuo; si la referencia también es silencio, esa premisa no se
+    # cumple.
     if energia_referencia == 0.0:
         raise ReferenciaEnergiaNulaError(identificador_referencia=referencia.identificador_origen)
-
-    energia_estimacion = float(np.dot(shat, shat))
     if energia_estimacion == 0.0:
         return float("-inf")
 
@@ -208,6 +220,16 @@ def si_sdr(referencia: PistaGuitarra, estimacion: Estimacion) -> float:
     s_target = alpha * s
     e_noise = shat - s_target
 
+    # La división final se mantiene en espacio NumPy a propósito -- NO
+    # `float(...) / float(...)`. Esta es una dependencia no obvia que un
+    # refactor futuro rompería sin querer: castear ambos operandos a
+    # `float` de Python ANTES de dividir cambia la semántica de la
+    # división de "produce inf/nan silenciosamente" (IEEE754, lo que
+    # este resultado necesita -- research.md #5) a "lanza
+    # ZeroDivisionError" (aritmética de Python puro) en cuanto el
+    # denominador es exactamente cero -- exactamente el caso +inf de la
+    # verificación de respuesta conocida (FR-011). Descubierto en rojo
+    # la primera vez que corrió este test, no asumido.
     with np.errstate(divide="ignore", invalid="ignore"):
         cociente = np.dot(s_target, s_target) / np.dot(e_noise, e_noise)
         valor = 10.0 * np.log10(cociente)
