@@ -14,27 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-T023 (mutation testing, `ingestion.slakh2100`) avanzó en dos pasadas:
-pragma de equivalentes (17→15 sobrevivientes) y, esta sesión,
-simplificación del grupo `audio_dir`/`stems` (15→6). `leer_tema` ya no
-lee `metadata.get("audio_dir", "stems")` ni `.get("stems", {})` --
-`"stems"` es ruta fija y `metadata["stems"]` propaga `KeyError` nativo
-si falta (archivo corrupto, no un default silencioso). `just gauntlet`
-verde sin tocar ningún test (48 tests) -- confirma que esa generalidad
-no estaba ejercitada. `contracts/leer_tema.md`/`data-model.md` no
-necesitaron cambios: ninguno documentaba esa generalidad.
+T024 completada: validación manual de `quickstart.md` contra una copia
+local real de Slakh2100 (fuera de CI), revisada a mano -- sin hallazgos,
+el resultado coincide con lo esperado. Con T024 cerrada, la **feature
+001 (lectura de un tema de Slakh2100) termina aquí**: US1/US2/US3
+implementadas y probadas, mutation testing de T023 triageado.
 
 ## Qué sigue
 
-`tasks.md` T024: validación manual de `quickstart.md` contra una copia
-local real de Slakh2100 (fuera de CI). T022 viene en verde como efecto
-colateral de T023, pero no se marcó -- fuera del alcance pedido.
+Nada pendiente de esta feature para arrancar de cero. Antes de tocar
+`ingestion/slakh2100.py` de nuevo, revisar dos items que quedaron
+abiertos a propósito (no bloquean el cierre de 001, ver tasks.md):
+
+- T022 (`just gauntlet`) no se marcó explícitamente aunque corre en
+  verde como efecto colateral de T023 -- confirmar antes de reusar.
+- Próxima feature: hito 2 (separación de guitarra), spec/plan sin
+  iniciar.
 
 ## Bloqueado / pendiente de decisión
 
-Sin ejecutar, fuera de esta sesión: los 4 sobrevivientes de
-`_SUBTYPE_A_DTYPE.get(info.subtype, "float64")` en `_decodificar_audio`.
-Criterio de cierre en tasks.md#T023: depende de qué formatos exija el
-`/plan` de hito 2 (GuitarSet/EGFxSet, grabaciones propias) -- si son
-PCM_16/mono, se simplifica igual que `audio_dir`/`stems`; si no, se
-cubre con un fixture del subtype real, no uno inventado.
+`_SUBTYPE_A_DTYPE.get(info.subtype, "float64")` en `_decodificar_audio`
+(4 sobrevivientes de mutation testing, tasks.md#T023): decisión sobre
+si el módulo es lector de Slakh2100 o lector general del proyecto
+queda abierta hasta que el `/plan` de hito 2 (GuitarSet/EGFxSet,
+grabaciones propias) fije qué formatos/subtypes exige leer.

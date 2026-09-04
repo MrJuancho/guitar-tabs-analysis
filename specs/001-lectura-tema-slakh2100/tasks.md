@@ -309,7 +309,7 @@ Sin tareas de implementación adicionales: el filtro de `leer_tema` construido e
       se le agrega la cobertura real que le falta (un fixture con un
       subtype/canal efectivamente usado por esos datasets, no uno
       inventado para subir el score).
-- [ ] T024 Ejecutar la validación manual de `quickstart.md` contra una copia local real de Slakh2100 (fuera de CI) y confirmar que el resultado coincide con lo esperado.
+- [X] T024 Ejecutar la validación manual de `quickstart.md` contra una copia local real de Slakh2100 (fuera de CI) y confirmar que el resultado coincide con lo esperado. Validación manual completa, sin hallazgos.
 
 ---
 
