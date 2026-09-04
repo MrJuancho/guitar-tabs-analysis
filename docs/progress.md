@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 002 (métrica SI-SDR): **feature completa hasta Polish** (T001-T025,
-US1+US2). `/speckit-analyze` encontró 3 hallazgos, los tres cerrados:
-Principio X de la constitución (v1.3.0) aclarado a la práctica real del
-proyecto (una tarea es un cambio cohesivo, no una función de test);
-FR-007 corregido a los tres motivos de `sin_pareja`; SC-007 cerrado sin
-tarea (restricción de alcance, cubierta por tipos). Implementado
-T018-T025: `agregar_conjunto()` con exclusiones, mediana
-ponderada por referencia, distribución. `just gauntlet` en verde (89
-tests, 100% cobertura). Hallazgo matemático real antes de T024: SC-004
-afirmaba que incluir CUALQUIER tema con alguna referencia sin pareja
-nunca empeora la mediana -- falso, contraejemplo verificado (1 mala + 3
-excelentes puede subirla). Acotado a "tema completamente sin emparejar"
-(única versión demostrable), research.md #12.
+Feature 002 (métrica SI-SDR): **T026 y T027 cerrados** (Fase 5, Polish).
+`just gauntlet` en verde (93 tests, 99.26% cobertura). T027 encontró,
+antes de poder correr mutation testing siquiera, un defecto real: el
+clean-run de `mutmut` hizo que Hypothesis diera con un contraejemplo
+donde `agregar_conjunto` devolvía NaN (`statistics.median` promediando
++∞ y −∞, `inf + -inf` en IEEE754) — corregido con test-rojo-primero y
+una `_mediana_orden()` nueva. Con la línea base sana, mutation testing
+sobre `metrica_separacion.py` corrió 246 mutantes, 24 sobrevivientes;
+triage completo en `tasks.md` ("Triage T027"): brechas reales
+corregidas (aserciones débiles, justo donde se esperaba -- las dos
+ramas de `sin_estimacion_disponible` no comprobaban a qué referencia
+pertenecía cada `sin_pareja`, más otras 4) y 6 equivalentes
+documentados con `# pragma: no mutate` o comentario. Cierre: 226/228
+mutantes matados (99.1%).
 
 ## Qué sigue
 
-Fase 5, Polish (T026-T028): falta `just mutation analytics.metrica_separacion`
-y validación manual de `quickstart.md`. Con eso, feature 002 cierra.
+Solo falta T028 (validación manual end-to-end de `quickstart.md`).
 
 ## Bloqueado / pendiente de decisión
 
