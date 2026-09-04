@@ -14,7 +14,7 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 002 (métrica SI-SDR): **T026 y T027 cerrados** (Fase 5, Polish).
+**Feature 002 (métrica SI-SDR) completa: T001-T028, las 5 fases.**
 `just gauntlet` en verde (93 tests, 99.26% cobertura). T027 encontró,
 antes de poder correr mutation testing siquiera, un defecto real: el
 clean-run de `mutmut` hizo que Hypothesis diera con un contraejemplo
@@ -25,16 +25,16 @@ sobre `metrica_separacion.py` corrió 246 mutantes, 24 sobrevivientes;
 triage completo en `tasks.md` ("Triage T027"): brechas reales
 corregidas (aserciones débiles, justo donde se esperaba -- las dos
 ramas de `sin_estimacion_disponible` no comprobaban a qué referencia
-pertenecía cada `sin_pareja`, más otras 4) y 6 equivalentes
-documentados con `# pragma: no mutate` o comentario. Cierre: 226/228
-mutantes matados (99.1%).
+pertenecía cada `sin_pareja`, más otras 4) y 6 equivalentes con
+`# pragma: no mutate` o comentario. Cierre: 226/228 matados (99.1%).
+T028: `quickstart.md` nunca había corrido -- le faltaba `tema_id` a
+`emparejar_tema(...)`, corregido.
 
 ## Qué sigue
 
-Solo falta T028 (validación manual end-to-end de `quickstart.md`).
+Feature 002 cerrada. Sin tarea asignada todavía.
 
 ## Bloqueado / pendiente de decisión
 
-Nada bloqueado en feature 002. Sigue abierto de feature 001 (no tocado
-esta sesión): `_SUBTYPE_A_DTYPE.get(..., "float64")` en
+Sigue abierto de feature 001: `_SUBTYPE_A_DTYPE.get(..., "float64")` en
 `_decodificar_audio` -- decisión diferida al `/plan` de hito 2.

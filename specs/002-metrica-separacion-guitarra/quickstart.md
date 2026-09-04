@@ -94,7 +94,7 @@ onda = (np.sin(2 * np.pi * 220 * t) * 1000).astype(np.int16)
 referencia = PistaGuitarra('S01', PistaAudio(onda, sr))
 estimacion_perfecta = Estimacion('sep_S01', PistaAudio(onda, sr))
 
-reporte = emparejar_tema([referencia], [estimacion_perfecta])
+reporte = emparejar_tema('Track00001', [referencia], [estimacion_perfecta])
 print('SI-SDR (referencia == estimación):', reporte.emparejadas[0].si_sdr)  # inf
 
 resultado = agregar_conjunto([
