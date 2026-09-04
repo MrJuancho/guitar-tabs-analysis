@@ -74,6 +74,38 @@ def test_varias_referencias_cada_una_emparejada_con_una_estimacion_distinta() ->
         assert emparejada.identificador_estimacion == f"sep_{sufijo}"
 
 
+def test_asignacion_optima_cruzada_no_es_una_asignacion_por_indice() -> None:
+    """T027, mutation testing: saturar la matriz de costos a una
+    constante (rompiendo `-_SENTINEL_COSTO` a `+_SENTINEL_COSTO`)
+    sobrevivía porque los demás tests de este archivo construyen
+    referencias/estimaciones en el mismo orden que su mejor pareja --
+    una asignación por índice (fila i -> columna i, sin optimizar nada)
+    da el mismo resultado que la asignación óptima real, así que no la
+    distingue. Aquí la pareja correcta de cada referencia está en el
+    índice CONTRARIO al suyo: solo una optimización genuina sobre la
+    matriz de costos llega al resultado esperado."""
+    onda_a = onda_senoidal(n_muestras=1000, frecuencia_onda=220.0)
+    onda_b = onda_senoidal(n_muestras=1000, frecuencia_onda=440.0)
+    referencia_a = referencia_sintetica(identificador_origen="A", muestras=onda_a)
+    referencia_b = referencia_sintetica(identificador_origen="B", muestras=onda_b)
+    # Orden deliberadamente cruzado: la estimación en el índice 0 es la
+    # copia exacta de B (no de A), y la del índice 1 es la copia exacta
+    # de A -- la pareja de cada referencia está en el índice opuesto.
+    estimacion_x = estimacion_sintetica(identificador="X", muestras=onda_b.copy())
+    estimacion_y = estimacion_sintetica(identificador="Y", muestras=onda_a.copy())
+
+    reporte = emparejar_tema(
+        "Track00001", [referencia_a, referencia_b], [estimacion_x, estimacion_y]
+    )
+
+    assert reporte.sin_pareja == []
+    assert len(reporte.emparejadas) == 2
+    parejas = {e.identificador_referencia: e.identificador_estimacion for e in reporte.emparejadas}
+    assert parejas == {"A": "Y", "B": "X"}
+    for emparejada in reporte.emparejadas:
+        assert emparejada.si_sdr == float("inf")
+
+
 def test_mas_referencias_que_estimaciones_las_sobrantes_sin_pareja() -> None:
     """spec.md Acceptance Scenario US1.3, FR-003."""
     referencias = [
@@ -92,7 +124,14 @@ def test_mas_referencias_que_estimaciones_las_sobrantes_sin_pareja() -> None:
     assert reporte.num_referencias == 3
     assert reporte.num_estimaciones_recibidas == 1
     assert len(reporte.emparejadas) == 1
+    # S01 comparte exactamente la onda de la única estimación disponible
+    # (mejor si_sdr por construcción) -- las sobrantes son S02 y S03, no
+    # cualquier par (T027, mutation testing: `identificador_referencia`
+    # mutado a `None` en esta rama sobrevivía porque solo se comprobaba
+    # el conteo y el motivo, nunca A QUIÉN pertenecía cada sin_pareja).
+    assert reporte.emparejadas[0].identificador_referencia == "S01"
     assert len(reporte.sin_pareja) == 2
+    assert {sp.identificador_referencia for sp in reporte.sin_pareja} == {"S02", "S03"}
     for sin_pareja in reporte.sin_pareja:
         assert sin_pareja.motivo == "sin_estimacion_disponible"
 
@@ -112,6 +151,11 @@ def test_cero_estimaciones_todas_las_referencias_sin_pareja() -> None:
     assert reporte.num_estimaciones_recibidas == 0
     assert reporte.emparejadas == []
     assert len(reporte.sin_pareja) == 2
+    # T027, mutation testing: `identificador_referencia` mutado a `None`
+    # en esta rama (cero estimaciones) también sobrevivía por la misma
+    # razón que en el test de arriba -- nunca se comprobaba a qué
+    # referencia pertenecía cada entrada de sin_pareja.
+    assert {sp.identificador_referencia for sp in reporte.sin_pareja} == {"S01", "S02"}
     assert all(sp.motivo == "sin_estimacion_disponible" for sp in reporte.sin_pareja)
 
 
@@ -272,6 +316,15 @@ def test_distribucion_y_mediana_ponderada_por_referencia_no_por_tema() -> None:
 
     resultado = agregar_conjunto(entradas)
 
+    # T027, mutation testing: pasar `None` en vez de `entrada.tema_id` a
+    # `emparejar_tema` sobrevivía -- ningún test comprobaba que el
+    # `tema_id` de cada `ReporteTema` correspondiera de vuelta al tema
+    # que lo produjo cuando hay más de un tema evaluado.
+    assert {reporte.tema_id for reporte in resultado.reportes_por_tema} == {
+        "TrackA",
+        "TrackB",
+        "TrackC",
+    }
     assert resultado.distribucion_referencias_por_tema == {1: 1, 2: 1, 3: 1}
 
     pool_plano = [v1, v2a, v2b, v3a, v3b, v3c]
@@ -284,6 +337,38 @@ def test_distribucion_y_mediana_ponderada_por_referencia_no_por_tema() -> None:
         [statistics.median([v1]), statistics.median([v2a, v2b]), statistics.median([v3a, v3b, v3c])]
     )
     assert resultado.mediana != mediana_por_tema_incorrecta
+
+
+def test_mediana_de_pool_impar_es_el_valor_central_no_un_promedio() -> None:
+    """T027, mutation testing sobre `_mediana_orden`: mutar la condición
+    par/impar (`n % 2 == 1` a `n % 3 == 1` o `n % 2 == 2`) o el índice
+    del valor central (`n // 2` a `n // 3`) sobrevivía porque el único
+    pool de tamaño impar ya probado en este archivo tenía un solo
+    elemento (`n == 1`) -- ahí las tres mutaciones coinciden por
+    accidente aritmético con el comportamiento correcto (ver
+    tasks.md, triage T027). Un pool impar de 5 valores DISTINTOS
+    distingue las tres: la mediana debe ser el tercer valor ordenado,
+    ni un promedio de dos, ni el segundo."""
+    rng = np.random.default_rng(99)
+
+    def par(id_ref: str, id_est: str, ruido_amplitud: float) -> tuple[EntradaConjunto, float]:
+        onda = onda_senoidal(n_muestras=1000, frecuencia_onda=220.0)
+        ruido = rng.standard_normal(1000) * ruido_amplitud
+        referencia = referencia_sintetica(identificador_origen=id_ref, muestras=onda)
+        estimacion = estimacion_sintetica(identificador=id_est, muestras=onda + ruido)
+        valor = si_sdr(referencia, estimacion)
+        entrada = EntradaConjunto(id_ref, [referencia], [estimacion], False)
+        return entrada, valor
+
+    amplitudes = [5, 15, 30, 60, 90]
+    pares = [par(f"R{i}", f"E{i}", amplitud) for i, amplitud in enumerate(amplitudes)]
+    entradas = [entrada for entrada, _ in pares]
+    valores = [valor for _, valor in pares]
+    assert len(set(valores)) == 5  # distintos por construcción -- si no, el test no distingue nada.
+
+    resultado = agregar_conjunto(entradas)
+
+    assert resultado.mediana == sorted(valores)[2]
 
 
 def test_pool_par_con_inf_y_menos_inf_como_valores_centrales_no_produce_nan() -> None:

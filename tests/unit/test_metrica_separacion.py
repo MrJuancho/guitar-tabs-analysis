@@ -251,6 +251,15 @@ def test_si_sdr_con_distinta_longitud_levanta_estimacion_incompatible_error() ->
         si_sdr(referencia, estimacion)
     assert exc_info.value.identificador_referencia == "S06"
     assert exc_info.value.identificador_estimacion == "sep_S06"
+    # Mensaje completo, no solo que los identificadores aparezcan
+    # (AGENTS.md "Tests de excepciones") -- T027, mutation testing
+    # encontró exactamente este hueco: .motivo mutado a None/mayúsculas
+    # sobrevivía porque nada lo comparaba.
+    assert exc_info.value.motivo == "distinta longitud (número de muestras)"
+    assert str(exc_info.value) == (
+        "La estimación 'sep_S06' es incompatible con la referencia 'S06': "
+        "distinta longitud (número de muestras)."
+    )
 
 
 def test_si_sdr_con_distinta_frecuencia_de_muestreo_levanta_estimacion_incompatible_error() -> None:
@@ -269,6 +278,11 @@ def test_si_sdr_con_distinta_frecuencia_de_muestreo_levanta_estimacion_incompati
         si_sdr(referencia, estimacion)
     assert exc_info.value.identificador_referencia == "S07"
     assert exc_info.value.identificador_estimacion == "sep_S07"
+    assert exc_info.value.motivo == "distinta frecuencia de muestreo"
+    assert str(exc_info.value) == (
+        "La estimación 'sep_S07' es incompatible con la referencia 'S07': "
+        "distinta frecuencia de muestreo."
+    )
 
 
 def test_si_sdr_con_referencia_y_estimacion_ambas_de_energia_nula_gana_referencia() -> None:
@@ -284,3 +298,24 @@ def test_si_sdr_con_referencia_y_estimacion_ambas_de_energia_nula_gana_referenci
     with pytest.raises(ReferenciaEnergiaNulaError) as exc_info:
         si_sdr(referencia, estimacion)
     assert exc_info.value.identificador_referencia == "S08"
+
+
+def test_si_sdr_valor_analitico_conocido_confirma_la_constante_10_de_la_formula() -> None:
+    """T027, mutation testing: `10.0 * log10(...)` mutado a `11.0 * ...`
+    sobrevivía -- ningún test comparaba un SI-SDR finito contra un valor
+    numérico conocido (los demás tests de este archivo solo verifican
+    +-inf exactos o invarianza a la ganancia, ambos insensibles a la
+    constante multiplicativa).
+
+    Construcción exacta: `s = [10, -10]`, `e = [1, 1]` son ortogonales
+    (`dot(s, e) == 10 - 10 == 0` para cualquier `e = [c, c]`), así que
+    `alpha == 1` exactamente y `s_target == s`, `e_noise == e` sin
+    aproximación. `‖s‖² / ‖e‖² == 200 / 2 == 100`, y
+    `10 * log10(100) == 20.0` exacto -- una constante de 11 daría 22.0,
+    una diferencia muy por encima de cualquier tolerancia numérica."""
+    s = np.array([10.0, -10.0])
+    e = np.array([1.0, 1.0])
+    referencia = referencia_sintetica(identificador_origen="S09", muestras=s)
+    estimacion = estimacion_sintetica(identificador="sep_S09", muestras=s + e)
+
+    assert si_sdr(referencia, estimacion) == pytest.approx(20.0, abs=1e-9)

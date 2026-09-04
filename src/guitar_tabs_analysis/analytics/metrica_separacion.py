@@ -197,8 +197,14 @@ def si_sdr(referencia: PistaGuitarra, estimacion: Estimacion) -> float:
             motivo="distinta frecuencia de muestreo",
         )
 
-    s = audio_referencia.muestras.astype(np.float64)
-    shat = audio_estimacion.muestras.astype(np.float64)
+    # `.astype(np.float64)` sobrevive mutado a `.astype(None)` (T027,
+    # mutation testing) -- equivalente confirmado: `dtype=None` resuelve
+    # al tipo flotante por defecto de NumPy, que es `float64` en
+    # cualquier plataforma soportada aquí (mismo patrón que
+    # `unit="D"`/`"d"` de pandas en AGENTS.md). Repetido en `shat` abajo
+    # y en `_tiene_energia_nula`.
+    s = audio_referencia.muestras.astype(np.float64)  # pragma: no mutate
+    shat = audio_estimacion.muestras.astype(np.float64)  # pragma: no mutate
 
     # Ambas energías se calculan ANTES de ramificar -- no por eficiencia,
     # sino para que la prioridad de abajo sea una decisión visible, no un
@@ -218,7 +224,11 @@ def si_sdr(referencia: PistaGuitarra, estimacion: Estimacion) -> float:
     if energia_referencia == 0.0:
         raise ReferenciaEnergiaNulaError(identificador_referencia=referencia.identificador_origen)
     if energia_estimacion == 0.0:
-        return float("-inf")
+        # "-inf" vs "-INF" sobrevive (T027) -- equivalente confirmado:
+        # `float()` parsea inf/nan sin distinguir mayúsculas (mismo
+        # patrón que `.encode("utf-8")`/`"UTF-8"` en AGENTS.md). Repetido
+        # en `agregar_conjunto` para el sentinel de `sin_pareja`.
+        return float("-inf")  # pragma: no mutate
 
     alpha = float(np.dot(shat, s)) / energia_referencia
     s_target = alpha * s
@@ -234,6 +244,18 @@ def si_sdr(referencia: PistaGuitarra, estimacion: Estimacion) -> float:
     # denominador es exactamente cero -- exactamente el caso +inf de la
     # verificación de respuesta conocida (FR-011). Descubierto en rojo
     # la primera vez que corrió este test, no asumido.
+    #
+    # `invalid="ignore"` (T027, mutation testing) sobrevive mutado a
+    # `None`/omitido -- equivalente confirmado, no marcado con pragma
+    # porque comparte línea con `divide="ignore"`, que SÍ tiene
+    # cobertura real (test_si_sdr_referencia_como_su_propia_estimacion,
+    # con `filterwarnings("error")`, fallaría si dejara de ignorarse). El
+    # warning "invalid" (0/0 -> NaN) que ignora nunca puede dispararse en
+    # este punto: llegar aquí ya exige `energia_referencia != 0` y
+    # `energia_estimacion != 0`; si `s_target` fuera el vector cero
+    # (`alpha == 0`), `e_noise` sería `shat` completo, cuya energía es
+    # `energia_estimacion != 0` -- nunca ambos numerador y denominador
+    # cero a la vez.
     with np.errstate(divide="ignore", invalid="ignore"):
         cociente = np.dot(s_target, s_target) / np.dot(e_noise, e_noise)
         valor = 10.0 * np.log10(cociente)
@@ -253,7 +275,7 @@ _SENTINEL_COSTO = 1e15
 
 
 def _tiene_energia_nula(muestras: npt.NDArray[Any]) -> bool:
-    valores = muestras.astype(np.float64)
+    valores = muestras.astype(np.float64)  # pragma: no mutate -- ver si_sdr() arriba
     return float(np.dot(valores, valores)) == 0.0
 
 
@@ -302,9 +324,18 @@ def emparejar_tema(
         ]
         matriz_costos = np.clip(-np.array(valores), -_SENTINEL_COSTO, _SENTINEL_COSTO)
         filas, columnas = linear_sum_assignment(matriz_costos)
-        filas_asignadas = set(filas.tolist())
+        filas_lista = filas.tolist()
+        columnas_lista = columnas.tolist()
+        filas_asignadas = set(filas_lista)
 
-        for fila, columna in zip(filas.tolist(), columnas.tolist(), strict=True):
+        # `strict=True` sobrevive mutado a `False`/`None`/omitido (T027)
+        # -- equivalente confirmado: `linear_sum_assignment` garantiza
+        # `len(filas) == len(columnas)` por contrato (es una asignación
+        # biyectiva sobre el subconjunto emparejado), así que las dos
+        # listas nunca pueden diferir en longitud aquí -- no hay ningún
+        # input construible que ejercite la diferencia entre los modos
+        # de `zip`.
+        for fila, columna in zip(filas_lista, columnas_lista, strict=True):  # pragma: no mutate
             referencia = utilizables[fila]
             estimacion = estimaciones[columna]
             if _tiene_energia_nula(estimacion.audio.muestras):
@@ -438,7 +469,7 @@ def agregar_conjunto(entradas: list[EntradaConjunto]) -> ResultadoAgregado:
         # reporte, este mismo -inf la destruye (-inf + x = -inf para
         # cualquier x finito) -- ese cambio tendría que revisar este
         # bloque junto con FR-007/FR-008, no reusarlo tal cual.
-        pool.extend(float("-inf") for _ in reporte.sin_pareja)
+        pool.extend(float("-inf") for _ in reporte.sin_pareja)  # pragma: no mutate
 
     mediana = _mediana_orden(pool) if pool else None
 
