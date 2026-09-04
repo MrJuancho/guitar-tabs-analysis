@@ -180,6 +180,21 @@ silenciosa sí tiene una proyección bien definida (`s_target = 0`
 exacto), solo que el cociente resultante es indeterminado, y ahí es
 donde entra la convención.
 
+**Caso ambos-cero: referencia y estimación con energía nula a la vez —
+decisión explícita, no accidente de orden.** `si_sdr()` calcula las dos
+energías (`⟨s,s⟩` y `⟨ŝ,ŝ⟩`) antes de ramificar, y comprueba primero la
+de la referencia: si ambas son cero, **gana `ReferenciaEnergiaNulaError`**,
+nunca el `-∞` por convención. Razón: la energía nula de la referencia es
+la falla más fundamental — sin ella no existe ninguna proyección posible,
+independientemente de qué tan mala sea la estimación (research.md #4). La
+convención `-∞` de la estimación silenciosa presupone que la referencia
+sí tiene una proyección bien definida sobre la cual medir el residuo; si
+la referencia también es silencio, esa premisa no se cumple, así que no
+hay ninguna base para aplicar la convención. El código hace esta
+prioridad visible con un comentario en el punto de la rama, no solo con
+el orden de los `if` — un lector no debería tener que inferir la
+decisión de qué comprobación quedó escrita primero.
+
 La implementación usa `numpy.errstate(divide="ignore", invalid="ignore")`
 alrededor de la división final: los `RuntimeWarning` de NumPy por
 división entre cero (el caso `+∞` de bit-idéntico) son la señal esperada
@@ -329,6 +344,51 @@ referencia tenga — evaluarlo primero evita que la ausencia de referencias
 **Alternatives considered**: Reportar ambos motivos cuando ambos aplican
 (rechazada — `spec.md` pide un conteo por motivo, no una taxonomía de
 motivos combinados; SC-005 se lee más naturalmente como una partición).
+
+## 11. Estimación silenciosa asignada: reclasificar después de emparejar, no excluir antes (FR-016)
+
+**Decision**: `emparejar_tema()` NO excluye las estimaciones de energía
+nula de la matriz de costos antes de correr la asignación óptima —
+participan como candidatas normales, exactamente como cualquier otra
+estimación (con su valor `-∞` por convención, research.md #5). Después de
+obtener la asignación de `linear_sum_assignment`, cada par asignado se
+revisa: si la estimación de ese par tiene energía nula, la referencia se
+mueve a `sin_pareja` con `motivo == "estimacion_silenciosa"` en vez de
+agregarse a `emparejadas` (FR-016).
+
+**Rationale**: Excluir las estimaciones silenciosas *antes* de construir
+la matriz de costos parecía la alternativa simétrica a cómo se tratan las
+referencias de energía nula (research.md #4) — pero rompe en cuanto hay
+una mezcla de estimaciones útiles e inútiles: si sobran referencias
+respecto a las estimaciones *útiles*, ¿qué referencia específica "pierde"
+por culpa de una estimación silenciosa en vez de por escasez genuina? No
+hay una respuesta no arbitraria sin re-implementar parte de la lógica de
+asignación a mano. Dejar que el optimizador considere las estimaciones
+silenciosas como candidatas (son, después de todo, la peor opción posible
+por construcción — research.md #5) resuelve esto gratis: `linear_sum_assignment`
+ya elige la mejor asignación global, así que solo asigna una estimación
+silenciosa a una referencia cuando no hay ninguna opción mejor disponible
+para *ella* — exactamente la semántica que se quiere. Reclasificar
+después es una operación de una sola pasada sobre el resultado ya
+decidido, sin tocar la optimización.
+
+Este reclasificado es puramente de reporte: numéricamente, `-∞` en
+`emparejadas` (si no se reclasificara) y `-∞` como sentinel de `sin_pareja`
+(FR-008) ya coinciden — la mediana agregada (FR-007) no cambia. La
+ganancia es exclusivamente diagnóstica (FR-016, SC-009): un lector del
+reporte puede distinguir "no había estimación" de "había una estimación,
+y era silencio" sin tener que inspeccionar manualmente qué tan grande es
+cada `si_sdr` negativo.
+
+**Alternatives considered**:
+- Excluir las estimaciones silenciosas de la matriz de costos antes de
+  optimizar (rechazada — el problema de "a quién culpar" de arriba, sin
+  una respuesta principiada).
+- No reclasificar; dejar la referencia en `emparejadas` con `si_sdr == -inf`
+  (rechazada — es lo que hacía la implementación antes de este punto, y
+  es exactamente lo que `spec.md` FR-016 ahora prohíbe explícitamente:
+  un valor en `emparejadas` debe representar una medición real, y `-∞`
+  por convención no lo es).
 
 ## Sources
 

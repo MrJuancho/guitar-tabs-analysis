@@ -126,8 +126,17 @@ Para cualquier invocación que no falle:
    esa estimación exista como candidata (un valor `+∞` domina cualquier
    asignación alternativa finita).
 6. Todas las referencias sin pareja por falta de estimaciones suficientes
-   (no por energía nula) tienen `motivo == "sin_estimacion_disponible"`
-   (FR-003).
+   (ni por energía nula propia, ni por estimación asignada silenciosa)
+   tienen `motivo == "sin_estimacion_disponible"` (FR-003).
+7. Si la asignación óptima le asigna a una referencia una estimación cuya
+   propia señal es silencio digital (energía nula), esa referencia
+   aparece en `resultado.sin_pareja` con `motivo == "estimacion_silenciosa"`,
+   **no** en `resultado.emparejadas` (FR-016) — la estimación silenciosa
+   sí participó como candidata durante la asignación (a diferencia de una
+   referencia con su propia energía nula, que se excluye antes de armar
+   la matriz de costos, postcondición 4), pero el resultado se reclasifica
+   antes de construir el reporte: un número en `emparejadas` implica una
+   medición real.
 
 ### Modos de fallo
 

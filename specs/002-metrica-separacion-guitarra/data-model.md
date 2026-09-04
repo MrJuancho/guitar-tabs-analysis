@@ -21,9 +21,13 @@ llamador le asigna para poder nombrarla en el reporte.
 
 ## `MotivoSinPareja`
 
-Alias de tipo (`Literal["sin_estimacion_disponible", "energia_nula"]`) — no
-una clase nueva. Distingue las dos razones de FR-006/FR-003 por las que una
-referencia queda sin pareja (Clarifications de `spec.md`).
+Alias de tipo (`Literal["sin_estimacion_disponible", "energia_nula",
+"estimacion_silenciosa"]`) — no una clase nueva. Distingue las tres razones,
+mutuamente excluyentes, por las que una referencia queda sin pareja
+(FR-003, FR-006, FR-016): falta de estimaciones, energía nula de la propia
+referencia, o una estimación candidata que sí existía pero resultó
+silenciosa. Tres fallas distintas — nunca se colapsan en un solo valor
+(spec.md, Key Entities "Referencia sin pareja").
 
 ## `ReferenciaEmparejada`
 
@@ -33,7 +37,7 @@ Una referencia que sí quedó asociada a una estimación (FR-002).
 |---|---|---|
 | `identificador_referencia` | `str` | `identificador_origen` de la `PistaGuitarra` emparejada. |
 | `identificador_estimacion` | `str` | `identificador` de la `Estimacion` emparejada. |
-| `si_sdr` | `float` | Resultado de `si_sdr()` (research.md #1) para este par — puede ser `+inf` (FR-011, exacto por cálculo, research.md #5) o `-inf` (la estimación emparejada tenía energía nula, valor definido por convención, no calculado, research.md #5), ambos distintos del sentinel de `ReferenciaSinPareja` aunque numéricamente coincidan con él. |
+| `si_sdr` | `float` | Resultado de `si_sdr()` (research.md #1) para este par, siempre genuinamente calculado — puede ser `+inf` (FR-011, exacto por cálculo, research.md #5). **Nunca** el `-inf` por convención de una estimación silenciosa (FR-016): esa referencia se reclasifica a `sin_pareja` antes de construir este reporte, así que un valor aquí siempre representa una medición real, nunca un sentinel. |
 
 **Invariantes**: `identificador_estimacion` no se repite entre dos
 `ReferenciaEmparejada` del mismo `ReporteTema` (FR-002, SC-003).
@@ -46,7 +50,7 @@ Una referencia del tema que no quedó asociada a ninguna estimación
 | Campo | Tipo | Origen / regla |
 |---|---|---|
 | `identificador_referencia` | `str` | `identificador_origen` de la `PistaGuitarra` sin pareja. |
-| `motivo` | `MotivoSinPareja` | `"sin_estimacion_disponible"` si el número de estimaciones recibidas era insuficiente (FR-003); `"energia_nula"` si la propia referencia tiene energía nula (FR-006, research.md #4) — detectado antes de intentar el cálculo, nunca por una excepción numérica. |
+| `motivo` | `MotivoSinPareja` | `"sin_estimacion_disponible"` si el número de estimaciones recibidas era insuficiente (FR-003); `"energia_nula"` si la propia referencia tiene energía nula (FR-006, research.md #4) — detectado antes de intentar el cálculo, nunca por una excepción numérica; `"estimacion_silenciosa"` si la asignación óptima le habría dado una estimación cuya propia señal es silencio digital (FR-016) — reclasificada después de la asignación, no excluida antes de ella (research.md, sección del hallazgo 2026-09-04 posterior a T005). |
 
 ## `ReporteTema`
 
@@ -62,7 +66,9 @@ El resultado del cálculo sobre un tema individual (FR-004).
 
 **Invariantes**:
 - `len(emparejadas) + len(sin_pareja) == num_referencias`.
-- `len(emparejadas) == min(num_referencias, num_estimaciones_recibidas)` **salvo** que alguna referencia tenga energía nula — cada referencia con energía nula está siempre en `sin_pareja` con motivo `"energia_nula"`, nunca en `emparejadas`, independientemente de cuántas estimaciones hubiera disponibles (research.md #4: la comparación ni se intenta).
+- Cada referencia con energía nula está siempre en `sin_pareja` con motivo `"energia_nula"`, nunca en `emparejadas`, independientemente de cuántas estimaciones hubiera disponibles (research.md #4: la comparación ni se intenta).
+- Cada referencia cuya estimación asignada por la asignación óptima resultó silenciosa está siempre en `sin_pareja` con motivo `"estimacion_silenciosa"`, nunca en `emparejadas` (FR-016) — la asignación sí la considera un candidato válido durante la optimización (a diferencia de una referencia con su propia energía nula, que ni participa), pero el resultado se reclasifica antes de reportarse.
+- `len(emparejadas)` es, por lo tanto, `min(num_referencias, num_estimaciones_recibidas)` **menos** el número de referencias con energía nula propia **y menos** el número de referencias cuya mejor asignación resultó ser una estimación silenciosa — no una fórmula cerrada más simple, porque ambos motivos restan de la misma cuenta.
 
 ## `EntradaConjunto`
 
