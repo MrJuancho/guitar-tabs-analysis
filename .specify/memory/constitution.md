@@ -1,12 +1,40 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 1.1.0
-- Fuente: docs/constitucion-fuente.md v2 (contenido acordado y ya revisado,
-  trasladado a la estructura de plantilla sin reescritura de sustancia).
-  Reemplaza el borrador conversacional usado para v1.0.0.
-- Bump MINOR: 3 decisiones antes abiertas (DECIDIR en v1.0.0) se cierran con
-  contenido real, y se añade un principio nuevo. Ninguna decisión ya tomada
-  se contradice o se elimina -- no aplica MAJOR.
+- Version change: 1.1.0 → 1.2.0
+- Fuente: specs/002-metrica-separacion-guitarra/plan.md y research.md
+  (decisiones ya tomadas y verificadas empíricamente durante `/speckit-plan`
+  de la feature 002-metrica-separacion-guitarra), trasladadas a la
+  constitución sin reescritura de sustancia -- este comando solo cierra
+  los `ABIERTO` que esos documentos ya resolvieron, no inventa contenido.
+- Bump MINOR: 2 de los 3 `ABIERTO` de v1.1.0 se cierran con contenido real
+  y verificado (Principio VII, mitad "métrica principal"; Principio VIII,
+  completo). El tercero (VII, presupuesto numérico) permanece `ABIERTO` a
+  propósito -- su propio criterio de cierre ("después de la primera
+  medición real") no se ha cumplido, y rellenarlo ahora sería exactamente
+  el vicio que ese mismo principio prohíbe. Ninguna decisión ya tomada se
+  contradice o se elimina -- no aplica MAJOR.
+
+- Principios modificados en v1.2.0 (contenido, no título ni posición):
+  VII.  "La métrica y su presupuesto" -- el bloque `ABIERTO` de "Métrica
+        principal" se reemplaza por SI-SDR (Le Roux et al. 2019) cerrado,
+        con la verificación de respuesta conocida (+∞ exacto) documentada
+        con su razón matemática y su evidencia empírica. El bloque
+        `ABIERTO` de "Presupuesto" queda literalmente igual -- no se tocó.
+  VIII. "Determinismo" -- el bloque `ABIERTO` se reemplaza por la opción
+        (b) (tolerancia numérica declarada) cerrada, aplicada de forma
+        selectiva: tolerancia para valores calculados, igualdad exacta
+        para valores exactos por construcción y para todo resultado
+        discreto. La opción (a) queda registrada como descartada para
+        esta feature, con su razón, no borrada del historial de la
+        decisión.
+
+- Secciones añadidas: ninguna. Secciones eliminadas: ninguna.
+
+- Governance: los checkboxes de VII (métrica principal) y VIII se marcan
+  `[x]`, cada uno con una nota de una línea señalando dónde se cerraron.
+  El checkbox de VII (presupuesto numérico) permanece `[ ]`, sin cambio.
+
+- Sesión anterior (v1.0.0 → v1.1.0), preservada por referencia histórica:
 
 - Principios modificados (título viejo → título nuevo, mapeo v1.0.0 → v1.1.0):
   I.    (sin cambio)
@@ -187,12 +215,29 @@ justifica ese número.
 su razón es un resultado; un umbral movido después de ver el resultado no es
 nada.
 
-> `ABIERTO` -- Métrica principal. Candidata: SI-SDR (*Scale-Invariant
-> Signal-to-Distortion Ratio*), estándar en separación de fuentes e
-> invariante a escala, lo que evita premiar o castigar diferencias de
-> ganancia. *Criterio de cierre:* se fija en `/plan`, cuando se sepa qué
-> reporta la herramienta elegida.
->
+**Métrica principal: SI-SDR** (*Scale-Invariant Signal-to-Distortion
+Ratio*, Le Roux, Wisdom, Erdogan & Hershey, 2019, "SDR -- Half-baked or
+Well Done?", ICASSP 2019). Invariante a escala por construcción -- la
+fórmula proyecta la referencia sobre la estimación con un factor de
+escala calculado, no por normalizar la amplitud de las señales de
+entrada, así que ninguna diferencia de ganancia entre estimación y
+referencia se premia ni se castiga. Cerrado en `/plan` de la feature
+002-metrica-separacion-guitarra
+(`specs/002-metrica-separacion-guitarra/research.md` #1).
+
+**Verificación de respuesta conocida.** Pasar una referencia como su
+propia estimación produce SI-SDR = +∞ exacto -- no una aproximación
+grande. La razón: cuando la estimación es una copia bit a bit de la
+referencia, el numerador y el denominador del factor de escala son la
+misma reducción de punto flotante sobre los mismos datos, y la división
+de IEEE754 garantiza `x / x == 1.0` para cualquier `x` finito no nulo,
+sin importar cuánto error de redondeo tenga `x` en sí -- por eso el
+residuo resulta el vector cero bit a bit, no "suficientemente pequeño".
+Verificado empíricamente, no solo razonado: confirmado sobre arrays de
+hasta 10.652.672 muestras (la longitud real de pista de Slakh2100 vista
+en la feature 001) en `float32` y `float64`, sobre el backend BLAS real
+del proyecto (research.md #5).
+
 > `ABIERTO` -- Presupuesto. *Criterio de cierre:* se fija después de la
 > primera medición sobre el conjunto de desarrollo, por debajo del percentil
 > observado y con el margen justificado por escrito. Fijarlo antes sería
@@ -200,18 +245,37 @@ nada.
 
 ### VIII. Determinismo
 
-> `ABIERTO` -- *Criterio de cierre:* se decide en `/plan`, cuando estén
-> elegidas la biblioteca y el hardware. Dos opciones defendibles:
->
-> **(a) Reproducibilidad exacta.** Semillas fijas más algoritmos
-> deterministas forzados. Cuesta velocidad y no toda operación tiene
-> implementación determinista.
->
-> **(b) Tolerancia numérica declarada.** Las aserciones comparan con una
-> tolerancia explícita en vez de igualdad exacta.
->
-> Lo no defendible es no decidirlo y descubrir la respuesta cuando un test
-> falle de forma intermitente en integración continua.
+**Cerrado: opción (b), tolerancia numérica declarada -- aplicada de forma
+selectiva, no uniforme.** Cerrado en `/plan` de la feature
+002-metrica-separacion-guitarra
+(`specs/002-metrica-separacion-guitarra/research.md` #6), la primera
+feature del proyecto con aritmética de punto flotante sujeta a este
+criterio.
+
+- Un valor que es el resultado de una acumulación de punto flotante (p.
+  ej. un SI-SDR calculado sobre audio real) se compara con tolerancia
+  numérica explícita, nunca con igualdad bit a bit. No hay ninguna fuente
+  de aleatoriedad en el sistema (sin semillas, sin inferencia de modelo);
+  el único riesgo de no-determinismo es el orden de acumulación de punto
+  flotante entre builds distintos de BLAS, y exigir bit-exactitud contra
+  ese riesgo sería frágil sin aportar ninguna garantía real adicional.
+- **Excepción -- lo exacto por construcción se compara exacto.** Un valor
+  que es una identidad matemática o un sentinel asignado por definición,
+  no el resultado de una acumulación, se compara con igualdad exacta. El
+  `+∞` de la verificación de respuesta conocida (Principio VII) es el
+  ejemplo: no converge a infinito, es la consecuencia exacta de que el
+  residuo es el vector cero bit a bit.
+- Todo resultado discreto (conteos, qué elemento se emparejó con cuál, en
+  qué categoría cayó un caso) se compara con igualdad exacta, por ser una
+  decisión combinatoria, no aritmética de punto flotante.
+
+La opción (a) (reproducibilidad exacta forzada) queda descartada para
+esta feature, no borrada del historial de la decisión: no hay ninguna
+semilla que fijar ni ninguna operación no determinista que forzar, así
+que forzar bit-exactitud no compraría ninguna garantía que la opción (b)
+no dé ya. Lo no defendible sigue siendo no decidir esto y descubrir la
+respuesta cuando un test falle de forma intermitente en integración
+continua.
 
 ### IX. Datos derivados: se generan, no se leen
 
@@ -282,16 +346,24 @@ enmiendas futuras; `Last Amended` sí.
 propia sección "Constitution Check" contra estos principios, antes y después
 del diseño -- no hace falta un paso manual adicional aquí.
 
-**Los `ABIERTO` no se rellenan por adelantado.** Cada uno de los tres
-puntos que siguen tiene su propio criterio de cierre, declarado en el
-principio correspondiente -- no se completan antes de que ese criterio se
-cumpla, y no se completan aquí como parte de un futuro `/speckit-constitution`
-"para no dejar cabos sueltos": eso es exactamente el vicio que VII prohíbe
-para el presupuesto, y se aplica igual a los otros dos.
+**Los `ABIERTO` no se rellenan por adelantado.** Cada uno tiene su propio
+criterio de cierre, declarado en el principio correspondiente -- no se
+completa antes de que ese criterio se cumpla, y no se completa como parte
+de un `/speckit-constitution` posterior "para no dejar cabos sueltos": eso
+es exactamente el vicio que VII prohíbe para el presupuesto. Dos de los
+tres `ABIERTO` originales ya se cerraron -- con contenido real y, en el
+caso de VIII, verificado empíricamente, no solo razonado -- cuando la
+feature que los necesitaba (002-metrica-separacion-guitarra) llegó al
+punto de su propio criterio de cierre (`/plan`). El tercero sigue sin
+rellenarse porque su propio criterio ("después de la primera medición
+real") todavía no se cumple.
 
-- [ ] VII -- Métrica principal (candidata SI-SDR). Cierra en `/plan`.
+- [x] VII -- Métrica principal: SI-SDR (Le Roux et al., 2019). Cerrado en
+      `/plan` de 002-metrica-separacion-guitarra.
 - [ ] VII -- Presupuesto numérico. Cierra después de la primera medición
       sobre el conjunto de desarrollo, nunca antes.
-- [ ] VIII -- Política de determinismo. Cierra en `/plan`.
+- [x] VIII -- Política de determinismo: opción (b), tolerancia numérica
+      declarada con excepción para valores exactos por construcción.
+      Cerrado en `/plan` de 002-metrica-separacion-guitarra.
 
-**Version**: 1.1.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-08-31
+**Version**: 1.2.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-04
