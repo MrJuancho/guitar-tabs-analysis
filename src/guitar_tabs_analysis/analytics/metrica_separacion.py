@@ -18,9 +18,11 @@ para el contrato completo.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
+import numpy.typing as npt
+from scipy.optimize import linear_sum_assignment
 
 from guitar_tabs_analysis.ingestion.slakh2100 import PistaAudio, PistaGuitarra
 
@@ -40,7 +42,7 @@ class Estimacion:
     audio: PistaAudio
 
 
-MotivoSinPareja = Literal["sin_estimacion_disponible", "energia_nula"]
+MotivoSinPareja = Literal["sin_estimacion_disponible", "energia_nula", "estimacion_silenciosa"]
 
 
 @dataclass(frozen=True)
@@ -234,3 +236,112 @@ def si_sdr(referencia: PistaGuitarra, estimacion: Estimacion) -> float:
         cociente = np.dot(s_target, s_target) / np.dot(e_noise, e_noise)
         valor = 10.0 * np.log10(cociente)
     return float(valor)
+
+
+# ---------------------------------------------------------------------
+# emparejar_tema (T017) -- ver contracts/metrica_separacion.md para el
+# contrato completo.
+# ---------------------------------------------------------------------
+
+# Sentinel finito para la matriz de costos de la asignación (research.md
+# #2) -- ±inf reales de si_sdr() (research.md #5) se saturan a esto SOLO
+# para que scipy.optimize.linear_sum_assignment tenga una matriz finita;
+# el valor reportado en ReferenciaEmparejada sigue siendo el ±inf exacto.
+_SENTINEL_COSTO = 1e15
+
+
+def _tiene_energia_nula(muestras: npt.NDArray[Any]) -> bool:
+    valores = muestras.astype(np.float64)
+    return float(np.dot(valores, valores)) == 0.0
+
+
+def emparejar_tema(
+    tema_id: str,
+    referencias: list[PistaGuitarra],
+    estimaciones: list[Estimacion],
+) -> ReporteTema:
+    """Implementa User Story 1 completa (contracts/metrica_separacion.md).
+
+    Separa primero las referencias de energía nula -- van directo a
+    `sin_pareja` con `motivo="energia_nula"`, sin llamar a `si_sdr()`
+    (research.md #4). Construye la matriz de costos `-si_sdr(...)` entre
+    cada referencia restante y **todas** las estimaciones recibidas,
+    incluidas las silenciosas -- sí participan como candidatas normales
+    (research.md #11) -- saturando `±inf` a `_SENTINEL_COSTO` solo para
+    la matriz. Resuelve la asignación óptima
+    (`scipy.optimize.linear_sum_assignment`, research.md #2). Para cada
+    par asignado, si la estimación elegida tiene energía nula, la
+    referencia se reclasifica a `sin_pareja` con
+    `motivo="estimacion_silenciosa"` (FR-016) en vez de `emparejadas` --
+    un valor en `emparejadas` siempre representa una medición real. Las
+    referencias que quedan sin asignar por escasez de estimaciones van a
+    `sin_pareja` con `motivo="sin_estimacion_disponible"` (FR-003).
+    """
+    sin_pareja: list[ReferenciaSinPareja] = []
+    utilizables: list[PistaGuitarra] = []
+
+    for referencia in referencias:
+        if _tiene_energia_nula(referencia.audio.muestras):
+            sin_pareja.append(
+                ReferenciaSinPareja(
+                    identificador_referencia=referencia.identificador_origen,
+                    motivo="energia_nula",
+                )
+            )
+        else:
+            utilizables.append(referencia)
+
+    emparejadas: list[ReferenciaEmparejada] = []
+
+    if utilizables and estimaciones:
+        valores = [
+            [si_sdr(referencia, estimacion) for estimacion in estimaciones]
+            for referencia in utilizables
+        ]
+        matriz_costos = np.clip(-np.array(valores), -_SENTINEL_COSTO, _SENTINEL_COSTO)
+        filas, columnas = linear_sum_assignment(matriz_costos)
+        filas_asignadas = set(filas.tolist())
+
+        for fila, columna in zip(filas.tolist(), columnas.tolist(), strict=True):
+            referencia = utilizables[fila]
+            estimacion = estimaciones[columna]
+            if _tiene_energia_nula(estimacion.audio.muestras):
+                sin_pareja.append(
+                    ReferenciaSinPareja(
+                        identificador_referencia=referencia.identificador_origen,
+                        motivo="estimacion_silenciosa",
+                    )
+                )
+            else:
+                emparejadas.append(
+                    ReferenciaEmparejada(
+                        identificador_referencia=referencia.identificador_origen,
+                        identificador_estimacion=estimacion.identificador,
+                        si_sdr=valores[fila][columna],
+                    )
+                )
+
+        for indice, referencia in enumerate(utilizables):
+            if indice not in filas_asignadas:
+                sin_pareja.append(
+                    ReferenciaSinPareja(
+                        identificador_referencia=referencia.identificador_origen,
+                        motivo="sin_estimacion_disponible",
+                    )
+                )
+    else:
+        for referencia in utilizables:
+            sin_pareja.append(
+                ReferenciaSinPareja(
+                    identificador_referencia=referencia.identificador_origen,
+                    motivo="sin_estimacion_disponible",
+                )
+            )
+
+    return ReporteTema(
+        tema_id=tema_id,
+        num_referencias=len(referencias),
+        num_estimaciones_recibidas=len(estimaciones),
+        emparejadas=emparejadas,
+        sin_pareja=sin_pareja,
+    )
