@@ -390,6 +390,61 @@ cada `si_sdr` negativo.
   un valor en `emparejadas` debe representar una medición real, y `-∞`
   por convención no lo es).
 
+## 12. SC-004 solo es demostrable para un tema completamente sin emparejar, no para "algún" tema con referencias sin pareja
+
+**Decision**: La garantía de SC-004/AS US2.5 ("incluir el tema nunca
+mejora la mediana") se acota a un tema donde **ninguna** referencia
+quedó emparejada — el caso que originó la garantía ("el separador no
+produjo nada para ese tema"). No se generaliza a cualquier tema que
+tenga *alguna* referencia sin pareja.
+
+**Verificado, no solo razonado** (2026-09-05): un tema con 4 referencias
+— 1 sin pareja, 3 emparejadas con `si_sdr = 1000` (excelente) — agregado
+a un conjunto base de mediana 5 sube la mediana a 1000:
+
+```
+pool_sin = [5]                              -> mediana = 5
+pool_con = [5, -inf, 1000, 1000, 1000]      -> mediana = 1000  (1000 > 5)
+```
+
+La versión general de SC-004 (tal como estaba redactada antes de esta
+sesión) es matemáticamente falsa — un contraejemplo de cinco números
+basta para refutarla, no hacía falta un caso de dataset real.
+
+**Por qué la versión acotada SÍ es demostrable**: insertar en un pool
+solo copias del valor mínimo posible (`-∞`, el sentinel de FR-008) nunca
+puede subir la mediana — es un hecho de estadística de orden: `-∞` es
+`≤` cualquier valor ya presente, así que cada copia insertada se ubica
+en la posición 0 del pool ordenado, empujando todo lo demás hacia
+índices mayores; el valor en la posición de la mediana resultante es o
+bien un `-∞` recién insertado, o bien un valor que ya estaba en el pool
+original en una posición igual o anterior a la mediana original — nunca
+puede ser mayor que la mediana original. Un tema con **todas** sus
+referencias sin pareja contribuye *solo* copias de `-∞` al pool, así que
+cae exactamente en este caso. Un tema mixto no: sus referencias
+emparejadas pueden contribuir cualquier valor, incluido uno mayor que
+todo lo que ya había, rompiendo la garantía (contraejemplo arriba).
+
+**Rationale**: La garantía general "sonaba" cierta porque la motivación
+original (`spec.md`, descripción de la feature) es exactamente el caso
+acotado: "un tema donde el separador no produjo nada". Al generalizar la
+Acceptance Scenario/Success Criterion a "un tema con referencias sin
+pareja" (sin exigir que sean *todas*) durante la redacción del spec,
+nadie volvió a verificar si la propiedad seguía siendo cierta en el caso
+general — no lo es. Acotarla a la propiedad real y demostrable es mejor
+que dejar una garantía falsa en el documento que gobierna qué debe
+probar `T024`.
+
+**Alternatives considered**: Mantener la garantía general y documentar
+que es "esperada empíricamente" (los fallos de un separador real suelen
+estar correlacionados dentro de un mismo tema, así que el contraejemplo
+adversarial es improbable en la práctica) — rechazada explícitamente: es
+exactamente el patrón que este proyecto ya evita en otros puntos (FR-008,
+research.md #4/#5) de dejar una propiedad numérica sin verificar
+descansando en una intuición sobre "cómo se ve normalmente el dato real"
+en vez de en una prueba. Una propiedad de un `Success Criteria` debe ser
+cierta siempre, no "cierta salvo que alguien construya el contraejemplo".
+
 ## Sources
 
 - Le Roux, J., Wisdom, S., Erdogan, H., & Hershey, J. R. (2019). *SDR –

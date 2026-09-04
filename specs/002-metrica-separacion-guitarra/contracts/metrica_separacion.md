@@ -202,10 +202,13 @@ Para cualquier invocación que no falle:
    `num_referencias == n`, para cada `n` presente (FR-015).
 7. Ningún `tema_id` aparece a la vez en `resultado.exclusiones` y en
    `resultado.reportes_por_tema` (SC-005).
-8. `resultado.mediana` sobre un conjunto que incluye un tema con
-   referencias sin pareja nunca es mayor que la misma agregación sobre el
-   conjunto que omite ese tema por completo (SC-004) — propiedad, no un
-   valor concreto a verificar por caso.
+8. `resultado.mediana` sobre un conjunto que incluye un tema donde
+   **ninguna** referencia quedó emparejada nunca es mayor que la misma
+   agregación sobre el conjunto que omite ese tema por completo (SC-004)
+   — propiedad, no un valor concreto a verificar por caso. **No** es una
+   garantía sobre cualquier tema con *alguna* referencia sin pareja: un
+   tema que mezcla fallos con aciertos muy buenos puede mover la mediana
+   en cualquier dirección (research.md #12, contraejemplo verificado).
 
 ### Modos de fallo
 
