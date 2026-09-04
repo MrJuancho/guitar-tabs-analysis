@@ -109,7 +109,7 @@ que produciría calcularla de todos modos.
 `1e-10`) — rechazado por ser una constante arbitraria sin justificación
 de dominio, exactamente lo que `spec.md#Assumptions` ya evitó para FR-008.
 
-## 5. Los infinitos son resultados exactos, no casos especiales que evitar
+## 5. Los infinitos: uno es exacto por cálculo, el otro es una convención explícita
 
 **Decision**: Cuando una estimación es bit-idéntica a la referencia
 (`e_noise` es el vector cero exacto), `SI-SDR = +∞` — resultado exacto de
@@ -141,18 +141,52 @@ exacto, `e_noise` es el vector cero exacto, `SI-SDR == inf`. El tamaño de
 la reducción no rompió la igualdad porque nunca dependió de que el
 redondeo fuera pequeño.
 
-Del mismo modo, una estimación totalmente silenciosa (todo ceros) frente
-a una referencia con energía produce `SI-SDR = -∞` exacto (`‖s_target‖² /
-0`) — un resultado matemáticamente válido y distinto del sentinel `−∞` de
-FR-008 (que se *asigna* a una referencia sin pareja, no se *calcula*),
-aunque numéricamente coincidan.
+**Corrección (2026-09-04): una estimación totalmente silenciosa NO da
+`-∞` por cálculo — es NaN, y no hay forma de arreglarlo tomando un
+límite.** La primera versión de este punto afirmaba, sin verificarlo,
+que una estimación de energía nula producía `-∞` exacto (`‖s_target‖² /
+0`). Es falso: si `ŝ = 0`, entonces `α = ⟨ŝ,s⟩/⟨s,s⟩ = 0` exacto, así
+que `s_target = 0 · s = 0` también — **el numerador se anula junto con
+el denominador**, no solo el denominador. El resultado real es `0/0`,
+NaN, verificado numéricamente:
+
+```
+s = 1000·sin(2π·220·t), n=1000; ŝ = vector cero
+⟨ŝ,s⟩ = 0.0  ⟨s,s⟩ = 500000.99...  α = 0.0
+‖s_target‖² = 0.0   ‖e_noise‖² = 0.0   →  SI-SDR = nan
+```
+
+Y no es un caso "casi bien" que un límite arregle: el límite de SI-SDR
+cuando `ŝ → 0` a lo largo de una dirección fija `w` (`ŝ_ε = ε·w`)
+**depende de `w`**, no converge a un único valor — por la misma
+invarianza a escala de este punto, `si_sdr(s, ε·w) = si_sdr(s, w)` para
+todo `ε > 0`, así que el límite es `si_sdr(s, w)`: da `+∞` si `w = s`,
+da `-∞` si `w` es ortogonal a `s`, y cualquier valor intermedio para
+otras direcciones. `ŝ = 0` es una singularidad genuina, no una
+discontinuidad evitable — no existe un valor "natural" que asignarle.
+
+**Decisión de producto (no matemática), confirmada 2026-09-04**: `si_sdr()`
+detecta `⟨ŝ,ŝ⟩ == 0` (energía nula de la estimación, mismo chequeo sin
+epsilon que research.md #4 usa para la referencia) y **define** el
+resultado como `-∞` — por convención, no por cálculo, exactamente el
+mismo patrón que FR-008 ya usa para el sentinel de una referencia sin
+pareja: "no hay señal reconstruida" es un caso degenerado con
+significado de producto claro (el separador no produjo nada para ese
+candidato), aunque el límite matemático general no exista. La referencia
+con energía nula (research.md #4) sigue siendo un caso distinto: ahí ni
+siquiera se puede formar la proyección, así que `si_sdr()` lanza
+`ReferenciaEnergiaNulaError` en vez de devolver un valor — la estimación
+silenciosa sí tiene una proyección bien definida (`s_target = 0`
+exacto), solo que el cociente resultante es indeterminado, y ahí es
+donde entra la convención.
 
 La implementación usa `numpy.errstate(divide="ignore", invalid="ignore")`
-alrededor de esta división: los `RuntimeWarning` de NumPy por división
-entre cero son la señal esperada de este resultado, no un error a
-silenciar con una corrección artificial (p. ej. sumar un epsilon al
-denominador, que rompería la exactitud de +∞/−∞ que este mismo punto
-describe).
+alrededor de la división final: los `RuntimeWarning` de NumPy por
+división entre cero (el caso `+∞` de bit-idéntico) son la señal esperada
+de ese resultado, no un error a silenciar con una corrección artificial
+(p. ej. sumar un epsilon al denominador, que rompería su exactitud). El
+caso de estimación silenciosa nunca llega a esa división: se resuelve
+antes, por la comprobación explícita de energía.
 
 **Rationale**: Evita el error más común al implementar SI-SDR — añadir un
 epsilon de "estabilidad numérica" al denominador "por las dudas". Ese
@@ -170,11 +204,21 @@ verificado bajo un backend BLAS distinto ni bajo paralelismo con
 partición de hilos no determinista entre llamadas; si el proyecto cambia
 de backend numérico, este punto debe volver a correrse, no asumirse.
 
-**Alternatives considered**: Sumar un epsilon fijo al denominador (patrón
-común en implementaciones de referencia de otras métricas) — rechazado
-porque rompe la exactitud de SC-001 sin ninguna ganancia: esta feature ya
-resuelve la única división por cero genuinamente indefinida (energía nula
-de la referencia, research.md #4) de forma explícita antes de llegar aquí.
+**Alternatives considered**:
+- Sumar un epsilon fijo al denominador (patrón común en implementaciones
+  de referencia de otras métricas) — rechazado porque rompe la exactitud
+  de SC-001 sin ninguna ganancia: los dos casos genuinamente
+  indeterminados de esta fórmula (energía nula de la referencia,
+  research.md #4; energía nula de la estimación, arriba) ya se resuelven
+  de forma explícita antes de llegar a la división final.
+- Para la estimación silenciosa, levantar una excepción simétrica a
+  `ReferenciaEnergiaNulaError` (p. ej. `EstimacionEnergiaNulaError`) —
+  considerada y **rechazada** (decisión de producto, no de esta sección):
+  obligaría a `emparejar_tema()` (T017) a decidir qué hacer con una
+  estimación candidata silenciosa durante el emparejamiento en vez de
+  simplemente asignarle el peor valor posible y dejar que la asignación
+  óptima la evite naturalmente si hay mejores candidatas — más superficie
+  de diseño de la que este punto necesita resolver.
 
 ## 6. Determinismo (cierra Principio VIII de la constitución)
 

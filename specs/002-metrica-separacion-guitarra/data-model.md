@@ -33,7 +33,7 @@ Una referencia que sí quedó asociada a una estimación (FR-002).
 |---|---|---|
 | `identificador_referencia` | `str` | `identificador_origen` de la `PistaGuitarra` emparejada. |
 | `identificador_estimacion` | `str` | `identificador` de la `Estimacion` emparejada. |
-| `si_sdr` | `float` | Resultado de `si_sdr()` (research.md #1) para este par — puede ser `+inf` (FR-011, research.md #5) o `-inf` (una estimación silenciosa emparejada, research.md #5), ambos resultados válidos y distintos del sentinel de `ReferenciaSinPareja`. |
+| `si_sdr` | `float` | Resultado de `si_sdr()` (research.md #1) para este par — puede ser `+inf` (FR-011, exacto por cálculo, research.md #5) o `-inf` (la estimación emparejada tenía energía nula, valor definido por convención, no calculado, research.md #5), ambos distintos del sentinel de `ReferenciaSinPareja` aunque numéricamente coincidan con él. |
 
 **Invariantes**: `identificador_estimacion` no se repite entre dos
 `ReferenciaEmparejada` del mismo `ReporteTema` (FR-002, SC-003).

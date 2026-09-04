@@ -35,9 +35,13 @@ verificar la fórmula de forma aislada (`tests/unit/`).
 
 1. El valor devuelto es exacto (no una aproximación) cuando
    `estimacion.muestras` es bit-idéntica a `referencia.muestras`: `+inf`
-   (research.md #5, base de SC-001).
-2. El valor devuelto es exacto cuando `estimacion.muestras` es el vector
-   cero: `-inf` (research.md #5).
+   (research.md #5, base de SC-001) — resultado de la fórmula, no un
+   caso especial.
+2. El valor devuelto es `-inf` por convención (no por cálculo — la
+   fórmula da `0/0` en este caso, research.md #5) cuando
+   `estimacion.muestras` tiene energía nula (vector cero): "no hay
+   señal reconstruida" se define como el peor resultado posible, mismo
+   patrón que el sentinel de FR-008.
 3. En cualquier otro caso, el valor devuelto es finito y coincide con la
    fórmula de research.md #1 dentro de la tolerancia de punto flotante
    estándar (research.md #6) — no bit a bit.
@@ -59,6 +63,12 @@ pares candidatos (`EstimacionIncompatibleError` sí se propaga desde ahí,
 ver más abajo); la segunda se verifica una sola vez por referencia, antes
 de construir la matriz de costos, y produce un `ReferenciaSinPareja` en
 vez de una llamada a `si_sdr()` (data-model.md).
+
+**Energía nula de la estimación no es un modo de fallo.** A diferencia
+de la referencia, una estimación con energía nula no impide llamar a
+`si_sdr()` — la función la maneja internamente devolviendo `-inf` por
+convención (postcondición 2), nunca lanzando una excepción. `emparejar_tema()`
+no necesita filtrarla antes de construir la matriz de costos.
 
 ## `emparejar_tema`
 
