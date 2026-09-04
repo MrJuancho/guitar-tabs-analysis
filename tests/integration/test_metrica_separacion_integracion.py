@@ -286,6 +286,38 @@ def test_distribucion_y_mediana_ponderada_por_referencia_no_por_tema() -> None:
     assert resultado.mediana != mediana_por_tema_incorrecta
 
 
+def test_pool_par_con_inf_y_menos_inf_como_valores_centrales_no_produce_nan() -> None:
+    """Regresión (T027, hallada por Hypothesis sobre
+    test_incluir_tema_completamente_sin_emparejar_nunca_mejora_la_mediana
+    durante `just mutation`, 2026-09-04): un tema con una referencia
+    igual bit a bit a su propia estimación (+inf exacto, research.md #5)
+    y un segundo tema completamente sin emparejar (-inf, FR-008) arman
+    un pool de 2 elementos cuyos dos valores centrales son +inf y -inf.
+    `statistics.median` promedia esos dos valores (`(inf + -inf) / 2`),
+    y esa suma es NaN en IEEE754 -- rompe la premisa de FR-007/FR-008 de
+    que la mediana aquí es un estadístico de orden puro, insensible a la
+    magnitud. `agregar_conjunto` nunca debe devolver NaN: entre los dos
+    valores centrales que producirían NaN al promediarse, se resuelve al
+    más bajo (política pesimista, consistente con FR-008/Principio V) en
+    vez de dejar escapar el artefacto de punto flotante."""
+    onda = onda_senoidal(n_muestras=50, frecuencia_onda=220.0)
+    referencia = referencia_sintetica(identificador_origen="R00", muestras=onda)
+    estimacion = estimacion_sintetica(identificador="E00", muestras=onda.copy())
+    referencia_extra = referencia_sintetica(identificador_origen="Extra_R00", muestras=onda.copy())
+
+    entradas_base = [
+        EntradaConjunto("TrackConEstimacionExacta", [referencia], [estimacion], False)
+    ]
+    tema_extra = EntradaConjunto("TrackExtraTodoSinEmparejar", [referencia_extra], [], False)
+
+    resultado_sin = agregar_conjunto(entradas_base)
+    resultado_con = agregar_conjunto([*entradas_base, tema_extra])
+
+    assert resultado_sin.mediana == float("inf")
+    assert resultado_con.mediana == float("-inf")
+    assert resultado_con.mediana <= resultado_sin.mediana
+
+
 def test_conjunto_vacio_y_conjunto_completamente_excluido_dan_mediana_none() -> None:
     """FR-014 -- la mediana de nada no existe; se reporta explícitamente
     como conjunto vacío evaluado, nunca como error ni como 0.0."""
