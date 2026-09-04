@@ -1,5 +1,32 @@
 <!--
 Sync Impact Report
+- Version change: 1.2.0 → 1.3.0
+- Fuente: hallazgo G1 de `/speckit-analyze` sobre
+  `specs/002-metrica-separacion-guitarra/` -- Principio X, en su redacción
+  literal ("una tarea que contiene más de un test rojo no es una tarea"),
+  entra en conflicto con la práctica real del proyecto, ejercitada dos
+  veces (001/T003, 002/T015), no con un caso nuevo.
+- Bump MINOR: se aclara/redefine el criterio de tamaño de tarea con
+  contenido real (de "una función de test" a "un cambio de código
+  independiente") -- cambia qué cuenta como cumplimiento, no es una
+  PATCH de solo redacción, pero no elimina ni invierte el límite de
+  tamaño que el principio impone, así que no aplica MAJOR.
+
+- Principios modificados en v1.3.0 (contenido, no título ni posición):
+  X.    "Tamaño de slice y presupuesto de ventana" -- se reemplaza "una
+        tarea que contiene más de un test rojo no es una tarea" por un
+        criterio operativo: una tarea es un cambio de implementación
+        cohesivo; varias funciones de test que verifican la MISMA unidad
+        desde distintos escenarios cuentan como una sola tarea, mecanismos
+        genuinamente separados empaquetados juntos no. El párrafo de
+        presupuesto de ventana (tokens, no reloj) queda sin cambio.
+
+- Secciones añadidas: ninguna. Secciones eliminadas: ninguna.
+
+- Governance: sin cambios en los checkboxes de `ABIERTO` (siguen siendo
+  los mismos dos de VII/VIII cerrados, uno de VII pendiente).
+
+- Sesión anterior (v1.1.0 → v1.2.0), preservada por referencia histórica:
 - Version change: 1.1.0 → 1.2.0
 - Fuente: specs/002-metrica-separacion-guitarra/plan.md y research.md
   (decisiones ya tomadas y verificadas empíricamente durante `/speckit-plan`
@@ -293,7 +320,31 @@ conocidos.
 
 ### X. Tamaño de slice y presupuesto de ventana
 
-Una tarea que contiene más de un test rojo no es una tarea.
+Una tarea es un cambio de implementación cohesivo, verificado por los
+escenarios de prueba que hacen falta para fijar su comportamiento -- no,
+literalmente, una función de test por tarea. El criterio: si un mismo
+cambio de código hace pasar todos los tests de la tarea a la vez, son una
+sola tarea; si hacen falta cambios independientes para que cada uno pase,
+son tareas distintas, aunque compartan archivo o tema superficial. Varias
+funciones de test que verifican la misma unidad -- el mismo tipo, la misma
+función, el mismo mecanismo -- desde distintos escenarios de entrada
+cuentan como una sola tarea; requisitos o mecanismos genuinamente
+separados, empaquetados juntos por conveniencia o para evitar renumerar,
+no.
+
+*Aclaración (v1.3.0):* la redacción original -- "una tarea que contiene
+más de un test rojo no es una tarea" -- se leía como un límite literal de
+un test por tarea, más estricto que la práctica real del proyecto desde
+la primera feature (`001-lectura-tema-slakh2100`, T003 agrupó varias
+funciones de test bajo una sola tarea para fijar el mismo conjunto de
+tipos) y ejercitada de nuevo en `002-metrica-separacion-guitarra` (T015,
+dos escenarios sobre el mismo mecanismo de reclasificación de motivos).
+`/speckit-analyze` señaló la brecha entre el principio escrito y la
+práctica ya ejercitada dos veces; esta aclaración cierra esa brecha
+describiendo el criterio que el proyecto ya aplicaba, no uno nuevo -- no
+relaja el límite de tamaño de tarea, lo hace coincidir con lo que
+"tamaño" mide de verdad: cuántos cambios de código independientes hacen
+falta, no cuántas funciones de test hay.
 
 El presupuesto real no es el reloj sino los tokens de la ventana. Una sesión
 cierra cuando el trabajo comprometido está en verde y el handoff escrito, no
@@ -366,4 +417,4 @@ real") todavía no se cumple.
       declarada con excepción para valores exactos por construcción.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
 
-**Version**: 1.2.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-04
+**Version**: 1.3.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-04
