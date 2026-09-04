@@ -14,27 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-T024 completada: validación manual de `quickstart.md` contra una copia
-local real de Slakh2100 (fuera de CI), revisada a mano -- sin hallazgos,
-el resultado coincide con lo esperado. Con T024 cerrada, la **feature
-001 (lectura de un tema de Slakh2100) termina aquí**: US1/US2/US3
-implementadas y probadas, mutation testing de T023 triageado.
+Feature 002 (métrica SI-SDR): spec/clarify/plan/tasks completos;
+constitución cerrada a v1.2.0 (Principios VII-métrica, VIII-determinismo).
+Implementado T001-T009 de tasks.md (Setup+Foundational): scipy +
+scipy-stubs (uv.lock committeado junto con pyproject.toml -- `just doctor`
+ahora lo verifica), tipos/excepciones, y `si_sdr()` con su suite de tests.
+`just gauntlet` en verde (99% cobertura). Dos hallazgos corregidos ANTES
+de implementar: research.md #5 afirmaba sin verificar que estimación
+silenciosa daba `-inf` por cálculo -- es NaN (0/0), `-inf` quedó definido
+por convención (confirmado con el usuario). `si_sdr()` cambió de firma
+(`PistaAudio` -> `PistaGuitarra`/`Estimacion`, necesita identificadores).
 
 ## Qué sigue
 
-Nada pendiente de esta feature para arrancar de cero. Antes de tocar
-`ingestion/slakh2100.py` de nuevo, revisar dos items que quedaron
-abiertos a propósito (no bloquean el cierre de 001, ver tasks.md):
-
-- T022 (`just gauntlet`) no se marcó explícitamente aunque corre en
-  verde como efecto colateral de T023 -- confirmar antes de reusar.
-- Próxima feature: hito 2 (separación de guitarra), spec/plan sin
-  iniciar.
+Fase 3 de tasks.md (User Story 1, P1/MVP): T010-T016 (tests de
+`emparejar_tema`) y T017 (implementación, con
+`scipy.optimize.linear_sum_assignment` -- research.md #2). Después, Fase
+4 (`agregar_conjunto`, US2) y Polish (T026-T028: mutation testing,
+validación de `quickstart.md`).
 
 ## Bloqueado / pendiente de decisión
 
-`_SUBTYPE_A_DTYPE.get(info.subtype, "float64")` en `_decodificar_audio`
-(4 sobrevivientes de mutation testing, tasks.md#T023): decisión sobre
-si el módulo es lector de Slakh2100 o lector general del proyecto
-queda abierta hasta que el `/plan` de hito 2 (GuitarSet/EGFxSet,
-grabaciones propias) fije qué formatos/subtypes exige leer.
+Nada bloqueado en feature 002. Sigue abierto de feature 001 (no tocado
+esta sesión): `_SUBTYPE_A_DTYPE.get(..., "float64")` en
+`_decodificar_audio` -- decisión diferida al `/plan` de hito 2.
