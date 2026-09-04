@@ -153,6 +153,27 @@ real, solo contra tu memoria de él. Esta regla no aplica cuando el cambio
 es cerrar una brecha de cobertura sobre código ya correcto (ver
 `.claude/agents/generator.md`).
 
+### Un chequeo de estado va antes de cualquier comando que pueda repararlo
+
+Una herramienta que repara estado de forma implícita invalida cualquier
+chequeo posterior sobre ese estado. Evidencia real (guantelete v1.6.0): al
+agregar `uv lock --check` a `just doctor`, colocarlo *después* del bucle
+que ya tenía `doctor` (`uv run python -c "import ..."` sobre cada paquete)
+no detectaba nada -- `uv run` sincroniza el entorno, y con él `uv.lock`,
+implícitamente antes de ejecutar nada, así que curaba el desincronizado
+antes de que el chequeo llegara a correr. El chequeo habría existido,
+corrido y pasado siempre, sobre un `uv.lock` que él mismo acababa de dejar
+consistente -- sin que nadie lo notara. Solo se detectó porque el test de
+regresión se escribió primero, en rojo, contra ese orden equivocado (ver
+"Regla: primero el test rojo, luego el fix" arriba).
+
+Regla: un chequeo de estado va ANTES de cualquier comando que pueda
+repararlo -- nunca asumas que la posición "natural" dentro de un script es
+inocua; verifícalo. Y su test de regresión debe demostrar que el chequeo
+falla cuando debe fallar, no solo confirmar que pasa cuando todo está en
+orden -- un chequeo que nunca se vio fallar en rojo no está probado, solo
+parece estarlo.
+
 ### Mutation score: 90%, nunca 100%
 
 Perseguir el último tramo hasta 100% produce tests contorsionados contra

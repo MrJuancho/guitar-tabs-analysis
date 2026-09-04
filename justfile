@@ -184,6 +184,12 @@ doctor:
     for t in uv git python3 just; do
         command -v $t >/dev/null || { echo "FALTA: $t"; fallo=1; }
     done
+    # Chequear ANTES de cualquier `uv run`: `uv run` sincroniza el entorno
+    # (y con él, uv.lock) implícitamente antes de ejecutar nada -- correr
+    # `uv lock --check` después de un `uv run` nunca vería el
+    # desincronizado, porque el `uv run` anterior ya lo habría curado en
+    # silencio.
+    uv lock --check >/dev/null 2>&1 || { echo "uv.lock desincronizado con pyproject.toml -- correr 'uv lock'."; fallo=1; }
     for m in ruff mypy pytest mutmut importlinter hypothesis; do
         uv run python -c "import ${m//-/_}" 2>/dev/null || { echo "FALTA (paquete Python): $m"; fallo=1; }
     done
