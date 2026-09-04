@@ -8,7 +8,7 @@ feature), así que el contrato es la firma pública de las funciones de
 ## `si_sdr`
 
 ```python
-def si_sdr(referencia: PistaAudio, estimacion: PistaAudio) -> float:
+def si_sdr(referencia: PistaGuitarra, estimacion: Estimacion) -> float:
     ...
 ```
 
@@ -17,45 +17,52 @@ pequeña del contrato — `emparejar_tema` la usa internamente para construir
 la matriz de costos, pero también está expuesta directamente para poder
 verificar la fórmula de forma aislada (`tests/unit/`).
 
+Toma `PistaGuitarra`/`Estimacion` (no `PistaAudio` desnudo) **a
+propósito**: las dos excepciones de este contrato necesitan
+`identificador_origen`/`identificador` para construir su mensaje, y esa
+identidad solo existe en estos dos tipos, no en `PistaAudio`. Internamente
+opera sobre `referencia.audio`/`estimacion.audio`.
+
 ### Precondiciones
 
-- `referencia.muestras` y `estimacion.muestras` tienen la misma longitud
-  y `referencia.frecuencia_muestreo == estimacion.frecuencia_muestreo`
-  (research.md #7) — de lo contrario, `EstimacionIncompatibleError`.
+- `referencia.audio.muestras` y `estimacion.audio.muestras` tienen la
+  misma longitud y `referencia.audio.frecuencia_muestreo ==
+  estimacion.audio.frecuencia_muestreo` (research.md #7) — de lo
+  contrario, `EstimacionIncompatibleError`.
 - `referencia` no tiene energía nula (research.md #4) — de lo contrario,
   `ReferenciaEnergiaNulaError` (ver tabla de fallos abajo). Esta
   precondición es responsabilidad de quien llama a `si_sdr()`
   directamente; `emparejar_tema` (más abajo) nunca la viola porque
   comprueba la energía de cada referencia antes de invocar `si_sdr()`
   sobre ella (data-model.md, tabla de errores). `estimacion` **sí** puede
-  tener energía nula: es un resultado válido (SI-SDR = `-∞` exacto,
-  research.md #5), no una precondición violada.
+  tener energía nula: es un resultado válido (SI-SDR = `-∞` por
+  convención, ver postcondición 2), no una precondición violada.
 
 ### Postcondiciones
 
 1. El valor devuelto es exacto (no una aproximación) cuando
-   `estimacion.muestras` es bit-idéntica a `referencia.muestras`: `+inf`
-   (research.md #5, base de SC-001) — resultado de la fórmula, no un
-   caso especial.
+   `estimacion.audio.muestras` es bit-idéntica a
+   `referencia.audio.muestras`: `+inf` (research.md #5, base de SC-001)
+   — resultado de la fórmula, no un caso especial.
 2. El valor devuelto es `-inf` por convención (no por cálculo — la
    fórmula da `0/0` en este caso, research.md #5) cuando
-   `estimacion.muestras` tiene energía nula (vector cero): "no hay
+   `estimacion.audio.muestras` tiene energía nula (vector cero): "no hay
    señal reconstruida" se define como el peor resultado posible, mismo
    patrón que el sentinel de FR-008.
 3. En cualquier otro caso, el valor devuelto es finito y coincide con la
    fórmula de research.md #1 dentro de la tolerancia de punto flotante
    estándar (research.md #6) — no bit a bit.
-4. La función no reescala, normaliza, ni modifica `referencia.muestras`
-   ni `estimacion.muestras` — la invarianza a escala es una propiedad del
-   resultado, no de una transformación previa a las entradas (research.md
-   #3).
+4. La función no reescala, normaliza, ni modifica
+   `referencia.audio.muestras` ni `estimacion.audio.muestras` — la
+   invarianza a escala es una propiedad del resultado, no de una
+   transformación previa a las entradas (research.md #3).
 
 ### Modos de fallo
 
 | Condición | Excepción | Mensaje debe incluir |
 |---|---|---|
-| `referencia` y `estimacion` tienen distinta longitud o distinta frecuencia de muestreo | `EstimacionIncompatibleError` | qué propiedad difiere (research.md #7) |
-| `referencia` tiene energía nula | `ReferenciaEnergiaNulaError` | que la energía es nula (research.md #4) |
+| `referencia` y `estimacion` tienen distinta longitud o distinta frecuencia de muestreo | `EstimacionIncompatibleError` | `referencia.identificador_origen`, `estimacion.identificador`, y qué propiedad difiere (research.md #7) |
+| `referencia` tiene energía nula | `ReferenciaEnergiaNulaError` | `referencia.identificador_origen` (research.md #4) |
 
 Ninguna de las dos condiciones anteriores llega nunca a `si_sdr()` a
 través de `emparejar_tema()`: la primera se verifica antes sobre todos los
