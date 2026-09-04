@@ -13,6 +13,7 @@ import dataclasses
 
 import numpy as np
 import pytest
+
 from guitar_tabs_analysis.analytics.metrica_separacion import (
     EntradaConjunto,
     Estimacion,
@@ -23,9 +24,15 @@ from guitar_tabs_analysis.analytics.metrica_separacion import (
     ReferenciaSinPareja,
     ReporteTema,
     ResultadoAgregado,
+    si_sdr,
 )
-
 from guitar_tabs_analysis.ingestion.slakh2100 import PistaAudio, PistaGuitarra
+from tests.fixtures.metrica_separacion_fixture import (
+    estimacion_sintetica,
+    onda_senoidal,
+    referencia_sintetica,
+    silencio,
+)
 
 # ---------------------------------------------------------------------
 # T003: Estimacion, ReferenciaEmparejada, ReferenciaSinPareja,
@@ -168,3 +175,97 @@ def test_referencia_energia_nula_error_incluye_el_identificador() -> None:
         "La referencia 'S03' tiene energía nula (silencio digital); "
         "el SI-SDR no está definido para ella."
     )
+
+
+# ---------------------------------------------------------------------
+# T005: si_sdr() (research.md #1, #3, #4, #5, #7 de
+# specs/002-metrica-separacion-guitarra/).
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.filterwarnings("error")
+def test_si_sdr_referencia_como_su_propia_estimacion_da_infinito_exacto() -> None:
+    onda = onda_senoidal(n_muestras=2000)
+    referencia = referencia_sintetica(identificador_origen="S01", muestras=onda)
+    # Copia bit-idéntica, no el mismo objeto -- confirma que la exactitud
+    # de +inf no depende de una identidad de objeto "hecha trampa"
+    # (research.md #5): num y den son la misma reducción de punto
+    # flotante porque el CONTENIDO es idéntico, no porque sea el mismo
+    # array en memoria.
+    estimacion = estimacion_sintetica(identificador="sep_S01", muestras=onda.copy())
+
+    assert si_sdr(referencia, estimacion) == float("inf")
+
+
+def test_si_sdr_es_invariante_a_la_ganancia_de_la_estimacion() -> None:
+    onda = onda_senoidal(n_muestras=2000)
+    # Ruido independiente de la referencia -- la estimación NO es
+    # proporcional a `onda`, así que esto ejercita la fórmula general,
+    # no el caso exacto +inf/-inf de los otros tests de este archivo.
+    ruido = np.random.default_rng(42).standard_normal(2000) * 50.0
+    base = onda + ruido
+
+    referencia = referencia_sintetica(muestras=onda)
+    estimacion_ganancia_2 = estimacion_sintetica(muestras=base * 2.0)
+    estimacion_ganancia_7 = estimacion_sintetica(muestras=base * 7.0)
+
+    valor_ganancia_2 = si_sdr(referencia, estimacion_ganancia_2)
+    valor_ganancia_7 = si_sdr(referencia, estimacion_ganancia_7)
+
+    # Valor calculado, no exacto por construcción -- tolerancia numérica
+    # declarada (research.md #6, constitución Principio VIII), no
+    # igualdad bit a bit.
+    assert valor_ganancia_2 == pytest.approx(valor_ganancia_7, rel=1e-9)
+
+
+def test_si_sdr_con_estimacion_de_energia_nula_da_menos_infinito_por_convencion() -> None:
+    referencia = referencia_sintetica(muestras=onda_senoidal(n_muestras=500))
+    estimacion = estimacion_sintetica(muestras=silencio(500))
+
+    # -inf está DEFINIDO por convención (research.md #5, hallazgo
+    # 2026-09-04), no calculado -- por eso la igualdad exacta es
+    # correcta aquí y no una tolerancia: es el valor que la
+    # implementación devuelve directamente, no el resultado de una
+    # acumulación de punto flotante.
+    assert si_sdr(referencia, estimacion) == float("-inf")
+
+
+def test_si_sdr_con_referencia_de_energia_nula_levanta_referencia_energia_nula_error() -> None:
+    referencia = referencia_sintetica(identificador_origen="S05", muestras=silencio(300))
+    estimacion = estimacion_sintetica(muestras=onda_senoidal(n_muestras=300))
+
+    with pytest.raises(ReferenciaEnergiaNulaError) as exc_info:
+        si_sdr(referencia, estimacion)
+    assert exc_info.value.identificador_referencia == "S05"
+
+
+def test_si_sdr_con_distinta_longitud_levanta_estimacion_incompatible_error() -> None:
+    referencia = referencia_sintetica(
+        identificador_origen="S06", muestras=onda_senoidal(n_muestras=500)
+    )
+    estimacion = estimacion_sintetica(
+        identificador="sep_S06", muestras=onda_senoidal(n_muestras=400)
+    )
+
+    with pytest.raises(EstimacionIncompatibleError) as exc_info:
+        si_sdr(referencia, estimacion)
+    assert exc_info.value.identificador_referencia == "S06"
+    assert exc_info.value.identificador_estimacion == "sep_S06"
+
+
+def test_si_sdr_con_distinta_frecuencia_de_muestreo_levanta_estimacion_incompatible_error() -> None:
+    referencia = referencia_sintetica(
+        identificador_origen="S07",
+        frecuencia_muestreo=44100,
+        muestras=onda_senoidal(n_muestras=500, frecuencia_muestreo=44100),
+    )
+    estimacion = estimacion_sintetica(
+        identificador="sep_S07",
+        frecuencia_muestreo=22050,
+        muestras=onda_senoidal(n_muestras=500, frecuencia_muestreo=22050),
+    )
+
+    with pytest.raises(EstimacionIncompatibleError) as exc_info:
+        si_sdr(referencia, estimacion)
+    assert exc_info.value.identificador_referencia == "S07"
+    assert exc_info.value.identificador_estimacion == "sep_S07"
