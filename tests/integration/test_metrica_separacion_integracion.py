@@ -1,17 +1,24 @@
-"""Tests de integración end-to-end para `emparejar_tema()` (T010-T015 de
-`specs/002-metrica-separacion-guitarra/tasks.md`, User Story 1/P1).
+"""Tests de integración end-to-end para `emparejar_tema()`/`agregar_conjunto()`
+(T010-T024 de `specs/002-metrica-separacion-guitarra/tasks.md`, User
+Story 1/P1 y User Story 2/P2).
 
 Cada test construye referencias/estimaciones sintéticas vía
 `tests/fixtures/metrica_separacion_fixture.py` -- nunca audio real del
-dataset (constitución Principio IV) -- y ejercita `emparejar_tema()` de
-punta a punta.
+dataset (constitución Principio IV).
 """
 
 from __future__ import annotations
 
+import statistics
+
 import numpy as np
 
-from guitar_tabs_analysis.analytics.metrica_separacion import emparejar_tema
+from guitar_tabs_analysis.analytics.metrica_separacion import (
+    EntradaConjunto,
+    agregar_conjunto,
+    emparejar_tema,
+    si_sdr,
+)
 from tests.fixtures.metrica_separacion_fixture import (
     estimacion_sintetica,
     onda_senoidal,
@@ -164,3 +171,142 @@ def test_estimacion_asignada_silenciosa_se_reporta_sin_pareja_no_emparejada() ->
     assert len(reporte.sin_pareja) == 1
     assert reporte.sin_pareja[0].identificador_referencia == "S01"
     assert reporte.sin_pareja[0].motivo == "estimacion_silenciosa"
+
+
+def test_tema_sin_ninguna_referencia_se_excluye_sin_guitarra_referencia() -> None:
+    """spec.md AS US2.2, FR-009."""
+    onda = onda_senoidal(n_muestras=500, frecuencia_onda=220.0)
+    referencia = referencia_sintetica(identificador_origen="S01", muestras=onda)
+    estimacion = estimacion_sintetica(identificador="sep_S01", muestras=onda.copy())
+
+    entradas = [
+        EntradaConjunto("TrackSinGuitarra", [], [], es_directorio_omitido=False),
+        EntradaConjunto("TrackNormal", [referencia], [estimacion], es_directorio_omitido=False),
+    ]
+
+    resultado = agregar_conjunto(entradas)
+
+    assert len(resultado.exclusiones) == 1
+    assert resultado.exclusiones[0].tema_id == "TrackSinGuitarra"
+    assert resultado.exclusiones[0].motivo == "sin_guitarra_referencia"
+    assert resultado.num_temas_evaluados == 1
+    assert all(r.tema_id != "TrackSinGuitarra" for r in resultado.reportes_por_tema)
+
+
+def test_tema_del_directorio_omitido_se_excluye_con_o_sin_referencias() -> None:
+    """spec.md AS US2.3, FR-010, research.md #10 (prioridad sobre FR-009
+    cuando ambos motivos aplicarían a la vez)."""
+    onda = onda_senoidal(n_muestras=500, frecuencia_onda=220.0)
+    referencia = referencia_sintetica(identificador_origen="S01", muestras=onda)
+
+    entradas = [
+        # Tiene referencias -- sin es_directorio_omitido, no se excluiría
+        # por FR-009. Con es_directorio_omitido=True, se excluye igual.
+        EntradaConjunto("TrackOmitidoConReferencias", [referencia], [], es_directorio_omitido=True),
+        # Ambos motivos aplicarían (sin referencias Y omitido) -- gana
+        # "directorio_omitido" (research.md #10).
+        EntradaConjunto("TrackOmitidoSinReferencias", [], [], es_directorio_omitido=True),
+    ]
+
+    resultado = agregar_conjunto(entradas)
+
+    assert resultado.num_temas_evaluados == 0
+    assert len(resultado.exclusiones) == 2
+    motivos = {e.tema_id: e.motivo for e in resultado.exclusiones}
+    assert motivos["TrackOmitidoConReferencias"] == "directorio_omitido"
+    assert motivos["TrackOmitidoSinReferencias"] == "directorio_omitido"
+
+
+def test_tema_con_referencias_pero_sin_estimaciones_permanece_evaluado() -> None:
+    """spec.md AS US2.4, FR-008 -- distinto de excluir: el tema SÍ tiene
+    guitarras de referencia, solo que el separador no produjo nada para
+    él; sus referencias entran a la mediana como -inf, no desaparecen."""
+    referencia = referencia_sintetica(
+        identificador_origen="S01", muestras=onda_senoidal(n_muestras=500, frecuencia_onda=220.0)
+    )
+
+    entradas = [
+        EntradaConjunto("TrackSinEstimaciones", [referencia], [], es_directorio_omitido=False)
+    ]
+
+    resultado = agregar_conjunto(entradas)
+
+    assert resultado.exclusiones == []
+    assert resultado.num_temas_evaluados == 1
+    assert len(resultado.reportes_por_tema) == 1
+    assert resultado.reportes_por_tema[0].sin_pareja[0].motivo == "sin_estimacion_disponible"
+    assert resultado.mediana == float("-inf")
+
+
+def test_distribucion_y_mediana_ponderada_por_referencia_no_por_tema() -> None:
+    """spec.md AS US2.6/US2.7, FR-007, FR-015 -- la mediana pesa cada
+    referencia individualmente; un tema con más referencias influye
+    proporcionalmente más, no se colapsa primero a un solo valor por
+    tema."""
+    rng = np.random.default_rng(7)
+
+    def par(
+        id_ref: str, id_est: str, n: int, ruido_amplitud: float
+    ) -> tuple[object, object, float]:
+        onda = onda_senoidal(n_muestras=n, frecuencia_onda=220.0)
+        ruido = rng.standard_normal(n) * ruido_amplitud
+        referencia = referencia_sintetica(identificador_origen=id_ref, muestras=onda)
+        estimacion = estimacion_sintetica(identificador=id_est, muestras=onda + ruido)
+        valor = si_sdr(referencia, estimacion)
+        return referencia, estimacion, valor
+
+    ref1, est1, v1 = par("A01", "sepA01", 1000, 5.0)
+    ref2a, est2a, v2a = par("B01", "sepB01", 1000, 20.0)
+    ref2b, est2b, v2b = par("B02", "sepB02", 1000, 40.0)
+    ref3a, est3a, v3a = par("C01", "sepC01", 1000, 60.0)
+    ref3b, est3b, v3b = par("C02", "sepC02", 1000, 80.0)
+    ref3c, est3c, v3c = par("C03", "sepC03", 1000, 100.0)
+
+    entradas = [
+        EntradaConjunto("TrackA", [ref1], [est1], es_directorio_omitido=False),
+        EntradaConjunto("TrackB", [ref2a, ref2b], [est2a, est2b], es_directorio_omitido=False),
+        EntradaConjunto(
+            "TrackC", [ref3a, ref3b, ref3c], [est3a, est3b, est3c], es_directorio_omitido=False
+        ),
+    ]
+
+    resultado = agregar_conjunto(entradas)
+
+    assert resultado.distribucion_referencias_por_tema == {1: 1, 2: 1, 3: 1}
+
+    pool_plano = [v1, v2a, v2b, v3a, v3b, v3c]
+    assert resultado.mediana == statistics.median(pool_plano)
+
+    # La alternativa incorrecta (mediana de medianas por tema) da un
+    # número distinto -- confirma que la agregación no colapsa primero
+    # cada tema a un solo valor (spec.md#Assumptions, ponderación).
+    mediana_por_tema_incorrecta = statistics.median(
+        [statistics.median([v1]), statistics.median([v2a, v2b]), statistics.median([v3a, v3b, v3c])]
+    )
+    assert resultado.mediana != mediana_por_tema_incorrecta
+
+
+def test_conjunto_vacio_y_conjunto_completamente_excluido_dan_mediana_none() -> None:
+    """FR-014 -- la mediana de nada no existe; se reporta explícitamente
+    como conjunto vacío evaluado, nunca como error ni como 0.0."""
+    resultado_vacio = agregar_conjunto([])
+    assert resultado_vacio.mediana is None
+    assert resultado_vacio.num_temas_evaluados == 0
+    assert resultado_vacio.exclusiones == []
+    assert resultado_vacio.reportes_por_tema == []
+    assert resultado_vacio.distribucion_referencias_por_tema == {}
+
+    referencia = referencia_sintetica(
+        identificador_origen="S01", muestras=onda_senoidal(n_muestras=500, frecuencia_onda=220.0)
+    )
+    entradas_todas_excluidas = [
+        EntradaConjunto("TrackSinGuitarra", [], [], es_directorio_omitido=False),
+        EntradaConjunto("TrackOmitido", [referencia], [], es_directorio_omitido=True),
+    ]
+
+    resultado_excluido = agregar_conjunto(entradas_todas_excluidas)
+
+    assert resultado_excluido.mediana is None
+    assert resultado_excluido.num_temas_evaluados == 0
+    assert len(resultado_excluido.exclusiones) == 2
+    assert resultado_excluido.reportes_por_tema == []
