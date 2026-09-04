@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 002 (métrica SI-SDR): spec/clarify/plan/tasks completos;
-constitución cerrada a v1.2.0 (Principios VII-métrica, VIII-determinismo).
-Implementado T001-T009 de tasks.md (Setup+Foundational): scipy +
-scipy-stubs (uv.lock committeado junto con pyproject.toml -- `just doctor`
-ahora lo verifica), tipos/excepciones, y `si_sdr()` con su suite de tests.
-`just gauntlet` en verde (99% cobertura). Dos hallazgos corregidos ANTES
-de implementar: research.md #5 afirmaba sin verificar que estimación
-silenciosa daba `-inf` por cálculo -- es NaN (0/0), `-inf` quedó definido
-por convención (confirmado con el usuario). `si_sdr()` cambió de firma
-(`PistaAudio` -> `PistaGuitarra`/`Estimacion`, necesita identificadores).
+Feature 002 (métrica SI-SDR): **User Story 1 (P1/MVP) completa**.
+Implementado T010-T017: `emparejar_tema()` con asignación óptima
+(`scipy.optimize.linear_sum_assignment`), tres motivos de `sin_pareja`
+distinguibles (`sin_estimacion_disponible`, `energia_nula`, y el nuevo
+`estimacion_silenciosa` -- FR-016: una estimación asignada silenciosa se
+reclasifica a `sin_pareja`, no queda en `emparejadas` con `-inf`).
+`just gauntlet` en verde (99% cobertura, 100% en `metrica_separacion.py`,
+82 tests). Dos brechas de contrato corregidas ANTES de implementar:
+`emparejar_tema` no declaraba `tema_id` pese a que `ReporteTema` lo
+requiere; `MotivoSinPareja` en código se quedó con dos valores tras
+declarar tres en el spec (mypy lo atrapó, no los tests).
 
 ## Qué sigue
 
-Fase 3 de tasks.md (User Story 1, P1/MVP): T010-T016 (tests de
-`emparejar_tema`) y T017 (implementación, con
-`scipy.optimize.linear_sum_assignment` -- research.md #2). Después, Fase
-4 (`agregar_conjunto`, US2) y Polish (T026-T028: mutation testing,
-validación de `quickstart.md`).
+Fase 4 de tasks.md (User Story 2, P2): T018-T024 (tests de
+`agregar_conjunto` -- exclusiones, mediana ponderada, distribución) y
+T025 (implementación). Después, Polish (T026-T028: mutation testing,
+validación manual de `quickstart.md`).
 
 ## Bloqueado / pendiente de decisión
 
