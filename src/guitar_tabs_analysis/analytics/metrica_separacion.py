@@ -1,14 +1,14 @@
 """Métrica de separación de guitarra (capa `analytics`, importa de
 `ingestion`, nunca al revés): dada la colección de pistas de guitarra
 de referencia y una colección de estimaciones de un mismo tema,
-`si_sdr()` calcula el SI-SDR (*Scale-Invariant Signal-to-Distortion
-Ratio*) de un único par.
+calcula SI-SDR (*Scale-Invariant Signal-to-Distortion Ratio*) por par
+(`si_sdr`), empareja por tema con asignación óptima (`emparejar_tema`),
+y agrega sobre un conjunto de temas (`agregar_conjunto`).
 
-Este módulo, en su estado actual (T003, T005 de
-`specs/002-metrica-separacion-guitarra/tasks.md`), cubre los tipos de
-dominio, las excepciones, y `si_sdr()` -- el emparejamiento por tema
-(`emparejar_tema`, T017) y la agregación sobre un conjunto
-(`agregar_conjunto`, T025) llegan en sesiones futuras.
+Este módulo cubre las dos user stories completas de
+`specs/002-metrica-separacion-guitarra/tasks.md`: T003-T017 (medición
+por tema individual, User Story 1) y T018-T025 (agregación sobre un
+conjunto con exclusiones y distribución, User Story 2).
 
 Ver `specs/002-metrica-separacion-guitarra/data-model.md` y
 `specs/002-metrica-separacion-guitarra/contracts/metrica_separacion.md`
@@ -17,6 +17,8 @@ para el contrato completo.
 
 from __future__ import annotations
 
+import statistics
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -344,4 +346,81 @@ def emparejar_tema(
         num_estimaciones_recibidas=len(estimaciones),
         emparejadas=emparejadas,
         sin_pareja=sin_pareja,
+    )
+
+
+# ---------------------------------------------------------------------
+# agregar_conjunto (T025) -- ver contracts/metrica_separacion.md para el
+# contrato completo.
+# ---------------------------------------------------------------------
+
+
+def agregar_conjunto(entradas: list[EntradaConjunto]) -> ResultadoAgregado:
+    """Implementa User Story 2 completa (contracts/metrica_separacion.md).
+
+    Excluye primero cada `EntradaConjunto` con `es_directorio_omitido`
+    (motivo `"directorio_omitido"`, con prioridad sobre el siguiente
+    chequeo si ambos aplicarían -- research.md #10), luego cada una sin
+    ninguna referencia (`"sin_guitarra_referencia"`, FR-009). El resto se
+    evalúa: un `ReporteTema` por `emparejar_tema(entrada.tema_id,
+    entrada.referencias, entrada.estimaciones)` cada una (FR-007 en
+    adelante) -- nunca se excluye un tema solo porque el separador no le
+    dio ninguna estimación (`estimaciones == []`); eso es un resultado
+    malo, no un tema ausente.
+
+    La mediana se calcula sobre un único pool plano de valores por
+    referencia de TODOS los temas evaluados -- nunca colapsando primero
+    cada tema a su propio valor (spec.md#Assumptions, "Ponderación de la
+    mediana agregada"): un tema con tres referencias aporta tres
+    observaciones al pool, no una. Cada referencia sin pareja, sin
+    importar el motivo (`energia_nula`, `sin_estimacion_disponible`, o
+    `estimacion_silenciosa`), aporta `-inf` al pool (FR-008) -- omitirla
+    en vez de aportar el peor valor posible inflaría el resultado
+    contando solo los casos donde el separador acertó.
+    """
+    exclusiones: list[Exclusion] = []
+    evaluadas: list[EntradaConjunto] = []
+
+    for entrada in entradas:
+        if entrada.es_directorio_omitido:
+            exclusiones.append(Exclusion(tema_id=entrada.tema_id, motivo="directorio_omitido"))
+        elif not entrada.referencias:
+            exclusiones.append(Exclusion(tema_id=entrada.tema_id, motivo="sin_guitarra_referencia"))
+        else:
+            evaluadas.append(entrada)
+
+    reportes_por_tema = [
+        emparejar_tema(entrada.tema_id, entrada.referencias, entrada.estimaciones)
+        for entrada in evaluadas
+    ]
+
+    # Pool plano: cada referencia individual entra una vez, sea cual sea
+    # el tamaño del tema al que pertenece -- research.md #7/#9,
+    # spec.md#Assumptions "Ponderación".
+    pool: list[float] = []
+    for reporte in reportes_por_tema:
+        pool.extend(emparejada.si_sdr for emparejada in reporte.emparejadas)
+        # -inf es válido AQUÍ únicamente porque la mediana es un
+        # estadístico de orden: solo necesita la posición relativa de
+        # cada valor, no su magnitud, y -inf es una posición
+        # perfectamente definida (siempre el mínimo) sin inventar una
+        # constante numérica arbitraria (FR-008). Si algún día se agrega
+        # una MEDIA (u otro estadístico sensible a magnitud) a este
+        # reporte, este mismo -inf la destruye (-inf + x = -inf para
+        # cualquier x finito) -- ese cambio tendría que revisar este
+        # bloque junto con FR-007/FR-008, no reusarlo tal cual.
+        pool.extend(float("-inf") for _ in reporte.sin_pareja)
+
+    mediana = statistics.median(pool) if pool else None
+
+    distribucion_referencias_por_tema = dict(
+        Counter(len(entrada.referencias) for entrada in evaluadas)
+    )
+
+    return ResultadoAgregado(
+        mediana=mediana,
+        num_temas_evaluados=len(evaluadas),
+        distribucion_referencias_por_tema=distribucion_referencias_por_tema,
+        exclusiones=exclusiones,
+        reportes_por_tema=reportes_por_tema,
     )
