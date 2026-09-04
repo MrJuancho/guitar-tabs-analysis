@@ -17,7 +17,7 @@ para el contrato completo.
 
 from __future__ import annotations
 
-import statistics
+import math
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -355,6 +355,35 @@ def emparejar_tema(
 # ---------------------------------------------------------------------
 
 
+def _mediana_orden(pool: list[float]) -> float:
+    """Mediana como estadístico de orden puro (FR-007/FR-008: "solo
+    necesita la posición relativa de cada valor... no su magnitud").
+
+    `statistics.median` no cumple esa premisa para un pool de tamaño
+    par: promedia aritméticamente los dos valores centrales, y esa
+    suma es NaN en IEEE754 cuando esos dos valores son +inf y -inf
+    (hallado por Hypothesis, T027, 2026-09-04 -- un tema con
+    referencia==estimación exacta junto a un tema completamente sin
+    emparejar). Para cualquier otro caso (par de valores finitos, o
+    infinitos del mismo signo) el promedio SÍ está bien definido y
+    coincide con `statistics.median` -- este caso no se generaliza.
+
+    Cuando el promedio sería NaN, se resuelve al valor más BAJO de los
+    dos centrales -- política pesimista, consistente con FR-008 y con
+    el Principio V de la constitución (nunca ocultar un resultado malo
+    resolviendo la ambigüedad hacia el lado optimista)."""
+    ordenado = sorted(pool)
+    n = len(ordenado)
+    if n % 2 == 1:
+        return ordenado[n // 2]
+    inferior = ordenado[n // 2 - 1]
+    superior = ordenado[n // 2]
+    promedio = (inferior + superior) / 2.0
+    if math.isnan(promedio):
+        return inferior
+    return promedio
+
+
 def agregar_conjunto(entradas: list[EntradaConjunto]) -> ResultadoAgregado:
     """Implementa User Story 2 completa (contracts/metrica_separacion.md).
 
@@ -411,7 +440,7 @@ def agregar_conjunto(entradas: list[EntradaConjunto]) -> ResultadoAgregado:
         # bloque junto con FR-007/FR-008, no reusarlo tal cual.
         pool.extend(float("-inf") for _ in reporte.sin_pareja)
 
-    mediana = statistics.median(pool) if pool else None
+    mediana = _mediana_orden(pool) if pool else None
 
     distribucion_referencias_por_tema = dict(
         Counter(len(entrada.referencias) for entrada in evaluadas)

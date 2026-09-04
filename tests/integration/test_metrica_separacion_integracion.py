@@ -305,9 +305,7 @@ def test_pool_par_con_inf_y_menos_inf_como_valores_centrales_no_produce_nan() ->
     estimacion = estimacion_sintetica(identificador="E00", muestras=onda.copy())
     referencia_extra = referencia_sintetica(identificador_origen="Extra_R00", muestras=onda.copy())
 
-    entradas_base = [
-        EntradaConjunto("TrackConEstimacionExacta", [referencia], [estimacion], False)
-    ]
+    entradas_base = [EntradaConjunto("TrackConEstimacionExacta", [referencia], [estimacion], False)]
     tema_extra = EntradaConjunto("TrackExtraTodoSinEmparejar", [referencia_extra], [], False)
 
     resultado_sin = agregar_conjunto(entradas_base)
