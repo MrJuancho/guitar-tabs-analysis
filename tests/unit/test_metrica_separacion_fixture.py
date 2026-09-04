@@ -10,15 +10,15 @@ tocar este archivo de nuevo.
 from __future__ import annotations
 
 import numpy as np
+
+from guitar_tabs_analysis.analytics.metrica_separacion import Estimacion
+from guitar_tabs_analysis.ingestion.slakh2100 import PistaGuitarra
 from tests.fixtures.metrica_separacion_fixture import (
     estimacion_sintetica,
     onda_senoidal,
     referencia_sintetica,
     silencio,
 )
-
-from guitar_tabs_analysis.analytics.metrica_separacion import Estimacion
-from guitar_tabs_analysis.ingestion.slakh2100 import PistaGuitarra
 
 
 def test_onda_senoidal_tiene_energia_no_nula() -> None:

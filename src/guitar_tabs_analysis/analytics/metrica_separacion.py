@@ -20,6 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+import numpy as np
+
 from guitar_tabs_analysis.ingestion.slakh2100 import PistaAudio, PistaGuitarra
 
 # ---------------------------------------------------------------------
@@ -144,3 +146,69 @@ class ReferenciaEnergiaNulaError(Exception):
             f"La referencia '{identificador_referencia}' tiene energía nula (silencio digital); "
             "el SI-SDR no está definido para ella."
         )
+
+
+# ---------------------------------------------------------------------
+# si_sdr (T005) -- ver contracts/metrica_separacion.md para el contrato
+# completo (precondiciones/postcondiciones/modos de fallo).
+# ---------------------------------------------------------------------
+
+
+def si_sdr(referencia: PistaGuitarra, estimacion: Estimacion) -> float:
+    """Calcula el SI-SDR (*Scale-Invariant Signal-to-Distortion Ratio*,
+    Le Roux et al. 2019 -- research.md #1) entre `referencia` y
+    `estimacion`.
+
+    Toma `PistaGuitarra`/`Estimacion`, no `PistaAudio` desnudo: las dos
+    excepciones de este contrato necesitan `identificador_origen`/
+    `identificador` para su mensaje.
+
+    Valida forma y frecuencia de muestreo antes de calcular nada
+    (research.md #7): `EstimacionIncompatibleError` si difieren. Valida
+    la energía de `referencia` (research.md #4): `ReferenciaEnergiaNulaError`
+    si es nula -- el cálculo ni se intenta, la proyección no está
+    definida. Una `estimacion` de energía nula NO lanza: el resultado es
+    `-inf` **por convención, no por cálculo** (la fórmula da `0/0` en ese
+    caso -- research.md #5, hallazgo verificado, no solo razonado). En
+    cualquier otro caso, castea a `float64` (research.md #3, sin
+    reescalar las muestras -- la invarianza a escala es propiedad de la
+    fórmula) y aplica la fórmula estándar; `+inf` exacto cuando el
+    residuo (`e_noise`) resulta el vector cero bit a bit (research.md
+    #5), envuelto en `numpy.errstate` porque esa división por cero es el
+    resultado esperado, no un error a silenciar con un epsilon.
+    """
+    audio_referencia = referencia.audio
+    audio_estimacion = estimacion.audio
+
+    if len(audio_referencia.muestras) != len(audio_estimacion.muestras):
+        raise EstimacionIncompatibleError(
+            identificador_referencia=referencia.identificador_origen,
+            identificador_estimacion=estimacion.identificador,
+            motivo="distinta longitud (número de muestras)",
+        )
+    if audio_referencia.frecuencia_muestreo != audio_estimacion.frecuencia_muestreo:
+        raise EstimacionIncompatibleError(
+            identificador_referencia=referencia.identificador_origen,
+            identificador_estimacion=estimacion.identificador,
+            motivo="distinta frecuencia de muestreo",
+        )
+
+    s = audio_referencia.muestras.astype(np.float64)
+    shat = audio_estimacion.muestras.astype(np.float64)
+
+    energia_referencia = float(np.dot(s, s))
+    if energia_referencia == 0.0:
+        raise ReferenciaEnergiaNulaError(identificador_referencia=referencia.identificador_origen)
+
+    energia_estimacion = float(np.dot(shat, shat))
+    if energia_estimacion == 0.0:
+        return float("-inf")
+
+    alpha = float(np.dot(shat, s)) / energia_referencia
+    s_target = alpha * s
+    e_noise = shat - s_target
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        cociente = np.dot(s_target, s_target) / np.dot(e_noise, e_noise)
+        valor = 10.0 * np.log10(cociente)
+    return float(valor)
