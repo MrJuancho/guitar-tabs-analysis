@@ -375,19 +375,42 @@ hito necesita poder repetir la medición varias veces, no una sola vez —
 un día por corrida lo vuelve impráctico para iterar, aunque no llegue a
 "varios días".
 
-- **Submuestra declarada**: los primeros **40 temas del split
-  `validation`, ordenados alfabéticamente por `tema_id`** (`Track00001`
-  hasta el 40° `tema_id` disponible en ese split, en orden de
-  `sorted(os.listdir(...))`) — nunca del split `test`.
-- **Tamaño**: 40 temas → ~35,6 minutos de inferencia total, un tiempo
-  práctico para correr en cada verificación real del hito 1 sin bloquear
-  una sesión de trabajo.
+- **Submuestra declarada (corregida 2026-09-05, antes de que este
+  número llegara a la constitución)**: **40 temas del split `validation`,
+  elegidos por muestreo aleatorio con semilla fija y declarada** —
+  `random.Random(20260904).sample(sorted(os.listdir(validation)), 40)`
+  — nunca del split `test`. **No** los primeros 40 por orden alfabético
+  del `tema_id`, como decía la versión anterior de esta entrada: un
+  orden alfabético de `tema_id` no tiene ninguna garantía de no
+  correlacionar con algo del proceso de generación del dataset (lote de
+  render, sesión de composición, etc.) — "reproducible" y
+  "representativo" son propiedades distintas, y la versión anterior solo
+  se ganó la primera. El muestreo aleatorio con semilla declarada tiene
+  ambas: cualquiera que corra `random.Random(20260904).sample(...)`
+  sobre la misma lista ordenada obtiene exactamente los mismos 40
+  `tema_id`, sin depender de dónde caen en el alfabeto.
+- **Tamaño**: 40 temas → ~35,6 minutos de inferencia total (sin cambio —
+  el tamaño de la muestra no cambió, solo el criterio de selección), un
+  tiempo práctico para correr en cada verificación real del hito 1 sin
+  bloquear una sesión de trabajo.
+- **Distribución de guitarras por tema, verificada, no asumida**
+  (contando `inst_class == "Guitar"` con `audio_rendered is True` en
+  `metadata.yaml` de cada uno de los 40 temas de la muestra, sin decodificar
+  audio): `{1 guitarra: 9 temas, 2: 13, 3: 6, 4: 7, 5: 1, 6: 4}` — **0
+  temas monofónicos únicos** en el sentido de "todos igual de fáciles":
+  31 de los 40 (77,5%) tienen dos o más pistas de guitarra, y el máximo
+  observado es 6. La muestra sí ejercita el caso polifónico que el
+  Principio V de la constitución exige no esconder — no hizo falta
+  ajustar el muestreo para lograrlo, salió así con la semilla declarada
+  arriba; si hubiera salido degenerada (p. ej. todos con 1 guitarra), la
+  decisión correcta habría sido cambiar la semilla y volver a verificar,
+  no aceptar una muestra que no dice nada del caso que más importa.
 - **Criterio de selección**: `validation` en vez de `train` porque es el
   split más chico de los dos no reservados (270 contra 1289), reduciendo
-  el sesgo de "solo se probó con los primeros N de un conjunto enorme";
-  orden alfabético (no aleatorio) para que la submuestra sea exactamente
-  reproducible entre corridas sin fijar una semilla ni depender de qué
-  versión de una librería de muestreo aleatorio se use.
+  el sesgo de "solo se probó con un subconjunto minúsculo de un conjunto
+  enorme"; semilla `20260904` (fecha de `/speckit-plan` de esta feature)
+  declarada aquí mismo para que cualquiera pueda reproducir exactamente
+  esta muestra sin tener que adivinar qué semilla se usó.
 - **Alcance de esta decisión**: es la submuestra para *medir y verificar*
   durante el hito 1 (incluida cualquier medición futura de la Feature
   002 sobre estimaciones reales de esta feature) — no redefine el
