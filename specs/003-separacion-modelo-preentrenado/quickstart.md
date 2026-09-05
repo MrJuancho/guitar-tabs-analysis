@@ -85,7 +85,7 @@ mezcla = PistaAudio((np.sin(2 * np.pi * 220 * t) * 1000).astype(np.int16), sr)
 class SeparadorDeEjemplo:
     modelo_declarado = ModeloDeclarado(
         nombre='Demucs', variante='htdemucs_6s',
-        firma='5c90dfd2', checksum_sha256_prefijo='34c22ccb',
+        firma='5c90dfd2', checksum_sha256_prefijo='d2a1745f0744',
         licencia_pesos='ver docs/ATRIBUCIONES.md',
     )
     samplerate = sr

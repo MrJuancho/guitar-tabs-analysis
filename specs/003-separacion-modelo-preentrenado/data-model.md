@@ -23,7 +23,7 @@ El modelo preentrenado fijo, identificado de forma verificable (FR-002).
 | `nombre` | `str` | `"Demucs"` — fijo para esta feature (research.md #1). |
 | `variante` | `str` | `"htdemucs_6s"` — la única variante con fuente `"guitar"` propia (research.md #1). |
 | `firma` | `str` | `"5c90dfd2"` — identificador del checkpoint en el repositorio remoto de Demucs (research.md #2). |
-| `checksum_sha256_prefijo` | `str` | `"34c22ccb"` — prefijo del SHA-256 del archivo de pesos, verificado automáticamente por `torch.hub` al cargar (research.md #2); esta feature lo declara, no lo recalcula. |
+| `checksum_sha256_prefijo` | `str` | `"d2a1745f0744"` — prefijo del SHA-256 real del archivo `5c90dfd2.safetensors` efectivamente cargado en este entorno (verificado con `sha256sum`, research.md #2, corrección post-`/plan`). Documentación de procedencia, no una comprobación que el código ejecute — a diferencia del camino legacy `.th` (donde `torch.hub` sí verifica automáticamente), el camino real por HuggingFace Hub no expone ese mecanismo. |
 | `licencia_pesos` | `str` | Nota fija citando la restricción de uso de los pesos (distinta del MIT del código), con su fuente (research.md #3) y el archivo de atribuciones del repositorio (`docs/ATRIBUCIONES.md`, FR-004). |
 
 **Invariante**: es una única instancia constante para toda la feature (no

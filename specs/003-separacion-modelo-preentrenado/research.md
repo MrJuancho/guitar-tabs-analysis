@@ -92,6 +92,43 @@ suposiciones — se comprobó cada tramo (metadato de PyPI, código fuente de
 `pretrained.py`/`repo.py`/`hf.py`, y las URLs reales) en vez de asumir cómo
 funciona la carga de pesos.
 
+**Corrección post-`/plan` (2026-09-05, sesión de `/speckit-implement`
+T012-T016): el camino real que efectivamente se usó no fue el fallback
+legacy, fue el HuggingFace Hub directamente.** Con los pesos ya
+descargados en la caché local de este entorno
+(`~/.cache/huggingface/hub/models--adefossez--HTDemucs-6s/`), cargar
+`Separator(model="htdemucs_6s", device="cpu")` con `HF_HUB_OFFLINE=1`
+(sin red en absoluto) funciona en ~1.9 s y confirma en vivo:
+`samplerate == 44100`, `audio_channels == 2`,
+`sources == ["drums", "bass", "other", "vocals", "guitar", "piano"]` —
+"guitar" presente, como se esperaba. El hallazgo de "gated" (401) de la
+sección anterior sigue siendo lo que se observó al pedir la página del
+repositorio por HTTP sin autenticación durante `/plan`; no se investigó
+por qué la descarga real (hecha en otro momento, con otra herramienta —
+probablemente `huggingface_hub` con sus propias credenciales/anon-access,
+no `curl`) sí tuvo éxito. Ambas observaciones son compatibles: un
+repositorio puede rechazar un `HEAD`/`GET` anónimo simple y aun así
+permitir la descarga real vía el cliente oficial. No se investiga más a
+fondo porque no cambia la decisión (research.md #1, modelo declarado) ni
+la postura de licencia (research.md #3).
+
+**Consecuencia práctica para el checksum declarado (`MODELO_DECLARADO`)**:
+el archivo real cacheado es `5c90dfd2.safetensors` (formato
+`safetensors`, distinto del `.th` de pickle de PyTorch que usa el
+fallback legacy) — su SHA-256 real, verificado con `sha256sum` sobre el
+blob de la caché, es
+`d2a1745f0744721f6b8ca5bf469b67c651ea5ed1b52998cab033b2158609d411`, que
+**no** empieza con `34c22ccb` (ese prefijo es del archivo `.th` legacy,
+un formato de serialización distinto para el mismo modelo — no es un
+error, son dos artefactos binarios diferentes con el mismo contenido
+tensorial). `MODELO_DECLARADO.checksum_sha256_prefijo` se corrige a
+`d2a1745f0744` (12 caracteres del hash real y verificado del archivo
+efectivamente cargado en este entorno) en vez del prefijo legacy — a
+diferencia del camino legacy, aquí no hay una verificación automática de
+`torch.hub` contra este valor; el campo es documentación de procedencia
+para que dos corridas puedan confirmar manualmente que usan el mismo
+archivo, no una comprobación que el código ejecute.
+
 ## 3. Licencia de los pesos: categoría separada del código, cita parcialmente verificada
 
 **Decision**: Se documenta, en un archivo de atribuciones nuevo
@@ -298,3 +335,84 @@ sobre datos ya existentes" con "invocar un modelo pesado con sus propias
 dependencias externas (`torch`)"; son responsabilidades y presupuestos de
 recursos claramente distintos, y el spec ya declara ambas features como
 alcances separados (FR-012 de esta feature: no calcula métrica).
+
+## 9. Presupuesto de cómputo medido para inferencia real (T016)
+
+**Medición real, no estimada.** `separar_guitarra` completo (vía
+`DemucsSeparador`) sobre `Track00001` del split **`train`** (nunca
+`test` — Principio VI, conjunto reservado; corrección hecha en el propio
+`tasks.md` antes de ejecutar esta tarea, no descubierta a mitad de
+camino) de `/home/mrjuancho/datos/slakh2100_flac_redux`:
+
+| Métrica | Valor medido |
+|---|---|
+| Duración real del tema | 241.56 s (10.652.672 muestras a 44100 Hz — confirma el "~4 minutos/~10.6M muestras" del input de la feature, no se asumió) |
+| Carga del modelo (`DemucsSeparador()`) | 0,43 s (pesos ya en caché local, `HF_HUB_OFFLINE=1`) |
+| Inferencia (`separar_guitarra`) | **53,40 s** |
+| Pico de memoria residente del proceso (`RUSAGE_SELF.ru_maxrss`) | **2304,3 MB** (~2,3 GB) |
+| Hilos de CPU usados por `torch` por defecto | 8 (`torch.get_num_threads()`) sobre una máquina de 8 núcleos físicos / 16 hilos lógicos (`nproc`) — la inferencia de un solo tema ya satura los núcleos físicos internamente, no queda paralelismo "gratis" adicional dentro de una sola llamada |
+
+**Composición real del dataset** (verificado con `ls`, no de memoria):
+`train` 1289, `validation` 270, `test` 151, `omitted` 390 — total 2100.
+El conjunto evaluable (excluyendo `omitted`, FR-010 de la Feature 002) es
+1710 temas.
+
+**Extrapolación aritmética simple** (tiempo de inferencia × número de
+temas, sin contar la carga del modelo, amortizable a una sola vez por
+corrida):
+
+| Conjunto | Temas | Tiempo extrapolado |
+|---|---|---|
+| `validation` | 270 | ~4,0 horas |
+| `train` | 1289 | ~19,1 horas |
+| `test` (reservado — solo aritmética, nunca se ejecuta durante desarrollo) | 151 | ~2,2 horas |
+| Evaluable completo (`train`+`validation`+`test`) | 1710 | **~25,4 horas (~1,06 días)** |
+
+**Decisión: se declara una submuestra para el hito 1**, porque una
+corrida completa sobre el conjunto evaluable ya cruza el orden de "un
+día" en una sola ejecución secuencial, y el ciclo de desarrollo de este
+hito necesita poder repetir la medición varias veces, no una sola vez —
+un día por corrida lo vuelve impráctico para iterar, aunque no llegue a
+"varios días".
+
+- **Submuestra declarada**: los primeros **40 temas del split
+  `validation`, ordenados alfabéticamente por `tema_id`** (`Track00001`
+  hasta el 40° `tema_id` disponible en ese split, en orden de
+  `sorted(os.listdir(...))`) — nunca del split `test`.
+- **Tamaño**: 40 temas → ~35,6 minutos de inferencia total, un tiempo
+  práctico para correr en cada verificación real del hito 1 sin bloquear
+  una sesión de trabajo.
+- **Criterio de selección**: `validation` en vez de `train` porque es el
+  split más chico de los dos no reservados (270 contra 1289), reduciendo
+  el sesgo de "solo se probó con los primeros N de un conjunto enorme";
+  orden alfabético (no aleatorio) para que la submuestra sea exactamente
+  reproducible entre corridas sin fijar una semilla ni depender de qué
+  versión de una librería de muestreo aleatorio se use.
+- **Alcance de esta decisión**: es la submuestra para *medir y verificar*
+  durante el hito 1 (incluida cualquier medición futura de la Feature
+  002 sobre estimaciones reales de esta feature) — no redefine el
+  conjunto de prueba oficial (Principio VI, que sigue siendo `test`
+  completo para la evaluación final), ni prohíbe una corrida completa
+  puntual y deliberada cuando haga falta.
+
+**Memoria y planificación de corridas en paralelo**: ~2,3 GB de pico por
+tema, con 64 GB disponibles, no es la restricción — el límite real es la
+CPU. Como `torch` ya usa los 8 núcleos físicos dentro de una sola
+inferencia (tabla de arriba), correr varios temas en paralelo con
+`multiprocessing` **sin** limitar `torch.set_num_threads(1)` por proceso
+sobrecargaría los núcleos en vez de acelerar la corrida — cualquier
+paralelización futura debe fijar explícitamente un número de hilos por
+proceso (p. ej. 1 o 2) y medir el `speedup` real resultante, no asumirlo;
+esta feature no lo implementa, solo deja el hallazgo escrito para quien
+diseñe esa corrida.
+
+**`ABIERTO` para `/speckit-constitution`** (no se edita `constitution.md`
+desde esta tarea, Governance de la constitución): el Principio VII
+("Presupuesto") tiene un `ABIERTO` para el número numérico de la métrica,
+con criterio de cierre "después de la primera medición real"; esta
+medición de **tiempo de cómputo** (distinta del presupuesto de la
+métrica SI-SDR) es la primera evidencia real de que el hito 1, tal como
+está planteado, necesita una submuestra declarada para ser iterable — se
+recomienda correr `/speckit-constitution` después de esta sesión para
+que quede registrado, con esta tabla como evidencia, en vez de
+descubrirse de nuevo en una feature futura.
