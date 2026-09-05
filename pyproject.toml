@@ -14,6 +14,13 @@ dependencies = [
     "pyyaml>=6.0",
     "soundfile>=0.12",
     "scipy>=1.11",
+    "demucs>=4.1",
+    # torch es transitiva de demucs, pero se declara explícita para que
+    # [tool.uv.sources] (abajo) pueda enrutarla al índice CPU-only --
+    # uv no aplica `sources` a dependencias puramente transitivas
+    # (verificado empíricamente en esta sesión: sin esta línea, uv
+    # resuelve torch desde PyPI con runtimes de CUDA de todos modos).
+    "torch>=2.1",
 ]
 
 [build-system]
@@ -59,11 +66,27 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "holdout: tests de retención, no visibles al agente",
+    "modelo_real: el único test que ejercita el sistema completo con el modelo real; se salta sin red o sin pesos cacheados (research.md #7 de 003-separacion-modelo-preentrenado)",
 ]
 
 [tool.mutmut]
 source_paths = ["src/"]
 pytest_add_cli_args_test_selection = ["tests/"]
+
+# --------------------------------------------------------------------
+# torch solo-CPU -- research.md #7 de 003-separacion-modelo-preentrenado.
+# Sin esto, `demucs` arrastra la rueda de PyPI que incluye runtimes de
+# CUDA (~555 MB) aunque el hardware del proyecto no tenga GPU utilizable
+# (AMD, sin ROCm probado en WSL). La rueda `+cpu` del índice dedicado pesa
+# ~187 MB.
+# --------------------------------------------------------------------
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
 
 # --------------------------------------------------------------------
 # Contratos de import-linter -- ESPECÍFICO DEL DOMINIO.
@@ -85,6 +108,7 @@ root_package = "guitar_tabs_analysis"
 name = "Capas: no se saltan ni se invierten (EJEMPLO -- reemplaza por tu arquitectura real)"
 type = "layers"
 layers = [
+    "guitar_tabs_analysis.separacion",
     "guitar_tabs_analysis.analytics",
     "guitar_tabs_analysis.ingestion",
 ]

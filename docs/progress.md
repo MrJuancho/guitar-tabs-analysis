@@ -14,27 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-**Feature 002 (métrica SI-SDR) completa: T001-T028, las 5 fases.**
-`just gauntlet` en verde (93 tests, 99.26% cobertura). T027 encontró,
-antes de poder correr mutation testing siquiera, un defecto real: el
-clean-run de `mutmut` hizo que Hypothesis diera con un contraejemplo
-donde `agregar_conjunto` devolvía NaN (`statistics.median` promediando
-+∞ y −∞, `inf + -inf` en IEEE754) — corregido con test-rojo-primero y
-una `_mediana_orden()` nueva. Con la línea base sana, mutation testing
-sobre `metrica_separacion.py` corrió 246 mutantes, 24 sobrevivientes;
-triage completo en `tasks.md` ("Triage T027"): brechas reales
-corregidas (aserciones débiles, justo donde se esperaba -- las dos
-ramas de `sin_estimacion_disponible` no comprobaban a qué referencia
-pertenecía cada `sin_pareja`, más otras 4) y 6 equivalentes con
-`# pragma: no mutate` o comentario. Cierre: 226/228 matados (99.1%).
-T028: `quickstart.md` nunca había corrido -- le faltaba `tema_id` a
-`emparejar_tema(...)`, corregido.
+**Feature 003 (separación con Demucs), T001-T011 completas** (Setup,
+Foundational, User Story 1). `separar_guitarra()` verifica sample
+rate/canales contra un `Separador` inyectado (protocolo, sin `torch`),
+declara cada transformación, colapsa salida a mono por promedio, y
+envuelve fallos reales en `SeparacionFallidaError` sin reintento -- todo
+probado con `SeparadorFalso`, ningún test importa `torch`/`demucs`.
+`just gauntlet` verde (98 tests, 100% cobertura en `separador.py`). Capa
+`separacion` nueva en import-linter. `demucs`+`torch` (`+cpu`, ~187 MB)
+en `pyproject.toml` -- `tool.uv.sources` no enruta una transitiva;
+`torch` se declaró directa también (ver comentario en el archivo).
 
 ## Qué sigue
 
-Feature 002 cerrada. Sin tarea asignada todavía.
+Fase 4 (US2, T012-T015): `DemucsSeparador` real + `docs/ATRIBUCIONES.md`.
+Fase 5 (T016): medición real de cómputo sobre un tema completo (dataset
+en `/home/mrjuancho/datos/slakh2100_flac_redux`). Fase 6 (T017-T018):
+visibilidad del `modelo_real`. Fase 7 (US3, solo tests). Polish: T021-023.
 
 ## Bloqueado / pendiente de decisión
 
-Sigue abierto de feature 001: `_SUBTYPE_A_DTYPE.get(..., "float64")` en
-`_decodificar_audio` -- decisión diferida al `/plan` de hito 2.
+Feature 001: dtype por defecto en `_decodificar_audio` -- diferido al
+`/plan` de hito 2. Licencia de pesos de Demucs (research.md #3 de 003):
+cita del usuario, no verificada de forma independiente (`github.com`
+bloqueado en el sandbox).
