@@ -71,7 +71,22 @@ markers = [
 
 [tool.mutmut]
 source_paths = ["src/"]
-pytest_add_cli_args_test_selection = ["tests/"]
+# `tests/unit/test_atribuciones.py` lee `docs/ATRIBUCIONES.md` por ruta
+# relativa al repositorio -- mutmut solo copia `source_paths` (más
+# `tests/`) a su sandbox `mutants/`, así que sin esto la corrida limpia
+# de mutmut falla con `FileNotFoundError` antes de mutar nada (hallazgo
+# de la Feature 003, T022 -- mismo patrón que AGENTS.md ya documenta
+# para "una compuerta que no puede verificar nada").
+also_copy = ["docs/"]
+# `-m "not modelo_real"`: excluye el único test que carga el modelo real
+# (research.md #7 de 003-separacion-modelo-preentrenado) -- sin esto, un
+# mutante que produce una entrada patológica (p. ej. un tamaño de
+# remuestreo desbordado) hace que la inferencia real se cuelgue o tarde
+# muchísimo, y mutmut lo reporta como `timeout` en vez de `survived` o
+# `killed` -- una corrida real mostró 22/32 mutantes de
+# `separacion.separador` en `timeout` y CERO en `killed` hasta corregir
+# esto (hallazgo de la Feature 003, T022).
+pytest_add_cli_args_test_selection = ["tests/", "-m", "not modelo_real"]
 
 # --------------------------------------------------------------------
 # torch solo-CPU -- research.md #7 de 003-separacion-modelo-preentrenado.

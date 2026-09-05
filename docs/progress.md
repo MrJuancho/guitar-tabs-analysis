@@ -14,24 +14,23 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-**Feature 003, T001-T016 completas** (Setup, Foundational, US1, US2,
-medición de presupuesto). `DemucsSeparador` real funciona -- pesos ya
-cacheados, carga en ~0,4s sin red. `docs/ATRIBUCIONES.md` declara
-licencias. **T016 (medición real)**: 53,40s de inferencia sobre un tema
-de 241,56s (`train/Track00001`, nunca `test` -- Principio VI); pico de
-memoria 2,3 GB. Extrapolación al conjunto evaluable (1710 temas):
-~25,4h -- cruza "días", así que se declaró submuestra para el hito 1:
-40 temas de `validation` por muestreo aleatorio con semilla fija
-`20260904` (corregido 2026-09-05, NO alfabéticos -- research.md #9),
-31/40 polifónicos, verificado. `just gauntlet` verde (105 tests, 97,80%
-cobertura; `demucs_separador.py` al 74% a propósito, Fase 6 pendiente).
+**Feature 003 (separación con Demucs) completa: T001-T023, 8 fases.**
+`just gauntlet` verde (113 tests, 99,45% cobertura; `separador.py` y
+`demucs_separador.py` al 100%). Dos hallazgos reales, test-rojo-primero:
+(1) `shifts=1` (default de `Separator`) desplaza la entrada
+aleatoriamente cada llamada -- corregido con `shifts=0`, determinista
+bit a bit (research.md #10); (2) mutation testing incluía `modelo_real`,
+causando 22/32 mutantes en `timeout` y 0 `killed` -- corregido
+excluyéndolos en `pyproject.toml`. Triage final: 153/154 mutantes
+matados (99,35%), 1 equivalente sin pragma (comparte línea con uno
+real). T023: corrigió `quickstart.md`, nunca verificado (patrón 002/T028).
 
 ## Qué sigue
 
-Fase 6 (T017-T018): hook de visibilidad en `tests/conftest.py` para que
-un salto del `modelo_real` nunca sea silencioso, más el test real. Fase
-7 (US3, solo tests). Polish: T021-T023. Recomendado: `/speckit-constitution`
-para registrar en Principio VII research.md #9.
+Feature 003 cerrada. **Pendiente recomendado, no bloqueante**: correr
+`/speckit-constitution` para registrar en el Principio VII la evidencia
+de research.md #9 (submuestra de 40 temas de `validation`, semilla
+`20260904`, para una corrida completa del hito 1).
 
 ## Bloqueado / pendiente de decisión
 

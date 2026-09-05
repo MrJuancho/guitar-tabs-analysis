@@ -94,8 +94,10 @@ es un modo de fallo, es el resultado normal de la postcondición 3
 ## `DemucsSeparador`
 
 Módulo: `separacion.demucs_separador`. Implementa el protocolo `Separador`
-envolviendo `demucs.api.Separator(model="htdemucs_6s", device="cpu")`
-(research.md #1, #2). Expone `modelo_declarado` como la constante fija
+envolviendo `demucs.api.Separator(model="htdemucs_6s", device="cpu",
+shifts=0)` (research.md #1, #2, #10 — `shifts=0` no es el valor por
+defecto de la librería, es obligatorio para que FR-015 se cumpla, ver
+postcondición 4). Expone `modelo_declarado` como la constante fija
 descrita en data-model.md (`MODELO_DECLARADO`). No forma parte del
 contrato probado por los tests unitarios de `separar_guitarra` (research.md
 #7) — se prueba una sola vez, de punta a punta, en
@@ -120,6 +122,11 @@ contrato probado por los tests unitarios de `separar_guitarra` (research.md
    arriba.
 3. No entrena ni ajusta ningún parámetro del modelo cargado (FR-011) — el
    modelo se usa exclusivamente en modo evaluación.
+4. Dos llamadas a `separar()` con la misma entrada producen resultados
+   idénticos dentro de la tolerancia de FR-015 (verificado: bit a bit
+   idénticos en el backend de CPU de este proyecto) — depende
+   directamente de `shifts=0`; el valor por defecto de la librería
+   (`shifts=1`) viola esta postcondición por diseño (research.md #10).
 
 ### Modos de fallo
 

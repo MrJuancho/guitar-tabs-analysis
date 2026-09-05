@@ -439,3 +439,54 @@ está planteado, necesita una submuestra declarada para ser iterable — se
 recomienda correr `/speckit-constitution` después de esta sesión para
 que quede registrado, con esta tabla como evidencia, en vez de
 descubrirse de nuevo en una feature futura.
+
+## 10. `shifts=0` es obligatorio para el determinismo real (hallazgo de T018)
+
+**Decisión**: `DemucsSeparador` construye `demucs.api.Separator(...,
+shifts=0)`, explícito — nunca el valor por defecto de la librería
+(`shifts=1`).
+
+**Hallazgo (no una preferencia de estilo, un defecto real encontrado por
+el propio test de determinismo, T018, en rojo antes del fix)**: el valor
+por defecto de `demucs.api.Separator` es `shifts=1`. Según su propia
+documentación (`demucs/api.py`): "will shift in time `wav` by a random
+amount between 0 and 0.5 sec and apply the opposite shift to the
+output... This is repeated `shifts` time and all predictions are
+averaged" — una fuente de aleatoriedad genuina (`torch.rand` interno),
+no ruido de acumulación de punto flotante. Verificado con el modelo real
+sobre el mismo clip de entrada, dos corridas sucesivas con `shifts=1`
+(el valor por defecto, antes de este fix): diferencias de hasta `0.35`
+en amplitud sobre un rango `[-1, 1]` — no algo que ninguna tolerancia
+numérica razonable (Principio VIII, FR-015) pueda absorber, porque no es
+el tipo de variación que esa política contempla.
+
+Con `shifts=0` (desactiva el desplazamiento aleatorio, una sola pasada
+sin promediar), dos corridas sucesivas sobre el mismo clip dan
+resultados **bit a bit idénticos** (`np.array_equal` verdadero,
+diferencia máxima `0.0`) en este backend de CPU — más estricto que la
+tolerancia que FR-015 exige, pero se mantiene la comparación por
+tolerancia (no igualdad exacta) en el test, porque la política de
+Principio VIII/research.md #6 es no depender de bit-exactitud entre
+builds de BLAS/`torch` distintos, aunque en este backend concreto
+resulte serlo.
+
+**Rationale**: FR-015 exige que dos corridas del mismo modelo declarado
+coincidan dentro de tolerancia — un requisito que el valor por defecto
+de la librería viola de forma directa y verificable, no marginal.
+`shifts=0` es la única forma de cumplir FR-015 con `htdemucs_6s` tal
+como esta feature lo usa.
+
+**Costo aceptado, documentado, no escondido**: la propia documentación
+de Demucs dice que `shifts>0` "improves SDR by up to 0.2 points" (mejor
+calidad de separación, a costa de determinismo). Esta feature elige
+determinismo sobre esa mejora marginal de calidad — consistente con que
+esta feature NO evalúa la métrica (FR-012, la Feature 002 lo hace, y
+depende de poder reproducir un resultado). Si una feature futura decide
+que la mejora de calidad vale más que la reproducibilidad exacta, esa es
+una decisión nueva y explícita sobre este mismo research.md, no una
+que este documento cierre por adelantado.
+
+**Alternatives considered**: dejar `shifts=1` y relajar FR-015 a "sin
+garantía de determinismo" — descartado: el propio spec (clarificado con
+el usuario) exige determinismo con tolerancia, y renunciar a esa garantía
+solo para no fijar un parámetro sería resolver el síntoma equivocado.

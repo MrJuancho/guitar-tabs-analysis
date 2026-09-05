@@ -102,11 +102,13 @@ print('Modelo:', resultado.modelo)
 "
 ```
 
-Resultado esperado: `Estimaciones: ['guitar']`; `Transformaciones` incluye
-cuatro entradas (frecuencia de muestreo y canales de entrada, canales de
-salida) — la de frecuencia de muestreo con `aplicada=False` (ambas a
-44100 Hz) y la de canales de entrada con `aplicada=True` (mono → estéreo,
-duplicado).
+Resultado esperado (verificado ejecutando el ejemplo tal cual, T023):
+`Estimaciones: ['guitar']`; `Transformaciones` incluye **tres** entradas
+— frecuencia de muestreo de entrada (`aplicada=False`, ambas a 44100 Hz),
+canales de entrada (`aplicada=True`, 1 → 2, duplicado), y canales de
+salida (`aplicada=True`, 2 → 1, promedio) — no cuatro, como decía una
+versión anterior de este documento nunca ejecutada contra la
+implementación real.
 
 ## Verificación de la declaración de licencia (User Story 2, sin ejecutar nada)
 

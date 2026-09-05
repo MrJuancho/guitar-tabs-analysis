@@ -186,6 +186,17 @@ def separar_guitarra(
         guitarra = salida[NOMBRE_STEM_GUITARRA]
         n_canales_salida = guitarra.shape[0] if guitarra.ndim > 1 else 1
         if n_canales_salida == 1:
+            # Sin `# pragma: no mutate` a propósito, aunque uno de los
+            # mutantes de esta línea (`reshape(-1)` -> `reshape(-2)`) es
+            # equivalente (verificado empíricamente: NumPy interpreta
+            # CUALQUIER entero negativo pasado como forma completa, no
+            # solo `-1`, como "aplanar") -- un pragma en la línea también
+            # suprimiría `reshape(-1)` -> `reshape(None)`, que SÍ es
+            # observable (deja un array 2D de forma `(1, N)` sin aplanar)
+            # y tiene test dedicado más abajo. Mismo criterio que
+            # `metrica_separacion.py` usa para `invalid="ignore"`:
+            # equivalente aceptado sin pragma porque comparte línea con
+            # un mutante real ya cubierto.
             muestras_mono = np.asarray(guitarra).reshape(-1)
             aplicada_salida = False
             detalle_salida = "1 canal -> 1 canal (sin cambio)"

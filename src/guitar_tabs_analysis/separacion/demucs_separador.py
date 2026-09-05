@@ -42,12 +42,25 @@ class DemucsSeparador:
     """Implementa el protocolo `Separador` envolviendo
     `demucs.api.Separator(model="htdemucs_6s", device="cpu")` --
     `device="cpu"` fijo, sin ninguna ruta que intente usar GPU (hardware
-    del proyecto sin GPU utilizable, Assumptions de spec.md)."""
+    del proyecto sin GPU utilizable, Assumptions de spec.md).
+
+    `shifts=0` -- **hallazgo real, no una preferencia de estilo**
+    (descubierto por el test de determinismo real, T018): el valor por
+    defecto de `demucs.api.Separator` es `shifts=1`, que desplaza la
+    entrada en el tiempo por una cantidad ALEATORIA (`torch.rand`) en
+    cada llamada y promedia -- una fuente de aleatoriedad genuina, no
+    ruido de acumulación de punto flotante, que ninguna tolerancia
+    numérica (Principio VIII, FR-015) puede absorber: dos corridas con
+    `shifts=1` sobre la misma entrada dan resultados sin relación entre
+    sí (verificado: diferencias de hasta 0.35 en amplitud sobre un rango
+    [-1, 1], no ~1e-6). `shifts=0` desactiva ese desplazamiento --
+    determinista salvo por acumulación de punto flotante real, que sí es
+    lo que la tolerancia de FR-015 cubre."""
 
     modelo_declarado: ModeloDeclarado = MODELO_DECLARADO
 
     def __init__(self) -> None:
-        self._separator = Separator(model=MODELO_DECLARADO.variante, device="cpu")
+        self._separator = Separator(model=MODELO_DECLARADO.variante, device="cpu", shifts=0)
 
     @property
     def samplerate(self) -> int:

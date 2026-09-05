@@ -32,8 +32,17 @@ def test_frecuencia_muestreo_igual_no_remuestrea_pero_declara_la_verificacion() 
     (transformacion,) = transformaciones_frecuencia
     assert transformacion.direccion == "entrada"
     assert transformacion.aplicada is False
+    assert transformacion.detalle == "44100 Hz -> 44100 Hz (sin cambio)"
     assert separador.ultima_entrada is not None
     assert separador.ultima_entrada.shape[-1] == 1000
+
+    # audio_channels=1: la verificación de canales de entrada también se
+    # declara, aunque no haga falta ninguna duplicación (FR-006).
+    (canales_entrada,) = [
+        t for t in resultado.transformaciones if t.tipo == "canales" and t.direccion == "entrada"
+    ]
+    assert canales_entrada.aplicada is False
+    assert canales_entrada.detalle == "1 canal -> 1 canal (sin cambio)"
 
 
 def test_frecuencia_muestreo_distinta_remuestrea_y_lo_declara() -> None:
@@ -48,6 +57,7 @@ def test_frecuencia_muestreo_distinta_remuestrea_y_lo_declara() -> None:
     (transformacion,) = [t for t in resultado.transformaciones if t.tipo == "frecuencia_muestreo"]
     assert transformacion.direccion == "entrada"
     assert transformacion.aplicada is True
+    assert transformacion.detalle == "22050 Hz -> 44100 Hz (remuestreado)"
     assert separador.ultima_entrada is not None
     # 1000 muestras a 22050 Hz remuestreadas a 44100 Hz -> el doble.
     assert separador.ultima_entrada.shape[-1] == 2000
@@ -80,14 +90,49 @@ def test_mono_a_estereo_duplica_entrada_y_colapsa_salida_a_mono() -> None:
     (estimacion,) = resultado.estimaciones
     assert estimacion.audio.muestras.ndim == 1
     np.testing.assert_allclose(estimacion.audio.muestras, np.full(10, 4.0))
+    assert estimacion.identificador == "guitar"
+    assert estimacion.audio.frecuencia_muestreo == 44100
 
     tipos_canal = [t for t in resultado.transformaciones if t.tipo == "canales"]
     direcciones = {t.direccion for t in tipos_canal}
     assert direcciones == {"entrada", "salida"}
     (entrada_canales,) = [t for t in tipos_canal if t.direccion == "entrada"]
     assert entrada_canales.aplicada is True
+    assert entrada_canales.detalle == "1 canal -> 2 canales (duplicado)"
     (salida_canales,) = [t for t in tipos_canal if t.direccion == "salida"]
     assert salida_canales.aplicada is True
+    assert salida_canales.detalle == "2 canales -> 1 canal (promedio)"
+
+    # El resultado completo, no solo las transformaciones: eco del
+    # tema_id y del modelo declarado del separador (postcondición 6 de
+    # contracts/separacion.md).
+    assert resultado.tema_id == "Track00001"
+    assert resultado.modelo is separador.modelo_declarado
+
+
+def test_salida_de_un_solo_canal_no_se_reescala_ni_se_marca_aplicada() -> None:
+    """Cuando la salida del separador ya viene con un solo canal (forma
+    `(1, N)`, no `(N,)` -- caso genuinamente bidimensional, no el eco
+    plano por defecto de `SeparadorFalso`), no hace falta colapsar nada:
+    `aplicada=False` y las muestras se aplanan sin promediar (FR-006,
+    FR-007) -- distinto del caso multicanal de arriba."""
+    mezcla = mezcla_sintetica(n_muestras=3, frecuencia_muestreo=44100)
+    salida_un_canal = np.array([[1.0, 2.0, 3.0]])  # shape (1, 3), no (3,)
+    separador = SeparadorFalso(
+        samplerate=44100, audio_channels=1, salida={"guitar": salida_un_canal}
+    )
+
+    resultado = separar_guitarra("Track00001", mezcla, separador)
+
+    (estimacion,) = resultado.estimaciones
+    assert estimacion.audio.muestras.ndim == 1
+    np.testing.assert_array_equal(estimacion.audio.muestras, [1.0, 2.0, 3.0])
+
+    (salida_canales,) = [
+        t for t in resultado.transformaciones if t.tipo == "canales" and t.direccion == "salida"
+    ]
+    assert salida_canales.aplicada is False
+    assert salida_canales.detalle == "1 canal -> 1 canal (sin cambio)"
 
 
 def test_fallo_real_del_separador_se_envuelve_sin_reintentar() -> None:
@@ -102,7 +147,16 @@ def test_fallo_real_del_separador_se_envuelve_sin_reintentar() -> None:
         separar_guitarra("Track00001", mezcla, separador)
 
     error = excinfo.value
-    assert "Track00001" in str(error)
-    assert "forma de audio no soportada" in str(error)
+    # Mensaje completo, no solo que los identificadores aparezcan
+    # (AGENTS.md, "Tests de excepciones") -- una mutación del texto
+    # explicativo (p. ej. "sí se reintenta") no debe poder sobrevivir.
+    assert str(error) == (
+        "La separación del tema 'Track00001' falló: forma de audio no soportada. "
+        "No es el caso legítimo de 'el modelo no produjo guitarra' "
+        "(eso da una colección vacía, no una excepción) -- es un fallo "
+        "real del modelo o del framework de inferencia, y no se "
+        "reintenta automáticamente."
+    )
+    assert error.tema_id == "Track00001"
     assert error.__cause__ is causa
     assert separador.llamadas == 1
