@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 004: User Story 3 completa (T025-T028) -- las tres historias y el
-CLI real. Se saboteó `ejecutar_corrida` para confirmar que T021/T022 (US2)
-se ponen en rojo -- lo hacen, revertido sin diff residual. T025/T026:
-`conjunto_completo` de punta a punta y los dos modos sin interferencia,
-sin implementación nueva. T027/T028: `medicion/cli.py` -- `--modo` sin
-default (`SystemExit` claro, `DemucsSeparador` nunca se construye antes,
-verificado con monkeypatch); escritura atómica del artefacto (tmp +
-`os.replace`) con test de interrupción simulada; `_ejecutar_y_escribir`
-(núcleo testeable) probado con `SeparadorFalso`, incluye que
-`ModeloCambiadoError` no escribe artefacto. `just gauntlet` verde: 144
-tests, 98.51%.
+Feature 004 cerrada (Polish, T029-T033). T029: único test `modelo_real`
+de la feature, `procesar_tema` de punta a punta con `DemucsSeparador`
+real sobre 1 tema sintético de 2s. Se eliminó (no se cubrió) la rama
+defensiva de modo inválido en `construir_lista_temas`: `mypy --strict`
+prueba que es inalcanzable (Literal cerrado + `argparse choices` en el
+único llamador real) -- misma categoría que `audio_dir` de la Feature
+001; cobertura subió a 100%. Mutación (triage no conteo): 23
+sobrevivientes, 3 equivalentes documentados (`transformaciones=[]`
+redundante con el default del dataclass), 20 gaps reales cerrados
+fortaleciendo tests existentes -- ver tasks.md T031. `just medir modo
+root_dir` agregado al justfile. `just gauntlet` verde: 147 tests, 98.70%.
 
 ## Qué sigue
 
-Feature 004 con las tres user stories cerradas. Queda Polish (T029-T033):
-test `modelo_real`, mutation testing, recipe `just medir`, validación de
-`quickstart.md`. Después, la corrida real sobre la submuestra del hito 1
-para cerrar el presupuesto numérico del Principio VII.
+Feature 004 completa. Sigue la corrida real sobre la submuestra del
+hito 1 (`just medir submuestra_hito1 <ruta-slakh2100>`, ~36 min) para
+obtener la cifra de SI-SDR y cerrar el `ABIERTO` del presupuesto del
+Principio VII -- requiere el dataset Slakh2100 real, fuera de este repo.
 
 ## Bloqueado / pendiente de decisión
 

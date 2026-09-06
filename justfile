@@ -166,6 +166,12 @@ mutation-diff:
 gates:
     uv run python -m guitar_tabs_analysis.quality.gates
 
+# Corre la medición del hito 1 (Feature 004) con el modelo real. `modo`
+# es "submuestra_hito1" (~36 min) o "conjunto_completo" (~25 h) -- sin
+# valor por defecto (FR-004), ver medicion/cli.py.
+medir modo root_dir:
+    uv run python -m guitar_tabs_analysis.medicion.cli --modo {{ modo }} --root-dir {{ root_dir }}
+
 # ---------------------------------------------------------------
 # Entorno
 # ---------------------------------------------------------------
