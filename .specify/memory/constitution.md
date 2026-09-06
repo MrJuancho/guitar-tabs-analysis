@@ -1,5 +1,40 @@
 <!--
 Sync Impact Report
+- Version change: 1.3.0 → 1.4.0
+- Fuente: hallazgo real de reloj (research.md #9 de
+  `specs/003-separacion-modelo-preentrenado/`) durante
+  `/speckit-implement` T016 de esa feature -- medición real, no
+  estimada, de cuánto tarda una inferencia con `htdemucs_6s` en CPU
+  sobre un tema completo de Slakh2100.
+- Bump MINOR: se agrega contenido real y verificado a Principio VII
+  (alcance de la medición: submuestra de 40 temas de `validation`,
+  semilla fija `20260904`, con su distribución de polifonía verificada)
+  -- el `ABIERTO` del presupuesto numérico en sí permanece sin cerrar a
+  propósito, porque su propio criterio de cierre ("primera medición
+  real") no se cumplió todavía; no se inventa un número. No se elimina
+  ni se contradice ninguna decisión ya tomada -- no aplica MAJOR. No es
+  solo una aclaración de redacción -- cambia qué evidencia respalda el
+  principio -- así que no es PATCH.
+
+- Principios modificados en v1.4.0 (contenido, no título ni posición):
+  VII.  "La métrica y su presupuesto" -- se agrega la subsección
+        "Alcance de la medición" (nueva, con evidencia real de tiempo y
+        memoria, la submuestra declarada, su distribución de polifonía
+        verificada, y la razón para descartar el criterio alfabético
+        anterior). El bloque `ABIERTO` de "Presupuesto" se reescribe
+        para aclarar que ahora es específicamente sobre el NÚMERO, no
+        sobre el alcance -- sigue sin contenido numérico, por diseño.
+
+- Secciones añadidas: ninguna a nivel de encabezado (la nueva
+  subsección vive dentro de Principio VII, ya existente). Secciones
+  eliminadas: ninguna.
+
+- Governance: el checkbox de VII (presupuesto numérico) permanece `[ ]`
+  -- pedido explícito de esta sesión ("El checkbox del presupuesto en
+  Governance sigue [ ]") -- con una nota ampliada que distingue el
+  alcance (ya fijado) del número (todavía no).
+
+- Sesión anterior (v1.2.0 → v1.3.0), preservada por referencia histórica:
 - Version change: 1.2.0 → 1.3.0
 - Fuente: hallazgo G1 de `/speckit-analyze` sobre
   `specs/002-metrica-separacion-guitarra/` -- Principio X, en su redacción
@@ -265,10 +300,51 @@ hasta 10.652.672 muestras (la longitud real de pista de Slakh2100 vista
 en la feature 001) en `float32` y `float64`, sobre el backend BLAS real
 del proyecto (research.md #5).
 
-> `ABIERTO` -- Presupuesto. *Criterio de cierre:* se fija después de la
-> primera medición sobre el conjunto de desarrollo, por debajo del percentil
-> observado y con el margen justificado por escrito. Fijarlo antes sería
-> exactamente el vicio que esta sección prohíbe.
+**Alcance de la medición, cerrado con evidencia de reloj real (el
+número del presupuesto sigue sin fijarse -- ver `ABIERTO` abajo).**
+Cerrado en `/plan`/`/implement` de la feature
+003-separacion-modelo-preentrenado
+(`specs/003-separacion-modelo-preentrenado/research.md` #9).
+
+- **Medido, no estimado:** `htdemucs_6s` en CPU tarda 53.4 s de
+  inferencia sobre un tema real de 241.6 s de audio (10.652.672
+  muestras), con un pico de memoria de 2.3 GB.
+- **Extrapolación:** el conjunto evaluable completo (1710 temas, sin el
+  directorio `omitted`) son ~25.4 horas de cómputo secuencial -- cruza
+  el umbral de lo repetible en una sesión de trabajo. Una medición que
+  no se puede repetir deja de ser una herramienta de trabajo, no solo
+  una corrida lenta.
+- **Decisión:** el hito 1 se mide sobre una submuestra de 40 temas del
+  split `validation`, elegidos por muestreo aleatorio con semilla fija
+  y declarada `20260904` -- nunca del split `test`, el conjunto
+  reservado del Principio VI.
+- **La submuestra ejercita el caso polifónico, verificado, no
+  supuesto:** 31 de los 40 temas tienen más de una pista de guitarra,
+  hasta 6 en un solo tema (`{1: 9, 2: 13, 3: 6, 4: 7, 5: 1, 6: 4}`) --
+  el Principio V exige no esconder el caso difícil, y esta muestra no
+  lo esconde.
+- **Por qué semilla declarada y no los primeros N alfabéticos:** la
+  primera versión de esta submuestra tomaba los primeros 40 `tema_id`
+  en orden alfabético. Se descartó por el criterio en sí, no por su
+  resultado -- esa muestra tampoco había salido degenerada (13
+  monofónicos, 27 polifónicos). La razón del cambio es que el orden de
+  `tema_id` no tiene ninguna garantía de no correlacionar con el
+  proceso de generación del dataset (lote de render, sesión de
+  composición); una semilla aleatoria declarada da la misma
+  reproducibilidad exacta sin cargar con ese riesgo.
+- **Consecuencia obligatoria:** toda cifra del hito 1 se reporta como
+  medida sobre esta submuestra de 40 temas, nunca sobre el conjunto
+  completo. Extrapolar esa cifra al conjunto completo exige evidencia
+  que este hito no produce -- mismo criterio que la limitación ya
+  declarada en el Principio VI sobre no extrapolar de Slakh sintetizado
+  a grabaciones reales.
+
+> `ABIERTO` -- Presupuesto (el número en sí). *Criterio de cierre:* se
+> fija después de la primera medición sobre la submuestra de desarrollo
+> declarada arriba, por debajo del percentil observado y con el margen
+> justificado por escrito. Fijarlo antes sería exactamente el vicio que
+> esta sección prohíbe -- el alcance de qué se mide ya está cerrado, el
+> número que resulte de medirlo, no.
 
 ### VIII. Determinismo
 
@@ -411,10 +487,15 @@ real") todavía no se cumple.
 
 - [x] VII -- Métrica principal: SI-SDR (Le Roux et al., 2019). Cerrado en
       `/plan` de 002-metrica-separacion-guitarra.
-- [ ] VII -- Presupuesto numérico. Cierra después de la primera medición
-      sobre el conjunto de desarrollo, nunca antes.
+- [ ] VII -- Presupuesto numérico. Sigue sin cerrarse -- **el alcance
+      sobre el que se medirá ya está fijado** (submuestra de 40 temas de
+      `validation`, semilla `20260904`, evidencia en
+      `specs/003-separacion-modelo-preentrenado/research.md` #9), pero
+      el número del presupuesto en sí requiere la primera medición real
+      sobre esa submuestra, que todavía no ocurrió. No se infiere un
+      número de la evidencia de alcance.
 - [x] VIII -- Política de determinismo: opción (b), tolerancia numérica
       declarada con excepción para valores exactos por construcción.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
 
-**Version**: 1.3.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-04
+**Version**: 1.4.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-05

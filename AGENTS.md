@@ -377,6 +377,39 @@ Reglas:
    sí, o justificas explícitamente por qué está bien excluirlo, o amplías
    la estrategia.
 
+## Una afirmación cuantitativa se verifica numéricamente antes de implementarla
+
+Un requisito, un ADR o una nota de investigación pueden sobrevivir intactos a
+`/speckit-specify`, `/speckit-plan`, `/speckit-clarify` y `/speckit-analyze` sin
+que ninguna de esas fases note que un cálculo está mal -- las cuatro comprueban
+coherencia ENTRE documentos (¿el plan implementa la spec? ¿la spec responde las
+aclaraciones?), no aritmética. La revisión de documentos no puede refutar
+aritmética. Tres casos reales, de la misma feature (002, guitar-tabs-analysis),
+sobrevivieron las cuatro fases:
+
+1. `research.md` afirmaba que una estimación silenciosa daba SI-SDR = −∞ "por
+   cálculo". Es 0/0 = NaN: el numerador se anula junto con el denominador, y no
+   hay límite natural porque el resultado depende de la dirección de
+   aproximación. Se descubrió al escribir el test que ejercitaba el caso, no al
+   revisar el documento.
+2. Un criterio de éxito (SC-004) afirmaba que omitir un tema nunca puede
+   mejorar la agregación. Es falso en general -- un contraejemplo de cinco
+   números lo refuta (un tema con una referencia mala y tres excelentes puede
+   subir la mediana al quitarse). Se acotó a "tema completamente sin
+   emparejar", que sí es demostrable.
+3. La mediana devolvía NaN cuando los dos valores centrales eran +∞ y −∞,
+   porque `statistics.median` los promedia. No es un caso de laboratorio: +∞ es
+   la respuesta conocida del dominio y −∞ el sentinel de referencias sin
+   pareja, así que un conjunto pequeño con una separación perfecta y otra
+   fallida lo produce. Lo encontró Hypothesis durante una corrida de mutmut, no
+   una revisión humana.
+
+Regla: si un requisito, un ADR o una nota de investigación afirma un valor, un
+límite o una propiedad numérica, se comprueba ejecutándola -- a mano, en un
+REPL, o con el test que la ejercita -- antes de escribir el código que la
+asume. Un contraejemplo de cinco números vale más que tres revisores de
+acuerdo.
+
 ## Un componente no verificado en el entorno real es un componente que no existe
 
 Un hook que "debería" funcionar según su código, pero nunca se disparó de
