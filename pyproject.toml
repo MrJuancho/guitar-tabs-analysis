@@ -127,6 +127,12 @@ layers = [
     "guitar_tabs_analysis.analytics",
     "guitar_tabs_analysis.ingestion",
 ]
+# `guitar_tabs_analysis.medicion` (Feature 004) NO aparece en esta lista,
+# a propósito: es el orquestador que coordina las tres capas de arriba
+# (ingestion -> separacion -> analytics) en un solo lugar, exactamente el
+# caso que AGENTS.md ya anticipa ("si el proyecto tiene un orquestador...
+# no lo agregues a la lista `layers`... déjalo fuera a propósito, como una
+# excepción documentada" -- research.md #6 de 004-medicion-linea-base).
 
 [[tool.importlinter.contracts]]
 name = "quality es transversal: no depende de analytics (EJEMPLO)"

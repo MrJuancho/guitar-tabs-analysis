@@ -33,9 +33,9 @@ Proyecto único (`src/`, `tests/` en la raíz), capa nueva `medicion` por encima
 
 **Purpose**: Preparar la capa nueva antes de escribir código de dominio.
 
-- [ ] T001 Crear `src/guitar_tabs_analysis/medicion/__init__.py` (paquete vacío, capa nueva).
-- [ ] T002 [P] Crear el directorio `mediciones/` en la raíz del repositorio con un archivo `mediciones/.gitkeep` (artefactos finales versionados, research.md #4) — no requiere cambios en `.gitignore`: `data/silver/*` ya cubre el progreso persistido efímero (`data/silver/mediciones/`).
-- [ ] T003 [P] En `pyproject.toml::[tool.importlinter]`, agregar un comentario junto al contrato `type = "layers"` existente documentando que `guitar_tabs_analysis.medicion` es el orquestador de esta feature y se deja **fuera a propósito** de la lista `layers` (research.md #6, AGENTS.md "Arquitectura") — sin modificar la lista `layers` en sí. Correr `uv run lint-imports` y confirmar que el contrato sigue pasando (el paquete `medicion` de T001 todavía no importa nada).
+- [X] T001 Crear `src/guitar_tabs_analysis/medicion/__init__.py` (paquete vacío, capa nueva).
+- [X] T002 [P] Crear el directorio `mediciones/` en la raíz del repositorio con un archivo `mediciones/.gitkeep` (artefactos finales versionados, research.md #4) — no requiere cambios en `.gitignore`: `data/silver/*` ya cubre el progreso persistido efímero (`data/silver/mediciones/`).
+- [X] T003 [P] En `pyproject.toml::[tool.importlinter]`, agregar un comentario junto al contrato `type = "layers"` existente documentando que `guitar_tabs_analysis.medicion` es el orquestador de esta feature y se deja **fuera a propósito** de la lista `layers` (research.md #6, AGENTS.md "Arquitectura") — sin modificar la lista `layers` en sí. Correr `uv run lint-imports` y confirmar que el contrato sigue pasando (el paquete `medicion` de T001 todavía no importa nada).
 
 ---
 
