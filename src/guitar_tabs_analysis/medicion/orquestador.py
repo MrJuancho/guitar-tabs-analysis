@@ -134,6 +134,16 @@ def procesar_tema(tema_id: str, root_dir: Path, separador: Separador) -> Resulta
     feliz, `transformaciones` es el eco de `ResultadoSeparacionTema.transformaciones`
     (Feature 003, FR-010/SC-007) -- vacía en cualquier otro caso, porque
     `separar_guitarra` nunca llegó a correr con éxito.
+
+    Las tres ramas de exclusión de abajo pasan `transformaciones=[]`
+    explícito -- redundante con el propio `default_factory=list` del
+    campo (Polish, T031, triage de mutación): un mutante que borra el
+    argumento produce el mismo `[]` por el default, así que sobrevive
+    como equivalente confirmado contra la propia firma del dataclass, no
+    contra el comportamiento de esta función. Se deja explícito de
+    todos modos porque documenta la invariante en el sitio donde se
+    decide -- "sin separación, sin transformaciones" -- en vez de
+    depender en silencio de un default que vive en otro archivo.
     """
     try:
         lectura = leer_tema(tema_id, root_dir)
@@ -142,7 +152,7 @@ def procesar_tema(tema_id: str, root_dir: Path, separador: Separador) -> Resulta
             tema_id=tema_id,
             reporte=None,
             exclusion=ExclusionMedicion(tema_id, "fallo_procesamiento", str(causa)),
-            transformaciones=[],
+            transformaciones=[],  # pragma: no mutate -- equivalente, ver docstring
         )
 
     if not lectura.guitarras:
@@ -150,7 +160,7 @@ def procesar_tema(tema_id: str, root_dir: Path, separador: Separador) -> Resulta
             tema_id=tema_id,
             reporte=None,
             exclusion=ExclusionMedicion(tema_id, "sin_guitarra_referencia", ""),
-            transformaciones=[],
+            transformaciones=[],  # pragma: no mutate -- equivalente, ver docstring
         )
 
     try:
@@ -160,7 +170,7 @@ def procesar_tema(tema_id: str, root_dir: Path, separador: Separador) -> Resulta
             tema_id=tema_id,
             reporte=None,
             exclusion=ExclusionMedicion(tema_id, "fallo_procesamiento", str(causa)),
-            transformaciones=[],
+            transformaciones=[],  # pragma: no mutate -- equivalente, ver docstring
         )
 
     reporte = emparejar_tema(tema_id, lectura.guitarras, resultado_separacion.estimaciones)
@@ -312,6 +322,22 @@ def construir_lista_temas(
     `validation/`, sin muestreo -- **nunca** enumera `root_dir / "test"`
     ni `root_dir / "omitted"` (FR-014, research.md #7): no hay ninguna
     rama de código que pueda alcanzarlos.
+
+    Sin rama defensiva para un tercer valor de `modo` (Polish, T031,
+    triage de mutación): `ModoEjecucion` es un `Literal` cerrado de dos
+    valores, y las dos condiciones de abajo lo agotan -- verificado, no
+    supuesto, que `mypy --strict` acepta esta función sin una sentencia
+    `return`/`raise` final porque tipa el código posterior a ambos `if`
+    como `Never` (inalcanzable). El único llamador real de esta función
+    (`ejecutar_corrida`, y desde ahí `medicion.cli.main`) nunca puede
+    pasar un tercer valor: `argparse` ya lo impide con `choices=(...)`
+    antes de que `main` construya nada (T027). Un `ValueError` aquí sería
+    código sin ningún llamador real que lo alcance -- misma categoría que
+    el `audio_dir` de la Feature 001 (tasks.md #001, "Grupo audio_dir/stems:
+    resuelto"): una generalidad sin respaldo en el contrato
+    (`contracts/medicion.md` no define un modo de fallo para un `modo`
+    inválido) que un test tendría que fabricar con un valor imposible
+    para ejercitar -- evidencia fabricada, no real.
     """
     if modo == "submuestra_hito1":
         candidatos = sorted(os.listdir(root_dir / "validation"))
@@ -323,7 +349,6 @@ def construir_lista_temas(
         return [f"train/{tema}" for tema in temas_train] + [
             f"validation/{tema}" for tema in temas_validation
         ]
-    raise ValueError(f"Modo de ejecución desconocido: {modo!r}")
 
 
 # ---------------------------------------------------------------------

@@ -72,3 +72,25 @@ def test_reanudar_con_firma_de_modelo_distinta_falla_cerrado(tmp_path: Path) -> 
     assert excinfo.value.firma_esperada == "firma-vieja"
     assert excinfo.value.firma_actual == "firma-nueva"
     assert separador.llamadas == 0
+
+
+def test_escribir_manifiesto_crea_directorios_intermedios_faltantes(tmp_path: Path) -> None:
+    """Triage de mutación (Polish, T031): los demás tests de este módulo
+    llaman a `escribir_manifiesto` con un `directorio` que falta a lo
+    sumo un nivel (su padre ya existe, por ser `tmp_path` u otro
+    subdirectorio de `tmp_path`) -- ahí `mkdir(parents=True)` y
+    `mkdir(parents=False)` (el default) se comportan igual, porque crear
+    el nivel final no requiere crear ninguno intermedio. `directorio_trabajo`
+    en uso real (`Path("data/silver/mediciones") / modo`, `medicion/cli.py`)
+    sí puede faltar varios niveles a la vez."""
+    directorio_trabajo = tmp_path / "silver" / "mediciones" / "submuestra_hito1"
+    manifiesto = ManifiestoCorrida(
+        modo="submuestra_hito1",
+        semilla=20260904,
+        firma_modelo="firma-cualquiera",
+        temas=["validation/Track00000"],
+    )
+
+    escribir_manifiesto(directorio_trabajo, manifiesto)
+
+    assert leer_manifiesto(directorio_trabajo) == manifiesto

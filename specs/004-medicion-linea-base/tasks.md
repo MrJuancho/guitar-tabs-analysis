@@ -140,7 +140,63 @@ Proyecto único (`src/`, `tests/` en la raíz), capa nueva `medicion` por encima
 
 - [X] T029 [P] Crear `tests/integration/test_medicion_modelo_real_integracion.py`: único test `@pytest.mark.modelo_real` de esta feature — `procesar_tema` con `DemucsSeparador` real (Feature 003) sobre un tema sintético corto (1-2s, `construir_tema_sintetico`); si `DemucsSeparador()` falla al construirse (sin red/pesos), el test se salta con `pytest.skip(f"...: {causa}")` (mismo patrón que `tests/integration/test_demucs_separador_integracion.py` de la Feature 003 — el mecanismo de aviso visible de `tests/conftest.py`, T017 de esa feature, ya cubre este marcador sin cambios); si carga, verifica que el resultado es un `ResultadoProcesamientoTema` con `reporte` o `exclusion` (nunca ambos ni ninguno) sin excepción no controlada. Depende de T008.
 - [ ] T030 [P] Correr `just gauntlet` (ruff format --check + lint-imports + mypy --strict + tests unit/integration/property con cobertura ≥90%, excluyendo `-m modelo_real`) y corregir cualquier hallazgo.
-- [ ] T031 [P] Correr `just mutation medicion.orquestador` (excluye `cli.py`, capa de invocación delgada — mismo criterio que la Feature 003 excluyó `demucs_separador.py`) y resolver mutantes sobrevivientes, prestando atención particular a los mensajes de `ModeloCambiadoError` y a los `motivo`/`detalle` de `ExclusionMedicion` (AGENTS.md, "Tests de excepciones": afirmar el mensaje completo).
+- [X] T031 [P] Correr `just mutation medicion.orquestador` (excluye `cli.py`, capa de invocación delgada — mismo criterio que la Feature 003 excluyó `demucs_separador.py`) y resolver mutantes sobrevivientes, prestando atención particular a los mensajes de `ModeloCambiadoError` y a los `motivo`/`detalle` de `ExclusionMedicion` (AGENTS.md, "Tests de excepciones": afirmar el mensaje completo).
+
+  **Decisión previa, antes de correr la mutación**: la rama defensiva
+  `raise ValueError(f"Modo de ejecución desconocido: {modo!r}")` que
+  existía en `construir_lista_temas` se eliminó, no se cubrió. `ModoEjecucion`
+  es un `Literal` cerrado de dos valores; `mypy --strict` acepta la función
+  sin esa rama porque tipa el código posterior a ambos `if` como `Never`
+  (inalcanzable) — verificado, no supuesto. El único llamador real
+  (`ejecutar_corrida` → `medicion.cli.main`) nunca puede pasar un tercer
+  valor: `argparse` ya lo impide con `choices=(...)` (T027) antes de que
+  `main` construya nada. Misma categoría que el `audio_dir` de la
+  Feature 001 (tasks.md #001, "Grupo audio_dir/stems: resuelto"): una
+  generalidad sin respaldo en `contracts/medicion.md`, que un test tendría
+  que fabricar con un valor imposible para ejercitar. Efecto colateral
+  verificado: cobertura de `orquestador.py` pasó de 99% a 100%.
+
+  **Mutación, triage no conteo** — `just mutation medicion.orquestador`
+  dio 23 sobrevivientes sobre `orquestador.py` (0 sobre `cli.py`, excluido
+  del alcance). Config verificada antes de correr: `pyproject.toml`
+  mantiene `pytest_add_cli_args_test_selection = ["tests/", "-m", "not
+  modelo_real"]` (evita el 22/32-en-timeout de la Feature 003). Triage:
+
+  - **3 equivalentes, documentados con `# pragma: no mutate` + docstring**
+    (`procesar_tema`, las tres ramas de exclusión terminal): pasar
+    `transformaciones=[]` explícito es redundante con el propio
+    `default_factory=list` del campo — un mutante que borra el argumento
+    produce el mismo `[]` por el default. Equivalente confirmado contra
+    la firma del dataclass, no contra el comportamiento de la función.
+  - **20 gaps reales, cerrados fortaleciendo tests existentes** (sin tests
+    nuevos de producción, ninguno cambió comportamiento):
+    - `procesar_tema` (2): ningún test comprobaba `exclusion.tema_id` en
+      los casos "lectura fallida" y "sin guitarra de referencia" — el
+      tercer camino ("separación fallida") ya estaba cubierto por
+      `test_orquestador_integracion.py` indexando exclusiones por
+      `tema_id`. Se agregó la aserción faltante a los otros dos
+      (`test_orquestador.py`).
+    - `_sanear_tema_id` (1): ningún test fijaba el separador exacto
+      (`"__"`) que aplana `"split/Track"` a nombre de archivo — solo que
+      el round-trip funcionara (que sobrevive a cualquier separador,
+      porque lee y escribe con la misma función). Se agregó un test que
+      verifica el nombre de archivo real en disco (`test_orquestador_persistencia.py`).
+    - `escribir_manifiesto` (3, mutaciones sobre `mkdir(parents=True)`):
+      todos los tests existentes llaman con un `directorio` que falta a
+      lo sumo un nivel, donde `parents=True`/`False`/omitido se comportan
+      igual. Se agregó un test con dos niveles faltantes —el caso real de
+      `Path("data/silver/mediciones") / modo`— (`test_orquestador_manifiesto.py`).
+    - `artefacto_a_dict` (14, nombres de clave en `modelo` y en cada
+      `exclusiones[i]`): el test T020 solo comprobaba `modelo["firma"]` y
+      la igualdad de round-trip de `exclusiones`, nunca las claves/valores
+      dentro de cada entrada. Se fortaleció para comparar el `dict`
+      completo de `modelo` y de `exclusiones` contra los valores
+      esperados (`test_orquestador.py`).
+
+  Verificado tras el fix: `uv run mutmut results` sobre `medicion.orquestador`
+  vuelve a dar exactamente los 3 sobrevivientes documentados como
+  equivalentes — los 20 gaps reales quedaron cerrados. `just gauntlet`
+  sigue verde (147 tests, 98.70%, `orquestador.py` 100%).
 - [ ] T032 [P] Agregar un recipe `medir modo root_dir` al `justfile` (mismo patrón que `just gates` para `quality.gates.main()`) que invoque `uv run python -m guitar_tabs_analysis.medicion.cli --modo {{modo}} --root-dir {{root_dir}}`.
 - [ ] T033 Ejecutar manualmente la sección "Lo que corre en `just gauntlet`" de `quickstart.md` de punta a punta y confirmar que coincide con el comportamiento real; si hay red/pesos cacheados, correr también `uv run pytest -m modelo_real -v` y confirmar que el nuevo test (T029) pasa o se salta visiblemente.
 

@@ -31,6 +31,7 @@ def test_lectura_fallida_se_reporta_como_exclusion_terminal(tmp_path: Path) -> N
     assert resultado.tema_id == "TrackInexistente"
     assert resultado.reporte is None
     assert resultado.exclusion is not None
+    assert resultado.exclusion.tema_id == "TrackInexistente"
     assert resultado.exclusion.motivo == "fallo_procesamiento"
     assert "TrackInexistente" in resultado.exclusion.detalle
     assert resultado.transformaciones == []
@@ -45,6 +46,7 @@ def test_sin_guitarra_de_referencia_no_invoca_al_separador(tmp_path: Path) -> No
 
     assert resultado.reporte is None
     assert resultado.exclusion is not None
+    assert resultado.exclusion.tema_id == "Track00001"
     assert resultado.exclusion.motivo == "sin_guitarra_referencia"
     assert resultado.exclusion.detalle == ""
     assert resultado.transformaciones == []
@@ -114,7 +116,17 @@ def test_serializacion_del_artefacto_incluye_todo_lo_que_sc007_exige(tmp_path: P
         "distribucion_referencias_por_tema",
     }
     assert claves_esperadas == set(serializado.keys())
-    assert serializado["modelo"]["firma"] == SeparadorFalso().modelo_declarado.firma
+    modelo_declarado = SeparadorFalso().modelo_declarado
+    assert serializado["modelo"] == {
+        "nombre": modelo_declarado.nombre,
+        "variante": modelo_declarado.variante,
+        "firma": modelo_declarado.firma,
+        "checksum_sha256_prefijo": modelo_declarado.checksum_sha256_prefijo,
+        "licencia_pesos": modelo_declarado.licencia_pesos,
+    }
+    assert serializado["exclusiones"] == [
+        {"tema_id": "validation/Track00001", "motivo": "sin_guitarra_referencia", "detalle": ""}
+    ]
 
     # El tema con guitarra tiene transformaciones no vacías; el excluido
     # (sin guitarra de referencia) no aporta ninguna entrada (G1).

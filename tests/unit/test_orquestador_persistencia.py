@@ -82,3 +82,26 @@ def test_archivo_temporal_sin_renombrar_no_se_confunde_con_uno_completo(tmp_path
     (tmp_path / "validation__Track00003.json.tmp").write_text('{"incompleto": true')
 
     assert leer_progreso_tema(tmp_path, "validation/Track00003") is None
+
+
+def test_el_nombre_de_archivo_reemplaza_la_barra_del_split_por_doble_guion_bajo(
+    tmp_path: Path,
+) -> None:
+    """Triage de mutación (Polish, T031): ningún test anterior fija el
+    separador exacto que usa `_sanear_tema_id` para aplanar
+    `"split/Track"` a un nombre de archivo -- solo que el resultado sea
+    legible de vuelta. Un separador distinto no rompe el round-trip
+    (`leer_progreso_tema` usa la misma función para ambos lados), pero sí
+    el nombre de archivo en disco, que otro proceso o una inspección
+    manual podría depender de reconocer."""
+    resultado = ResultadoProcesamientoTema(
+        tema_id="validation/Track00004",
+        reporte=None,
+        exclusion=ExclusionMedicion(
+            tema_id="validation/Track00004", motivo="sin_guitarra_referencia", detalle=""
+        ),
+    )
+
+    escribir_progreso_tema(tmp_path, resultado)
+
+    assert (tmp_path / "validation__Track00004.json").exists()
