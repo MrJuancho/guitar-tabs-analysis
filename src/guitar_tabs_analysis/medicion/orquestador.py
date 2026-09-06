@@ -28,6 +28,8 @@ from guitar_tabs_analysis.analytics.metrica_separacion import (
     ReferenciaEmparejada,
     ReferenciaSinPareja,
     ReporteTema,
+    calcular_distribucion_referencias,
+    calcular_mediana_agregada,
     emparejar_tema,
 )
 from guitar_tabs_analysis.ingestion.slakh2100 import (
@@ -37,6 +39,7 @@ from guitar_tabs_analysis.ingestion.slakh2100 import (
     leer_tema,
 )
 from guitar_tabs_analysis.separacion.separador import (
+    ModeloDeclarado,
     SeparacionFallidaError,
     Separador,
     TransformacionDeclarada,
@@ -365,3 +368,136 @@ def leer_manifiesto(directorio: Path) -> ManifiestoCorrida | None:
         firma_modelo=datos["firma_modelo"],
         temas=datos["temas"],
     )
+
+
+# ---------------------------------------------------------------------
+# ArtefactoMedicion (data-model.md -- sin tarea propia en tasks.md, se
+# define aquí porque ejecutar_corrida, T018, es la primera y única
+# función que lo construye) y ejecutar_corrida (T018).
+# ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ArtefactoMedicion:
+    """El artefacto final de una corrida completa (FR-010, FR-011) -- lo
+    único que hace falta para interpretar la cifra de una corrida sin
+    volver a ejecutarla."""
+
+    modo: ModoEjecucion
+    semilla: int | None
+    modelo: ModeloDeclarado
+    temas: list[str]
+    exclusiones: list[ExclusionMedicion]
+    reportes: list[ReporteTema]
+    transformaciones_por_tema: dict[str, list[TransformacionDeclarada]]
+    mediana: float | None
+    distribucion_referencias_por_tema: dict[int, int]
+
+
+def ejecutar_corrida(
+    modo: ModoEjecucion,
+    root_dir: Path,
+    separador: Separador,
+    directorio_trabajo: Path,
+) -> ArtefactoMedicion:
+    """Procesa cada tema de `modo` de a uno, persistiendo su resultado de
+    inmediato, y devuelve el `ArtefactoMedicion` completo una vez que
+    todos los temas tienen progreso (contracts/medicion.md).
+
+    `directorio_trabajo` contiene `manifiesto.json` (identidad de la
+    corrida, `escribir_manifiesto`/`leer_manifiesto`) y un subdirectorio
+    `temas/` con un archivo por tema (`escribir_progreso_tema`/
+    `leer_progreso_tema`) -- research.md #4. Un tema ya persistido, sea
+    `reporte` o `exclusion`, nunca se reprocesa (FR-008): el bucle de
+    abajo consulta `leer_progreso_tema` antes de procesar cada uno, sea
+    la primera invocación (nunca encuentra nada) o una reanudación
+    (encuentra lo que ya se persistió) -- esto es lo que, sin ninguna
+    tarea de implementación adicional, ya hace que un fallo duro (FR-006)
+    no detenga los temas restantes de la misma corrida (SC-004).
+
+    **Sin validación de firma del modelo todavía** -- eso es User Story
+    2 (T023); esta implementación cubre las postcondiciones 1, 2 y 4 de
+    `contracts/medicion.md`, no la 3.
+    """
+    manifiesto = leer_manifiesto(directorio_trabajo)
+    if manifiesto is None:
+        semilla = SEMILLA_SUBMUESTRA_HITO1 if modo == "submuestra_hito1" else None
+        manifiesto = ManifiestoCorrida(
+            modo=modo,
+            semilla=semilla,
+            firma_modelo=separador.modelo_declarado.firma,
+            temas=construir_lista_temas(modo, root_dir),
+        )
+        escribir_manifiesto(directorio_trabajo, manifiesto)
+
+    directorio_temas = directorio_trabajo / "temas"
+    resultados: list[ResultadoProcesamientoTema] = []
+    for tema_id in manifiesto.temas:
+        progreso = leer_progreso_tema(directorio_temas, tema_id)
+        if progreso is None:
+            progreso = procesar_tema(tema_id, root_dir, separador)
+            escribir_progreso_tema(directorio_temas, progreso)
+        resultados.append(progreso)
+
+    reportes = [r.reporte for r in resultados if r.reporte is not None]
+    exclusiones = [r.exclusion for r in resultados if r.exclusion is not None]
+    transformaciones_por_tema = {
+        r.tema_id: r.transformaciones for r in resultados if r.reporte is not None
+    }
+
+    return ArtefactoMedicion(
+        modo=manifiesto.modo,
+        semilla=manifiesto.semilla,
+        modelo=separador.modelo_declarado,
+        temas=manifiesto.temas,
+        exclusiones=exclusiones,
+        reportes=reportes,
+        transformaciones_por_tema=transformaciones_por_tema,
+        mediana=calcular_mediana_agregada(reportes),
+        distribucion_referencias_por_tema=calcular_distribucion_referencias(reportes),
+    )
+
+
+# ---------------------------------------------------------------------
+# Serialización de ArtefactoMedicion (T019) -- función pura, sin tocar
+# disco (quien escribe el archivo final es el CLI, User Story 3).
+# ---------------------------------------------------------------------
+
+
+def artefacto_a_dict(artefacto: ArtefactoMedicion) -> dict[str, Any]:
+    """`dict` JSON-compatible con todo lo que SC-007 exige: modelo y
+    firma, semilla, lista de temas, valores por referencia, mediana,
+    exclusiones con motivo, distribución de referencias por tema, y las
+    transformaciones declaradas por tema (G1 de `/speckit-analyze`).
+
+    Las claves de `distribucion_referencias_por_tema` se convierten a
+    `str` explícitamente -- JSON no admite claves enteras, y `json.dumps`
+    las convertiría de todos modos de forma implícita; hacerlo aquí deja
+    el `dict` resultante ya en la forma exacta que producirá el archivo.
+    """
+    return {
+        "modo": artefacto.modo,
+        "semilla": artefacto.semilla,
+        "modelo": {
+            "nombre": artefacto.modelo.nombre,
+            "variante": artefacto.modelo.variante,
+            "firma": artefacto.modelo.firma,
+            "checksum_sha256_prefijo": artefacto.modelo.checksum_sha256_prefijo,
+            "licencia_pesos": artefacto.modelo.licencia_pesos,
+        },
+        "temas": artefacto.temas,
+        "exclusiones": [
+            {"tema_id": e.tema_id, "motivo": e.motivo, "detalle": e.detalle}
+            for e in artefacto.exclusiones
+        ],
+        "reportes": [_reporte_a_dict(r) for r in artefacto.reportes],
+        "transformaciones_por_tema": {
+            tema_id: [_transformacion_a_dict(t) for t in transformaciones]
+            for tema_id, transformaciones in artefacto.transformaciones_por_tema.items()
+        },
+        "mediana": artefacto.mediana,
+        "distribucion_referencias_por_tema": {
+            str(num_referencias): cuenta
+            for num_referencias, cuenta in artefacto.distribucion_referencias_por_tema.items()
+        },
+    }
