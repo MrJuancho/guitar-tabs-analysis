@@ -14,10 +14,20 @@ creyendo que lanzaba una de ~36 minutos (`submuestra_hito1`).
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
 from pathlib import Path
 
+from guitar_tabs_analysis.medicion.orquestador import (
+    ArtefactoMedicion,
+    ModeloCambiadoError,
+    ModoEjecucion,
+    artefacto_a_dict,
+    ejecutar_corrida,
+)
 from guitar_tabs_analysis.separacion.demucs_separador import DemucsSeparador
+from guitar_tabs_analysis.separacion.separador import Separador
 
 
 def _construir_parser() -> argparse.ArgumentParser:
@@ -44,11 +54,46 @@ def _construir_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def escribir_artefacto(ruta: Path, artefacto: ArtefactoMedicion) -> None:
+    """Escritura atómica del artefacto final -- mismo mecanismo que
+    `orquestador.escribir_progreso_tema`/`escribir_manifiesto`
+    (research.md #5): archivo temporal en el mismo directorio + `os.replace()`.
+    Si el proceso se interrumpe entre escribir el temporal y renombrarlo,
+    la ruta final nunca llega a existir -- nunca un artefacto truncado
+    que parezca válido."""
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    temporal = ruta.with_name(ruta.name + ".tmp")
+    temporal.write_text(json.dumps(artefacto_a_dict(artefacto)))
+    os.replace(temporal, ruta)
+
+
+def _ejecutar_y_escribir(
+    modo: ModoEjecucion,
+    root_dir: Path,
+    separador: Separador,
+    directorio_trabajo: Path,
+    ruta_artefacto: Path,
+) -> int:
+    """Núcleo testeable de `main()`, sin `argparse` ni `DemucsSeparador`
+    -- recibe el `Separador` ya construido, así los tests lo ejercitan
+    con `SeparadorFalso` (Feature 003) sin tocar `torch`/`demucs`."""
+    try:
+        artefacto = ejecutar_corrida(modo, root_dir, separador, directorio_trabajo)
+    except ModeloCambiadoError as causa:
+        print(str(causa), file=sys.stderr)
+        return 1
+    escribir_artefacto(ruta_artefacto, artefacto)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _construir_parser().parse_args(argv)
     separador = DemucsSeparador()
-    print(f"TODO: ejecutar_corrida({args.modo!r}, {args.root_dir!r}, {separador!r}, ...)")
-    return 0
+    directorio_trabajo = Path("data/silver/mediciones") / args.modo
+    ruta_artefacto = Path("mediciones") / f"{args.modo}.json"
+    return _ejecutar_y_escribir(
+        args.modo, args.root_dir, separador, directorio_trabajo, ruta_artefacto
+    )
 
 
 if __name__ == "__main__":

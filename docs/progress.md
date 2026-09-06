@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 004 (medición de la línea base): spec/plan/tasks commiteados
-(untracked, mismo hueco que Feature 001 -- ef6c18f). `/speckit-analyze`
-encontró 1 CRITICAL + 4 menores, todos cerrados sin tocar código (la
-feature aún no se implementa): `transformaciones` faltaba en todo el
-diseño pese a que `spec.md` la exige seis veces -- agregada a
-`ResultadoProcesamientoTema`/`ArtefactoMedicion` y al contrato/tasks
-afectados; dos referencias cruzadas a tareas equivocadas para
-"validación de firma" corregidas (T023, no T020/T021); SC-004 (un fallo
-no detiene la corrida) ganó test dentro de una misma invocación, como
-segundo escenario de T016; `derivar_temas_*()` renombrado a
-`construir_lista_temas` en plan.md; SC-005 (memoria) documentado como
-garantía de diseño, no de test dedicado (un `weakref` dependería del GC).
-`just gauntlet` verde (113 tests, 99.45%).
+Feature 004: User Story 3 completa (T025-T028) -- las tres historias y el
+CLI real. Se saboteó `ejecutar_corrida` para confirmar que T021/T022 (US2)
+se ponen en rojo -- lo hacen, revertido sin diff residual. T025/T026:
+`conjunto_completo` de punta a punta y los dos modos sin interferencia,
+sin implementación nueva. T027/T028: `medicion/cli.py` -- `--modo` sin
+default (`SystemExit` claro, `DemucsSeparador` nunca se construye antes,
+verificado con monkeypatch); escritura atómica del artefacto (tmp +
+`os.replace`) con test de interrupción simulada; `_ejecutar_y_escribir`
+(núcleo testeable) probado con `SeparadorFalso`, incluye que
+`ModeloCambiadoError` no escribe artefacto. `just gauntlet` verde: 144
+tests, 98.51%.
 
 ## Qué sigue
 
-`/speckit-implement` de la Feature 004, Foundational primero (T004/T005:
-extracción de Feature 002 con su criterio de corte explícito).
+Feature 004 con las tres user stories cerradas. Queda Polish (T029-T033):
+test `modelo_real`, mutation testing, recipe `just medir`, validación de
+`quickstart.md`. Después, la corrida real sobre la submuestra del hito 1
+para cerrar el presupuesto numérico del Principio VII.
 
 ## Bloqueado / pendiente de decisión
 
