@@ -1,5 +1,48 @@
 <!--
 Sync Impact Report
+- Version change: 1.4.0 → 1.5.0
+- Fuente: primera medición real del hito 1 (Feature 004,
+  `mediciones/submuestra_hito1.json` -- submuestra_hito1, semilla
+  20260904, 40 temas de `validation`, `htdemucs_6s` firma 5c90dfd2).
+  Cierra el último `ABIERTO` de la constitución: el número del
+  presupuesto de Principio VII.
+- Bump MINOR: se cierra un `ABIERTO` con contenido real y verificado --
+  no se elimina ni se contradice ninguna decisión ya tomada (el alcance
+  de la medición, cerrado en v1.4.0, no cambia), así que no aplica
+  MAJOR; no es solo una aclaración de redacción -- agrega el número del
+  presupuesto que no existía -- así que no es PATCH.
+
+- Principios modificados en v1.5.0 (contenido, no título ni posición):
+  VI.   "Evaluación cuantitativa y verificación cualitativa son
+        distintas" -- se agrega una segunda limitación declarada, junto
+        a la de Slakh sintetizado: SI-SDR mide fidelidad de forma de
+        onda, no contenido tonal, y esta cifra no predice si la
+        separación alcanza para transcribir (verificación cualitativa
+        sobre una salida real de la Feature 004).
+  VII.  "La métrica y su presupuesto" -- el bloque `ABIERTO` de
+        "Presupuesto" se reemplaza por el valor cerrado (`−8.0 dB`)
+        sobre la mediana de referencias emparejadas, con la evidencia
+        completa de la corrida: 40 temas/0 exclusiones, 110 referencias
+        (40 emparejadas/70 sin pareja), mediana global `−∞` explicada
+        como aritmética forzosa (no defecto), mediana de emparejadas
+        `−6.95 dB` (rango `−49.29` a `3.12`), y la comparación
+        mono/poli (`−8.55` vs `−6.15`) que descarta que la cifra esté
+        dominada por comparar una estimación mono contra referencia
+        polifónica. Se agrega la regla de reporte obligatorio de la
+        proporción de referencias sin pareja junto a cualquier cifra de
+        esta métrica.
+
+- Secciones añadidas: ninguna a nivel de encabezado (el nuevo contenido
+  vive dentro de los Principios VI y VII, ya existentes). Secciones
+  eliminadas: ninguna.
+
+- Governance: el checkbox de VII (presupuesto numérico) pasa de `[ ]` a
+  `[x]` -- pedido explícito de esta sesión, con la cifra y su evidencia
+  resumidas en la propia línea del checkbox. Los tres `ABIERTO`
+  originales de la constitución quedan cerrados; el párrafo introductorio
+  de esa subsección se actualiza para reflejarlo.
+
+- Sesión anterior (v1.3.0 → v1.4.0), preservada por referencia histórica:
 - Version change: 1.3.0 → 1.4.0
 - Fuente: hallazgo real de reloj (research.md #9 de
   `specs/003-separacion-modelo-preentrenado/`) durante
@@ -268,6 +311,17 @@ sobre guitarras sintetizadas y **no se extrapola a grabaciones reales**.
 Cualquier afirmación sobre el rendimiento en canciones reales requiere
 evidencia que este hito no produce.
 
+**Segunda limitación declarada, verificada sobre la primera medición real
+(Feature 004):** SI-SDR mide fidelidad de forma de onda, no contenido
+tonal. La verificación cualitativa sobre una salida real de esa corrida
+muestra una guitarra reconocible y con tono perceptible, con ruido
+residual apreciable -- consistente con una mediana de `−6.95 dB` sobre
+las referencias emparejadas (Principio VII). Para el hito 2 lo que
+importa es si el contenido tonal alcanza para transcribir, no la
+fidelidad de forma de onda: **esta cifra no predice si la separación es
+suficiente para transcribir**. Esa validación es un hito 2 propio, no una
+consecuencia automática de un buen SI-SDR.
+
 ### VII. La métrica y su presupuesto
 
 Se declara una métrica principal, un presupuesto numérico, y la evidencia que
@@ -300,8 +354,7 @@ hasta 10.652.672 muestras (la longitud real de pista de Slakh2100 vista
 en la feature 001) en `float32` y `float64`, sobre el backend BLAS real
 del proyecto (research.md #5).
 
-**Alcance de la medición, cerrado con evidencia de reloj real (el
-número del presupuesto sigue sin fijarse -- ver `ABIERTO` abajo).**
+**Alcance de la medición, cerrado con evidencia de reloj real.**
 Cerrado en `/plan`/`/implement` de la feature
 003-separacion-modelo-preentrenado
 (`specs/003-separacion-modelo-preentrenado/research.md` #9).
@@ -339,12 +392,48 @@ Cerrado en `/plan`/`/implement` de la feature
   declarada en el Principio VI sobre no extrapolar de Slakh sintetizado
   a grabaciones reales.
 
-> `ABIERTO` -- Presupuesto (el número en sí). *Criterio de cierre:* se
-> fija después de la primera medición sobre la submuestra de desarrollo
-> declarada arriba, por debajo del percentil observado y con el margen
-> justificado por escrito. Fijarlo antes sería exactamente el vicio que
-> esta sección prohíbe -- el alcance de qué se mide ya está cerrado, el
-> número que resulte de medirlo, no.
+**Presupuesto: −8.0 dB, cerrado con la primera medición real sobre la
+submuestra declarada arriba** (`submuestra_hito1`, semilla `20260904`,
+`htdemucs_6s` firma `5c90dfd2`; artefacto versionado en
+`mediciones/submuestra_hito1.json`, Feature 004).
+
+- **Evidencia.** 40 temas procesados, 0 exclusiones. 110 referencias de
+  guitarra en total: 40 emparejadas, 70 sin pareja, todas por
+  `sin_estimacion_disponible` -- el modelo devuelve exactamente una
+  estimación de guitarra por tema, y 31 de los 40 temas son polifónicos
+  (Principio V: cada pista de guitarra es una referencia separada).
+- **Por qué el presupuesto se fija sobre la mediana de las referencias
+  EMPAREJADAS, no sobre la mediana global.** La mediana global de esta
+  corrida es `−∞`: 70 de 110 valores son el sentinel de "sin pareja", así
+  que el punto medio del conjunto ordenado cae ahí necesariamente -- es
+  aritmética forzosa, no un defecto de esta corrida en particular. Una
+  compuerta sobre una mediana estructuralmente `−∞` no podría fallar
+  nunca, y una compuerta que no puede fallar es un modo de fallo que este
+  proyecto ya encontró varias veces antes. La mediana sobre las 40
+  referencias emparejadas es `−6.95 dB`, con rango finito observado de
+  `−49.29` a `3.12 dB`.
+- **Verificación de que la cifra no está artificialmente deprimida por
+  comparar una estimación mono contra una referencia polifónica.** Los 9
+  temas monofónicos dan una mediana de `−8.55 dB`; los 31 polifónicos dan
+  `−6.15 dB`. Los monofónicos NO salen mejor -- si la cifra global
+  estuviera dominada por el caso "una sola estimación de guitarra contra
+  varias referencias reales", se esperaría lo contrario. Esto no descarta
+  el efecto de la polifonía en sí (sigue siendo la explicación más simple
+  de por qué 70 referencias quedan sin pareja), pero sí descarta que sea
+  la única causa de una mediana baja.
+- **Valor: −8.0 dB**, con margen por debajo de los `−6.95 dB` observados
+  sobre las referencias emparejadas.
+- **Reporte obligatorio de la proporción sin pareja.** Toda cifra de esta
+  métrica se reporta junto con la fracción de referencias sin estimación
+  (70/110 en esta corrida) -- la mediana de las emparejadas, sola, oculta
+  que el modelo dejó más de la mitad de las referencias sin ninguna
+  estimación con la que compararlas. Publicar el número sin esa
+  proporción es tan engañoso como el problema que el punto anterior
+  descarta para la mediana global.
+- **El umbral no se recalibra para forzar un pase** (regla de esta misma
+  sección, ya vigente): si una corrida futura sobre esta submuestra cae
+  por debajo de `−8.0 dB`, el resultado es un FALLA documentado, no una
+  ocasión para mover el número.
 
 ### VIII. Determinismo
 
@@ -477,25 +566,25 @@ del diseño -- no hace falta un paso manual adicional aquí.
 criterio de cierre, declarado en el principio correspondiente -- no se
 completa antes de que ese criterio se cumpla, y no se completa como parte
 de un `/speckit-constitution` posterior "para no dejar cabos sueltos": eso
-es exactamente el vicio que VII prohíbe para el presupuesto. Dos de los
-tres `ABIERTO` originales ya se cerraron -- con contenido real y, en el
-caso de VIII, verificado empíricamente, no solo razonado -- cuando la
-feature que los necesitaba (002-metrica-separacion-guitarra) llegó al
-punto de su propio criterio de cierre (`/plan`). El tercero sigue sin
-rellenarse porque su propio criterio ("después de la primera medición
-real") todavía no se cumple.
+es exactamente el vicio que VII prohíbe para el presupuesto. Los tres
+`ABIERTO` originales ya se cerraron -- con contenido real y, en los casos
+de VIII y del presupuesto de VII, verificado empíricamente, no solo
+razonado -- cada uno cuando su propio criterio de cierre se cumplió: los
+dos primeros en `/plan` de 002-metrica-separacion-guitarra, el tercero
+tras la primera medición real sobre la submuestra declarada (Feature 004,
+`mediciones/submuestra_hito1.json`). Ya no quedan `ABIERTO` en este
+documento.
 
 - [x] VII -- Métrica principal: SI-SDR (Le Roux et al., 2019). Cerrado en
       `/plan` de 002-metrica-separacion-guitarra.
-- [ ] VII -- Presupuesto numérico. Sigue sin cerrarse -- **el alcance
-      sobre el que se medirá ya está fijado** (submuestra de 40 temas de
-      `validation`, semilla `20260904`, evidencia en
-      `specs/003-separacion-modelo-preentrenado/research.md` #9), pero
-      el número del presupuesto en sí requiere la primera medición real
-      sobre esa submuestra, que todavía no ocurrió. No se infiere un
-      número de la evidencia de alcance.
+- [x] VII -- Presupuesto numérico: `−8.0 dB` sobre la mediana de
+      referencias emparejadas, con la proporción sin pareja como parte
+      obligatoria del reporte. Cerrado con la primera medición real sobre
+      la submuestra declarada (Feature 004,
+      `mediciones/submuestra_hito1.json`) -- ver Principio VII para la
+      evidencia completa.
 - [x] VIII -- Política de determinismo: opción (b), tolerancia numérica
       declarada con excepción para valores exactos por construcción.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
 
-**Version**: 1.4.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-05
+**Version**: 1.5.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-06
