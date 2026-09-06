@@ -207,3 +207,53 @@ def test_reanudar_no_reintenta_un_tema_que_fallo_duro(tmp_path: Path) -> None:
 
     assert separador_segunda_corrida.llamadas == 0  # nunca se reintenta
     assert artefacto2.exclusiones == artefacto1.exclusiones
+
+
+def test_conjunto_completo_excluye_test_y_omitted_via_ejecutar_corrida(tmp_path: Path) -> None:
+    """T025, User Story 3, AS1, FR-014: dataset sintético con temas en los
+    cuatro splits -- `ejecutar_corrida("conjunto_completo", ...)` incluye
+    exactamente los de `train`/`validation` y ninguno de `test`/`omitted`,
+    de punta a punta (no solo a nivel de `construir_lista_temas`, ya
+    cubierto por T013)."""
+    root_dir = tmp_path / "dataset"
+    construir_varios_temas_sinteticos(root_dir, split="train", cantidad=2)
+    construir_varios_temas_sinteticos(root_dir, split="validation", cantidad=3)
+    construir_varios_temas_sinteticos(root_dir, split="test", cantidad=2)
+    construir_varios_temas_sinteticos(root_dir, split="omitted", cantidad=2)
+
+    artefacto = ejecutar_corrida(
+        "conjunto_completo", root_dir, SeparadorFalso(), tmp_path / "trabajo"
+    )
+
+    assert len(artefacto.temas) == 2 + 3
+    assert all(t.startswith("train/") or t.startswith("validation/") for t in artefacto.temas)
+    assert not any(t.startswith("test/") for t in artefacto.temas)
+    assert not any(t.startswith("omitted/") for t in artefacto.temas)
+
+
+def test_submuestra_hito1_y_conjunto_completo_no_interfieren_entre_si(tmp_path: Path) -> None:
+    """T026, User Story 3, AS3: invocar ambos modos sobre el mismo
+    `root_dir`, cada uno con su propio `directorio_trabajo` (como hará el
+    CLI), produce dos artefactos correctos e independientes -- el
+    progreso de uno no contamina al otro."""
+    root_dir = tmp_path / "dataset"
+    cantidades = [1] * 40
+    construir_varios_temas_sinteticos(
+        root_dir, split="validation", cantidad=40, guitarras_por_tema=cantidades
+    )
+    construir_varios_temas_sinteticos(root_dir, split="train", cantidad=2)
+
+    artefacto_submuestra = ejecutar_corrida(
+        "submuestra_hito1", root_dir, SeparadorFalso(), tmp_path / "trabajo_submuestra"
+    )
+    artefacto_completo = ejecutar_corrida(
+        "conjunto_completo", root_dir, SeparadorFalso(), tmp_path / "trabajo_completo"
+    )
+
+    assert len(artefacto_submuestra.temas) == 40
+    assert artefacto_submuestra.semilla == 20260904
+    assert len(artefacto_completo.temas) == 40 + 2
+    assert artefacto_completo.semilla is None
+    # Ninguno de los dos modos alteró el progreso del otro -- directorios
+    # de trabajo separados, sin superposición de temas persistidos.
+    assert set(artefacto_submuestra.temas) != set(artefacto_completo.temas)
