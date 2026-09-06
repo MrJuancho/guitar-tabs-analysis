@@ -415,6 +415,33 @@ def _mediana_orden(pool: list[float]) -> float:
     return promedio
 
 
+def calcular_mediana_agregada(reportes: list[ReporteTema]) -> float | None:
+    """Mediana sobre el pool plano de valores por referencia de `reportes`
+    (research.md #9 de la Feature 004) -- extraída de `agregar_conjunto`
+    sin cambiar su comportamiento, para que la Feature 004 pueda calcular
+    la misma cifra de forma incremental (un `ReporteTema` a la vez,
+    persistido por separado) sin retener en memoria las referencias y
+    estimaciones crudas que `agregar_conjunto` necesita.
+
+    Cada referencia sin pareja, sin importar el motivo, aporta `-inf` al
+    pool (FR-008 de la Feature 002) -- omitirla inflaría el resultado
+    contando solo los casos donde el separador acertó.
+    """
+    pool: list[float] = []
+    for reporte in reportes:
+        pool.extend(emparejada.si_sdr for emparejada in reporte.emparejadas)
+        pool.extend(float("-inf") for _ in reporte.sin_pareja)  # pragma: no mutate
+    return _mediana_orden(pool) if pool else None
+
+
+def calcular_distribucion_referencias(reportes: list[ReporteTema]) -> dict[int, int]:
+    """Cuántos `reportes` tienen cada cantidad de referencias
+    (`ReporteTema.num_referencias`), research.md #9 de la Feature 002 --
+    extraída de `agregar_conjunto` sin cambiar su comportamiento (mismo
+    criterio que `calcular_mediana_agregada` arriba)."""
+    return dict(Counter(reporte.num_referencias for reporte in reportes))
+
+
 def agregar_conjunto(entradas: list[EntradaConjunto]) -> ResultadoAgregado:
     """Implementa User Story 2 completa (contracts/metrica_separacion.md).
 
@@ -456,26 +483,12 @@ def agregar_conjunto(entradas: list[EntradaConjunto]) -> ResultadoAgregado:
 
     # Pool plano: cada referencia individual entra una vez, sea cual sea
     # el tamaño del tema al que pertenece -- research.md #7/#9,
-    # spec.md#Assumptions "Ponderación".
-    pool: list[float] = []
-    for reporte in reportes_por_tema:
-        pool.extend(emparejada.si_sdr for emparejada in reporte.emparejadas)
-        # -inf es válido AQUÍ únicamente porque la mediana es un
-        # estadístico de orden: solo necesita la posición relativa de
-        # cada valor, no su magnitud, y -inf es una posición
-        # perfectamente definida (siempre el mínimo) sin inventar una
-        # constante numérica arbitraria (FR-008). Si algún día se agrega
-        # una MEDIA (u otro estadístico sensible a magnitud) a este
-        # reporte, este mismo -inf la destruye (-inf + x = -inf para
-        # cualquier x finito) -- ese cambio tendría que revisar este
-        # bloque junto con FR-007/FR-008, no reusarlo tal cual.
-        pool.extend(float("-inf") for _ in reporte.sin_pareja)  # pragma: no mutate
-
-    mediana = _mediana_orden(pool) if pool else None
-
-    distribucion_referencias_por_tema = dict(
-        Counter(len(entrada.referencias) for entrada in evaluadas)
-    )
+    # spec.md#Assumptions "Ponderación". Delegado a
+    # calcular_mediana_agregada/calcular_distribucion_referencias
+    # (extraídas para la Feature 004, research.md #1/#2 de esa feature) --
+    # mismo cálculo, ahora también reutilizable de forma incremental.
+    mediana = calcular_mediana_agregada(reportes_por_tema)
+    distribucion_referencias_por_tema = calcular_distribucion_referencias(reportes_por_tema)
 
     return ResultadoAgregado(
         mediana=mediana,
