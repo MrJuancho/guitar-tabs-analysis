@@ -59,30 +59,39 @@ Feature 003).
 1. **Lectura fallida (FR-006).** Si `leer_tema(tema_id, root_dir)` levanta
    `TemaNoExisteError`, `ArchivoAudioNoLegibleError` o
    `LongitudInconsistenteError` (Feature 001), el resultado es
-   `ResultadoProcesamientoTema(tema_id, reporte=None, exclusion=ExclusionMedicion(tema_id, "fallo_procesamiento", str(causa)))`
+   `ResultadoProcesamientoTema(tema_id, reporte=None, exclusion=ExclusionMedicion(tema_id, "fallo_procesamiento", str(causa)), transformaciones=[])`
    — nunca propaga la excepción original hacia quien llama.
 2. **Sin guitarra de referencia.** Si `leer_tema` devuelve una colección
    vacía de guitarras, el resultado es
-   `ResultadoProcesamientoTema(tema_id, reporte=None, exclusion=ExclusionMedicion(tema_id, "sin_guitarra_referencia", ""))`
+   `ResultadoProcesamientoTema(tema_id, reporte=None, exclusion=ExclusionMedicion(tema_id, "sin_guitarra_referencia", ""), transformaciones=[])`
    — nunca se llama a `separar_guitarra` para un tema sin ninguna
    referencia (no hay nada contra qué medir).
 3. **Separación fallida (FR-006).** Si `leer_tema` tuvo éxito pero
    `separar_guitarra` levanta `SeparacionFallidaError` (Feature 003), el
    resultado es
-   `ResultadoProcesamientoTema(tema_id, reporte=None, exclusion=ExclusionMedicion(tema_id, "fallo_procesamiento", str(causa)))`
+   `ResultadoProcesamientoTema(tema_id, reporte=None, exclusion=ExclusionMedicion(tema_id, "fallo_procesamiento", str(causa)), transformaciones=[])`
    — mismo motivo que la postcondición 1, mensaje distinguible por su
    `detalle`.
 4. **Camino feliz.** Si `leer_tema` y `separar_guitarra` tienen éxito, el
    resultado es
-   `ResultadoProcesamientoTema(tema_id, reporte=emparejar_tema(tema_id, guitarras, estimaciones), exclusion=None)`
-   (Feature 002) — sin importar si `estimaciones` quedó vacía (Feature
-   003, FR-009 de 003) o si algún emparejamiento resultó silencioso
-   (Feature 002, FR-016 de 002): `emparejar_tema` ya sabe clasificar
-   ambos casos dentro de `ReporteTema.sin_pareja`.
-5. **Nunca ambos ni ninguno.** Exactamente uno de `reporte`/`exclusion`
+   `ResultadoProcesamientoTema(tema_id, reporte=emparejar_tema(tema_id, guitarras, estimaciones), exclusion=None, transformaciones=resultado_separacion.transformaciones)`
+   (Feature 002 para `reporte`, Feature 003 para `transformaciones` —
+   `resultado_separacion` es el `ResultadoSeparacionTema` que devolvió
+   `separar_guitarra`) — sin importar si `estimaciones` quedó vacía
+   (Feature 003, FR-009 de 003) o si algún emparejamiento resultó
+   silencioso (Feature 002, FR-016 de 002): `emparejar_tema` ya sabe
+   clasificar ambos casos dentro de `ReporteTema.sin_pareja`, y eso no
+   afecta a `transformaciones` — son dos datos independientes del mismo
+   `resultado_separacion` (FR-010, SC-007).
+5. **Transformaciones vacías cuando no hubo separación.** Si el resultado
+   tiene `exclusion` no `None` (postcondiciones 1-3), `transformaciones`
+   es `[]` — ni `"sin_guitarra_referencia"` ni `"fallo_procesamiento"`
+   llegan a invocar `separar_guitarra` con éxito, así que no existe
+   ningún `ResultadoSeparacionTema` del cual tomarlas.
+6. **Nunca ambos ni ninguno.** Exactamente uno de `reporte`/`exclusion`
    del resultado es `None` (data-model.md, invariante de
    `ResultadoProcesamientoTema`).
-6. **No hay reintento.** `procesar_tema` intenta la lectura y la
+7. **No hay reintento.** `procesar_tema` intenta la lectura y la
    separación **una sola vez** — un fallo no dispara una segunda
    llamada. Mismo criterio que `SeparacionFallidaError` ya impone dentro
    de `separar_guitarra` (Feature 003, FR-014 de 003), extendido aquí a
@@ -151,7 +160,10 @@ hardcodeada) para que los tests usen `tmp_path`.
    **devuelve** el `ArtefactoMedicion` completo (data-model.md) en
    memoria — antes de ese punto, `ejecutar_corrida` no devuelve nada (la
    corrida sigue en progreso; volver a invocarla continúa donde quedó,
-   postcondición 2). Escribir ese valor devuelto como
+   postcondición 2). `transformaciones_por_tema` se arma recolectando
+   `progreso.transformaciones` de cada `ResultadoProcesamientoTema` cuyo
+   `reporte` no es `None`, indexado por `tema_id` — un tema excluido no
+   aporta entrada (data-model.md). Escribir ese valor devuelto como
    `mediciones/<modo>.json` es responsabilidad de quien llama
    (`medicion.cli`, ver más abajo), no de `ejecutar_corrida` — mantiene
    esta función testeable enteramente contra `directorio_trabajo`
@@ -160,7 +172,8 @@ hardcodeada) para que los tests usen `tmp_path`.
    de una corrida completada en una sola invocación y el de una
    completada a través de dos o más (con la misma `root_dir`, `modo` y
    `separador`) son iguales campo a campo — mismos `reportes`,
-   `exclusiones`, `mediana`, `distribucion_referencias_por_tema`.
+   `exclusiones`, `transformaciones_por_tema`, `mediana`,
+   `distribucion_referencias_por_tema`.
 
 ### Modos de fallo
 

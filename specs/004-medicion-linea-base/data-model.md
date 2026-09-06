@@ -6,8 +6,9 @@ Todos los tipos son inmutables y viven en la capa nueva `medicion`. Nombres
 en español, consistentes con Features 001-003. Reutiliza `PistaAudio`,
 `PistaGuitarra`, `LecturaTema` (`ingestion.slakh2100`); `Estimacion`,
 `ReporteTema`, `ReferenciaEmparejada`, `ReferenciaSinPareja` (`analytics.metrica_separacion`);
-`ModeloDeclarado`, `ResultadoSeparacionTema`, `Separador`,
-`SeparacionFallidaError` (`separacion.separador`) sin redefinir ninguno.
+`ModeloDeclarado`, `ResultadoSeparacionTema`, `TransformacionDeclarada`,
+`Separador`, `SeparacionFallidaError` (`separacion.separador`) sin
+redefinir ninguno.
 
 ## `ModoEjecucion`
 
@@ -53,9 +54,11 @@ unión etiquetada, nunca ambos casos a la vez.
 | `tema_id` | `str` | Igual que en `reporte.tema_id` o `exclusion.tema_id` — invariante: siempre coinciden. |
 | `reporte` | `ReporteTema \| None` | Presente si el tema se midió con éxito (Feature 002). |
 | `exclusion` | `ExclusionMedicion \| None` | Presente si el tema se excluyó (ver arriba). |
+| `transformaciones` | `list[TransformacionDeclarada]` | Eco de `ResultadoSeparacionTema.transformaciones` (Feature 003) cuando `reporte` no es `None` — la separación sí corrió, así que sí hay transformaciones que declarar (FR-010, SC-007; spec.md ENTREGABLE y Key Entities "Reporte por tema"/"Artefacto de medición"). Lista vacía cuando `exclusion` no es `None`: ni `"sin_guitarra_referencia"` ni `"fallo_procesamiento"` llegan a invocar `separar_guitarra` con éxito (`procesar_tema`, contracts/medicion.md), así que no existe ningún `ResultadoSeparacionTema` del cual tomarlas — una lista vacía es la respuesta correcta, no un dato faltante. |
 
 **Invariante**: exactamente uno de `reporte`/`exclusion` es `None` y el
-otro no — nunca los dos `None`, nunca los dos presentes.
+otro no — nunca los dos `None`, nunca los dos presentes. `transformaciones`
+no está vacía si y solo si `reporte` no es `None`.
 
 ## `ManifiestoCorrida`
 
@@ -98,6 +101,7 @@ que se necesita para interpretar la cifra sin volver a ejecutar nada
 | `temas` | `list[str]` | Eco de `ManifiestoCorrida.temas` — la lista exacta medida. |
 | `exclusiones` | `list[ExclusionMedicion]` | Todos los temas de `temas` que no tienen un `ReporteTema` — `fallo_procesamiento` o `sin_guitarra_referencia` (research.md #2 no aplica aquí, esto no requiere `agregar_conjunto`). |
 | `reportes` | `list[ReporteTema]` | Un `ReporteTema` por cada tema medido con éxito (ni excluido). |
+| `transformaciones_por_tema` | `dict[str, list[TransformacionDeclarada]]` | Clave: `tema_id`. Valor: `ResultadoProcesamientoTema.transformaciones` de ese tema (Feature 003) — las transformaciones que `spec.md` exige seis veces (ENTREGABLE, US1 AS3, FR-010, ambas Key Entities, SC-007), y que no viven en `ReporteTema` (tipo de la Feature 002, que no las conoce). Solo tiene una entrada por cada `tema_id` presente en `reportes` — un tema excluido nunca llegó a `separar_guitarra` con éxito (ver `ResultadoProcesamientoTema.transformaciones`), así que no aporta nada que declarar aquí. |
 | `mediana` | `float \| None` | `calcular_mediana_agregada(reportes)` (research.md #2) — `None` si `reportes` queda vacío tras las exclusiones, igual que `ResultadoAgregado.mediana` de la Feature 002 (FR-014 de 002). |
 | `distribucion_referencias_por_tema` | `dict[int, int]` | `calcular_distribucion_referencias(reportes)` (research.md #2). |
 
@@ -108,6 +112,12 @@ que se necesita para interpretar la cifra sin volver a ejecutar nada
 - Ningún `tema_id` aparece a la vez en `exclusiones` y en `reportes`
   (mismo invariante que `ResultadoAgregado` de la Feature 002, SC-005 de
   002).
+- `set(transformaciones_por_tema.keys()) == {r.tema_id for r in reportes}`
+  — ni más (un tema excluido no aporta entrada) ni menos (todo tema
+  medido con éxito declara sus transformaciones, aunque sea la lista
+  trivial de "verificado, sin cambio" que `separar_guitarra` produce
+  incluso cuando no remuestrea ni duplica canales — Feature 003,
+  contracts/separacion.md, postcondición 1).
 
 ## Relaciones
 
@@ -119,6 +129,7 @@ ResultadoProcesamientoTema 1 ── 0..1 ExclusionMedicion
 
 ArtefactoMedicion 1 ── * ReporteTema (reportes)
 ArtefactoMedicion 1 ── * ExclusionMedicion (exclusiones)
+ArtefactoMedicion 1 ── * list[TransformacionDeclarada] (transformaciones_por_tema, una por tema_id de reportes)
 ArtefactoMedicion 1 ── 1 ModeloDeclarado (Feature 003)
 ```
 

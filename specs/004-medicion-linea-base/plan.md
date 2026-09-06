@@ -144,7 +144,7 @@ src/guitar_tabs_analysis/
     ├── __init__.py
     ├── orquestador.py              # ModoEjecucion, ExclusionMedicion,
     │                                # ArtefactoMedicion, ManifiestoCorrida,
-    │                                # ModeloCambiadoError; derivar_temas_*(),
+    │                                # ModeloCambiadoError; construir_lista_temas(),
     │                                # procesar_tema(), ejecutar_corrida();
     │                                # NO importa torch ni demucs directamente
     │                                # (recibe un Separador ya construido)
@@ -165,7 +165,7 @@ data/silver/mediciones/              # progreso persistido efímero, ya
 
 tests/
 ├── unit/
-│   └── test_orquestador.py         # procesar_tema()/derivar_temas_*() con
+│   └── test_orquestador.py         # procesar_tema()/construir_lista_temas() con
 │                                     # SeparadorFalso + construir_tema_sintetico:
 │                                     # fallo terminal (FR-006), no reintento al
 │                                     # reanudar (FR-008), firma de modelo

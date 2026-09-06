@@ -14,26 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-**Feature 003 (separación con Demucs) completa: T001-T023, 8 fases.**
-`just gauntlet` verde (113 tests, 99,45% cobertura; `separador.py` y
-`demucs_separador.py` al 100%). Dos hallazgos reales, test-rojo-primero:
-(1) `shifts=1` (default de `Separator`) desplaza la entrada
-aleatoriamente cada llamada -- corregido con `shifts=0`, determinista
-bit a bit (research.md #10); (2) mutation testing incluía `modelo_real`,
-causando 22/32 mutantes en `timeout` y 0 `killed` -- corregido
-excluyéndolos en `pyproject.toml`. Triage final: 153/154 mutantes
-matados (99,35%), 1 equivalente sin pragma (comparte línea con uno
-real). T023: corrigió `quickstart.md`, nunca verificado (patrón 002/T028).
+Feature 004 (medición de la línea base): spec/plan/tasks commiteados
+(untracked, mismo hueco que Feature 001 -- ef6c18f). `/speckit-analyze`
+encontró 1 CRITICAL + 4 menores, todos cerrados sin tocar código (la
+feature aún no se implementa): `transformaciones` faltaba en todo el
+diseño pese a que `spec.md` la exige seis veces -- agregada a
+`ResultadoProcesamientoTema`/`ArtefactoMedicion` y al contrato/tasks
+afectados; dos referencias cruzadas a tareas equivocadas para
+"validación de firma" corregidas (T023, no T020/T021); SC-004 (un fallo
+no detiene la corrida) ganó test dentro de una misma invocación, como
+segundo escenario de T016; `derivar_temas_*()` renombrado a
+`construir_lista_temas` en plan.md; SC-005 (memoria) documentado como
+garantía de diseño, no de test dedicado (un `weakref` dependería del GC).
+`just gauntlet` verde (113 tests, 99.45%).
 
 ## Qué sigue
 
-Feature 003 cerrada. **Pendiente recomendado, no bloqueante**: correr
-`/speckit-constitution` para registrar en el Principio VII la evidencia
-de research.md #9 (submuestra de 40 temas de `validation`, semilla
-`20260904`, para una corrida completa del hito 1).
+`/speckit-implement` de la Feature 004, Foundational primero (T004/T005:
+extracción de Feature 002 con su criterio de corte explícito).
 
 ## Bloqueado / pendiente de decisión
 
-Feature 001: dtype en `_decodificar_audio` -- diferido a hito 2.
-Licencia de pesos de Demucs (research.md #3 de 003): cita del usuario,
-no verificada de forma independiente (`github.com` bloqueado).
+Ninguno. Feature 001: dtype en `_decodificar_audio` -- diferido a hito 2.
+Licencia de pesos de Demucs (research.md #3 de 003): cita del usuario, no
+verificada de forma independiente (`github.com` bloqueado).
