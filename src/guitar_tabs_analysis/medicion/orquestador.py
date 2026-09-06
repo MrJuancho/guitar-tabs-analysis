@@ -415,9 +415,11 @@ def ejecutar_corrida(
     tarea de implementación adicional, ya hace que un fallo duro (FR-006)
     no detenga los temas restantes de la misma corrida (SC-004).
 
-    **Sin validación de firma del modelo todavía** -- eso es User Story
-    2 (T023); esta implementación cubre las postcondiciones 1, 2 y 4 de
-    `contracts/medicion.md`, no la 3.
+    Si ya existe un manifiesto con una firma de modelo distinta a la de
+    `separador`, levanta `ModeloCambiadoError` antes de procesar
+    cualquier tema (FR-008a, T023, contracts/medicion.md postcondición
+    3) -- nunca reanuda ni mezcla reportes de dos modelos distintos en
+    el mismo artefacto.
     """
     manifiesto = leer_manifiesto(directorio_trabajo)
     if manifiesto is None:
@@ -429,6 +431,14 @@ def ejecutar_corrida(
             temas=construir_lista_temas(modo, root_dir),
         )
         escribir_manifiesto(directorio_trabajo, manifiesto)
+    elif manifiesto.firma_modelo != separador.modelo_declarado.firma:
+        # FR-008a, T023: un manifiesto ya existente con otra firma nunca
+        # se reanuda -- ni un tema se procesa antes de este chequeo, para
+        # no mezclar reportes de dos modelos distintos en el artefacto.
+        raise ModeloCambiadoError(
+            firma_esperada=manifiesto.firma_modelo,
+            firma_actual=separador.modelo_declarado.firma,
+        )
 
     directorio_temas = directorio_trabajo / "temas"
     resultados: list[ResultadoProcesamientoTema] = []
