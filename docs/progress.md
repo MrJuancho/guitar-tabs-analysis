@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 004 cerrada, constitución en v1.5.0 (Principio VII: `-8.0 dB`
-sobre mediana de emparejadas). Feature 005 (compuerta de la métrica) con
-spec/plan/research/data-model/contracts/quickstart/tasks completos.
-`/speckit-analyze` corrido y sus 5 hallazgos cerrados a nivel de
-documentos (sin código todavía): C1 HIGH (validación de
-`modelo`/`modo`/`semilla` agregada a T005/T007), F1 (`leer_artefacto`
-documentado en contracts/compuerta.md), C2 (test de firma arbitraria en
-T002), C3 (T009 reescrito, independencia real entre modos), F2 (spec.md
-corregido: la compuerta nunca tiene default). C4/C5 anotados como
-no-implementados con su razón, no como tareas.
+Feature 005 (compuerta de la métrica) implementada completa (T001-T015):
+`medicion/compuerta.py` nuevo, solo `stdlib`, juzga `mediciones/<modo>.json`
+contra `-8.0 dB` (Principio VII) sobre la mediana de emparejadas, con
+fracción sin pareja obligatoria en el veredicto. Incorporada a `just
+gauntlet` (falla si el artefacto real no alcanza el presupuesto -- hoy
+aprueba, `-6.95 dB`). Mutación (triage, no conteo): 46 sobrevivientes,
+18 gaps reales cerrados (contexto del `Veredicto`, mensajes de error,
+`stdout` de `main`), 28 equivalentes documentados (texto de `argparse`,
+prosa no diagnóstica). Hallazgo: `# pragma: no mutate` es solo
+documentación en esta versión de `mutmut` (TODO propio de la
+herramienta, no exclusión real) -- el triage se sostiene por revisión
+humana en tasks.md. `just gauntlet` verde: 168 tests, 98.69%.
 
 ## Qué sigue
 
-Implementar Feature 005 (`/speckit-implement`, T001-T015 de
-`specs/005-compuerta-metrica/tasks.md`): módulo nuevo
-`medicion/compuerta.py`, solo `stdlib`, TDD por user story (US1 juicio
-básico, US2 fallo cerrado, US3 CLI con `--modo`), Polish con
-integración a `just gauntlet` y triage de mutación.
+Features 004 y 005 completas -- el hito 1 tiene medición y compuerta.
+Sigue evaluar la corrida sobre el conjunto completo (`just medir
+conjunto_completo <ruta>`, ~23h) y decidir el hito 2 (transcripción).
 
 ## Bloqueado / pendiente de decisión
 

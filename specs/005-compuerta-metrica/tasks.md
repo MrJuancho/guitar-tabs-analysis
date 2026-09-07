@@ -285,26 +285,26 @@ en los casos correspondientes.
 y triage de mutación — mismo patrón de cierre que el Polish de la
 Feature 004.
 
-- [ ] T011 [P] Agregar el recipe `compuerta modo` a `justfile` (mismo
+- [X] T011 [P] Agregar el recipe `compuerta modo` a `justfile` (mismo
       patrón que `medir modo root_dir` de la Feature 004): `uv run
       python -m guitar_tabs_analysis.medicion.compuerta --modo {{ modo }}`.
-- [ ] T012 [P] Agregar un paso nuevo en el recipe `gauntlet` de
+- [X] T012 [P] Agregar un paso nuevo en el recipe `gauntlet` de
       `justfile` (research.md #8): `uv run python -m
       guitar_tabs_analysis.medicion.compuerta --modo submuestra_hito1`
       después del paso de `pytest`. Si el veredicto es rechazo,
       `gauntlet` debe fallar con el mismo criterio de fallo cerrado que
       `ruff`/`mypy`/`lint-imports`/cobertura.
-- [ ] T013 Correr `just gauntlet` completo y confirmar verde, incluyendo
+- [X] T013 Correr `just gauntlet` completo y confirmar verde, incluyendo
       el paso nuevo de T012 contra `mediciones/submuestra_hito1.json`
       (evidencia real: mediana `-6.95 dB` ≥ `-8.0 dB`, aprobado) y
       cobertura ≥90% con `compuerta.py` incluido. Actualizar
       `docs/progress.md` (límite de 40 líneas).
-- [ ] T014 Ejecutar manualmente la sección de `quickstart.md` de esta
+- [X] T014 Ejecutar manualmente la sección de `quickstart.md` de esta
       feature de punta a punta: `just compuerta submuestra_hito1` contra
       el artefacto real, y confirmar que el resultado impreso coincide
       con la evidencia ya registrada en la constitución (Principio VII,
       v1.5.0: mediana `-6.95 dB`, fracción sin pareja `70/110`).
-- [ ] T015 Correr `just mutation medicion.compuerta` y triar cada
+- [X] T015 Correr `just mutation medicion.compuerta` y triar cada
       sobreviviente (equivalente/inalcanzable, documentado con `# pragma:
       no mutate` y una razón verificada; o gap real, cerrado fortaleciendo
       un test existente o agregando uno nuevo rojo-antes-que-verde) —
@@ -312,6 +312,76 @@ Feature 004.
       Esta feature no tiene ningún test `modelo_real` que excluir de la
       corrida de mutación (no invoca ningún modelo). Registrar el triage
       en este archivo.
+
+  **Hallazgo sobre `# pragma: no mutate` en esta versión de `mutmut`,
+  verificado no supuesto:** el propio código de `mutmut` instalado
+  (`mutmut/__main__.py`) trae el comentario `# TODO: pragma no mutate
+  should end up in 'skipped' category` -- confirmado empíricamente
+  inspeccionando `mutants/src/.../compuerta.py`: una línea con `# pragma:
+  no mutate` sigue generando su mutante con el contenido realmente
+  mutado, y ese mutante sigue apareciendo como `survived`, nunca como
+  `skipped`. El pragma en este proyecto es, en esta versión de la
+  herramienta, documentación para quien lee el código, no un mecanismo
+  que mutmut aplique para excluir generación -- el mismo patrón que ya
+  se usó en `orquestador.py` (Feature 004, Polish) funciona por la misma
+  razón: los sobrevivientes documentados se aceptan por triage humano
+  registrado aquí, no porque la herramienta deje de generarlos.
+
+  **Mutación (triage, no conteo)** -- primera corrida: 46 sobrevivientes
+  sobre `medicion.compuerta` (0 sobre cualquier otro módulo, mutados por
+  separado). Config de `modelo_real` verificada sin cambios antes de
+  correr (N/A de todos modos: esta feature no tiene ningún test así).
+  Triage:
+
+  - **18 gaps reales, cerrados fortaleciendo tests existentes** (sin
+    tests nuevos de producción):
+    - `evaluar_artefacto` (12): ningún test comprobaba
+      `modelo_nombre`/`modelo_variante`/`modo`/`semilla` del `Veredicto`
+      (solo `modelo_firma`, del test de firma arbitraria) -- se agregó
+      `test_veredicto_incluye_todo_el_contexto_del_artefacto_sin_alterarlo`.
+      Los mensajes de `ArtefactoInvalidoError` ("falta la clave...",
+      "sin evidencia suficiente...") no se comprobaban por contenido --
+      se agregaron aserciones sobre la palabra diagnóstica de cada uno
+      (`"reportes"`, `"evidencia"`, la clave faltante exacta) en
+      `test_compuerta.py`, y sobre `.motivo` como atributo público
+      además de `str(excinfo.value)`.
+    - `leer_artefacto` (1): el mensaje de `json.JSONDecodeError` envuelto
+      no se comprobaba por contenido -- se agregó una aserción sobre la
+      ruta en `test_contenido_no_interpretable_es_invalido`.
+    - `main` (5): nada comprobaba el `stdout` real que imprime el
+      veredicto (contracts/compuerta.md, postcondición 4) -- se
+      agregaron aserciones sobre el texto completo (incluida la fracción
+      exacta `sin_pareja/total`, para distinguir `+` de `-` en el
+      cálculo del total) en los dos tests de `main` con un solo
+      artefacto presente, más un `.startswith("APROBADO -- "
+      )`/`.startswith("RECHAZADO -- ")` para fijar la palabra exacta del
+      veredicto (no solo que apareciera como substring, que un mutante
+      de tipo `XXAPROBADOXX` seguiría conteniendo).
+  - **28 equivalentes/cosméticos, documentados, no cerrados con más
+    tests** (verificar su contenido exacto sería una prueba frágil que
+    no protege ninguna decisión real -- mismo criterio que motivó no
+    fijar el texto de ayuda de `argparse` en la Feature 004):
+    - `_construir_parser` (22): mutaciones sobre el texto literal de
+      `prog`/`description`/`help` de `argparse` -- pura documentación
+      para quien invoca `--help`, no comportamiento. Lo que sí es
+      comportamiento (`choices`, `required`, sin `default`) ya está
+      cubierto por `SystemExit` en `test_compuerta_cli.py`. Documentado
+      con `# pragma: no mutate` en cada línea de texto (advisorio, ver
+      hallazgo de arriba) y un docstring explicando el criterio.
+    - `evaluar_artefacto` (6): variantes de mayúscula/minúscula y de
+      "vaciado" (`XX...XX`) sobre la prosa del mensaje "sin evidencia
+      suficiente..." que NO tocan la palabra diagnóstica `"evidencia"`
+      ya afirmada (por ejemplo, cambiar "en el artefacto (ni
+      referencias..." a mayúsculas). Fijar el contenido exacto de toda
+      la prosa, palabra por palabra, sería sobre-ajustar el test al
+      texto en vez de a la condición que señaliza -- ya cubierta.
+
+  Re-verificado tras el fix: `just mutation medicion.compuerta` vuelve a
+  dar exactamente 28 sobrevivientes, los documentados arriba como
+  equivalentes -- los 18 gaps reales quedaron cerrados. `just gauntlet`
+  sigue verde (168 tests, 98.69%, `compuerta.py` 99% -- la única línea
+  sin cubrir es el `if __name__ == "__main__":` final, mismo patrón no
+  cubierto que el resto de los CLI del proyecto).
 
 ---
 
@@ -394,4 +464,4 @@ Cerrados como decisión explícita, no como tarea pendiente:
 
 ## Notas de triage de mutación (T015)
 
-_Pendiente de completar durante `/speckit-implement` de la fase Polish._
+Ver el detalle completo bajo la propia tarea T015, arriba.

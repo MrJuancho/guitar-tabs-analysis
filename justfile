@@ -55,6 +55,7 @@ gauntlet: gauntlet-fast
     uv run ruff format --check src tests
     uv run lint-imports
     uv run pytest tests/unit tests/integration tests/property --cov=src --cov-fail-under=90
+    uv run python -m guitar_tabs_analysis.medicion.compuerta --modo submuestra_hito1
 
 # Pre-merge en CI -- corre TODO el árbol siempre, nunca acotado a un diff.
 # `gauntlet-fast` calcula su diff contra HEAD (pensado para el hook local,
@@ -171,6 +172,11 @@ gates:
 # valor por defecto (FR-004), ver medicion/cli.py.
 medir modo root_dir:
     uv run python -m guitar_tabs_analysis.medicion.cli --modo {{ modo }} --root-dir {{ root_dir }}
+
+# Juzga un artefacto ya generado por `just medir` contra el presupuesto
+# de Principio VII -- instantáneo, no invoca ningún modelo (Feature 005).
+compuerta modo:
+    uv run python -m guitar_tabs_analysis.medicion.compuerta --modo {{ modo }}
 
 # ---------------------------------------------------------------
 # Entorno

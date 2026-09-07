@@ -137,12 +137,21 @@ def leer_artefacto(ruta: Path) -> dict[str, Any]:
 
 
 def _construir_parser() -> argparse.ArgumentParser:
+    """`prog`/`description`/`help` de abajo son texto de ayuda de
+    `argparse`, no comportamiento -- ningún test (ni debería) afirma su
+    contenido exacto, así que sus mutaciones (T015, triage de mutación)
+    sobreviven como equivalentes para el propósito de este proyecto:
+    verificar la palabra exacta de un mensaje de ayuda sería una prueba
+    frágil que no protege ninguna decisión real. Lo que sí es
+    comportamiento -- `choices`, `required`, sin `default` -- está
+    cubierto por `test_compuerta_cli.py` (`SystemExit` ante `--modo`
+    ausente o inválido)."""
     parser = argparse.ArgumentParser(
-        prog="python -m guitar_tabs_analysis.medicion.compuerta",
+        prog="python -m guitar_tabs_analysis.medicion.compuerta",  # pragma: no mutate
         description=(
-            "Juzga un artefacto de medición ya generado (Feature 004) contra "
-            "el presupuesto del Principio VII de la constitución -- nunca "
-            "ejecuta una medición ni invoca ningún modelo."
+            "Juzga un artefacto de medición ya generado (Feature 004) contra "  # pragma: no mutate
+            "el presupuesto del Principio VII de la constitución -- nunca "  # pragma: no mutate
+            "ejecuta una medición ni invoca ningún modelo."  # pragma: no mutate
         ),
     )
     parser.add_argument(
@@ -150,8 +159,8 @@ def _construir_parser() -> argparse.ArgumentParser:
         choices=["submuestra_hito1", "conjunto_completo"],
         required=True,
         help=(
-            "Cuál de los dos artefactos de la Feature 004 evaluar "
-            "(mediciones/<modo>.json). Sin valor por defecto -- FR-008."
+            "Cuál de los dos artefactos de la Feature 004 evaluar "  # pragma: no mutate
+            "(mediciones/<modo>.json). Sin valor por defecto -- FR-008."  # pragma: no mutate
         ),
     )
     return parser

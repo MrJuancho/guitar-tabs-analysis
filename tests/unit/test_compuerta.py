@@ -74,6 +74,22 @@ def test_mediana_por_encima_del_presupuesto_aprueba() -> None:
     assert veredicto.presupuesto == PRESUPUESTO_SI_SDR_DB
 
 
+def test_veredicto_incluye_todo_el_contexto_del_artefacto_sin_alterarlo() -> None:
+    """Triage de mutación (T015): ningún test anterior comprobaba
+    `modelo_nombre`/`modelo_variante`/`modo`/`semilla` -- solo
+    `modelo_firma` (test de firma arbitraria). Cada uno debe ser el eco
+    exacto de lo que trae `datos`, nunca un valor derivado (FR-009)."""
+    artefacto = _artefacto([_reporte("Track00000", [-3.0, -2.0])])
+
+    veredicto = evaluar_artefacto(artefacto)
+
+    assert veredicto.modelo_nombre == _MODELO["nombre"]
+    assert veredicto.modelo_variante == _MODELO["variante"]
+    assert veredicto.modelo_firma == _MODELO["firma"]
+    assert veredicto.modo == "submuestra_hito1"
+    assert veredicto.semilla == 20260904
+
+
 def test_mediana_exactamente_en_el_presupuesto_aprueba() -> None:
     """Límite inclusive (spec.md US1 AS3): un empate exacto es aprobación."""
     artefacto = _artefacto([_reporte("Track00000", [PRESUPUESTO_SI_SDR_DB])])
@@ -127,8 +143,11 @@ def test_artefacto_sin_clave_reportes_es_invalido() -> None:
     artefacto = _artefacto([])
     del artefacto["reportes"]
 
-    with pytest.raises(ArtefactoInvalidoError):
+    with pytest.raises(ArtefactoInvalidoError) as excinfo:
         evaluar_artefacto(artefacto)
+
+    assert "reportes" in str(excinfo.value)
+    assert excinfo.value.motivo == str(excinfo.value)
 
 
 def test_artefacto_sin_ningun_reporte_es_invalido() -> None:
@@ -137,8 +156,10 @@ def test_artefacto_sin_ningun_reporte_es_invalido() -> None:
     el presupuesto."""
     artefacto = _artefacto([])
 
-    with pytest.raises(ArtefactoInvalidoError):
+    with pytest.raises(ArtefactoInvalidoError) as excinfo:
         evaluar_artefacto(artefacto)
+
+    assert "evidencia" in str(excinfo.value)
 
 
 def test_artefacto_con_reportes_pero_ninguna_referencia_emparejada_es_invalido() -> None:
@@ -148,8 +169,10 @@ def test_artefacto_con_reportes_pero_ninguna_referencia_emparejada_es_invalido()
     sin control si no se valida antes."""
     artefacto = _artefacto([_reporte("Track00000", [], num_sin_pareja=3)])
 
-    with pytest.raises(ArtefactoInvalidoError):
+    with pytest.raises(ArtefactoInvalidoError) as excinfo:
         evaluar_artefacto(artefacto)
+
+    assert "evidencia" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("clave_faltante", ["modelo", "modo", "semilla"])
@@ -162,5 +185,7 @@ def test_artefacto_sin_clave_de_contexto_es_invalido(clave_faltante: str) -> Non
     artefacto = _artefacto([_reporte("Track00000", [-3.0, -2.0])])
     del artefacto[clave_faltante]
 
-    with pytest.raises(ArtefactoInvalidoError):
+    with pytest.raises(ArtefactoInvalidoError) as excinfo:
         evaluar_artefacto(artefacto)
+
+    assert clave_faltante in str(excinfo.value)
