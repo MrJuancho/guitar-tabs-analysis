@@ -66,7 +66,7 @@ antes de poder escribir ningún test.
 
 **⚠️ CRITICAL**: Ninguna user story empieza hasta que esta fase esté completa.
 
-- [ ] T001 Crear `src/guitar_tabs_analysis/medicion/compuerta.py` con el
+- [X] T001 Crear `src/guitar_tabs_analysis/medicion/compuerta.py` con el
       docstring del módulo (research.md #1/#2: solo `stdlib`, no importa
       `medicion.orquestador` ni la pila de separación), la constante
       `PRESUPUESTO_SI_SDR_DB = -8.0` (comentario apuntando al Principio
@@ -100,7 +100,7 @@ modelo.
 
 > **NOTE: Escribir estos tests PRIMERO, confirmar que fallan (la función no existe todavía) antes de implementar.**
 
-- [ ] T002 [P] [US1] En `tests/unit/test_compuerta.py` (nuevo), tests de
+- [X] T002 [P] [US1] En `tests/unit/test_compuerta.py` (nuevo), tests de
       `evaluar_artefacto()` sobre `dict`s sintéticos con la forma exacta
       de `artefacto_a_dict` (data-model.md): (a) mediana de `emparejadas`
       mayor a `-8.0` → `Veredicto.aprobado is True`; (b) mediana
@@ -120,7 +120,7 @@ modelo.
       falla el día que alguien agregue esa comparación sin querer romper
       el propósito de la feature ("si alguien cambia el modelo... la
       compuerta dice si empeoró").
-- [ ] T003 [P] [US1] En `tests/unit/test_compuerta_mediana_equivalencia.py`
+- [X] T003 [P] [US1] En `tests/unit/test_compuerta_mediana_equivalencia.py`
       (nuevo), property test (Hypothesis) que genera pools arbitrarios de
       valores finitos y `+inf` (nunca `-inf` — `st.floats(allow_nan=False,
       allow_infinity=False) | st.just(float("inf"))`, research.md #3) y
@@ -138,7 +138,7 @@ modelo.
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Implementar `evaluar_artefacto(datos: dict[str, Any]) ->
+- [X] T004 [US1] Implementar `evaluar_artefacto(datos: dict[str, Any]) ->
       Veredicto` en `compuerta.py` (contracts/compuerta.md postcondiciones
       3/4/5): recorrer `datos["reportes"]`, acumular `si_sdr` de cada
       `emparejadas` en un pool y contar `len(sin_pareja)` por tema;
@@ -171,7 +171,7 @@ mensaje que identifica cuál fue.
 
 > **NOTE: Escribir estos tests PRIMERO, confirmar que fallan antes de implementar.**
 
-- [ ] T005 [P] [US2] En `tests/unit/test_compuerta.py`, tests de
+- [X] T005 [P] [US2] En `tests/unit/test_compuerta.py`, tests de
       `evaluar_artefacto()` levantando `ArtefactoInvalidoError`: (a) `dict`
       sin la clave `reportes`; (b) `reportes == []` (conjunto vacío,
       spec.md Edge Cases); (c) `reportes` no vacío pero **todas** las
@@ -186,7 +186,7 @@ mensaje que identifica cuál fue.
       el mensaje de la excepción identifica la condición (nunca un
       mensaje genérico), y que `statistics.median` nunca se invoca sobre
       una lista vacía sin control (ningún `StatisticsError` no atrapado).
-- [ ] T006 [P] [US2] En `tests/unit/test_compuerta_cli.py` (nuevo), tests
+- [X] T006 [P] [US2] En `tests/unit/test_compuerta_cli.py` (nuevo), tests
       de `leer_artefacto(ruta: Path) -> dict[str, Any]` sobre `tmp_path`:
       (a) ruta que no existe → `ArtefactoInvalidoError` con la ruta en el
       mensaje (FR-004); (b) archivo existente con contenido que no es
@@ -195,7 +195,7 @@ mensaje que identifica cuál fue.
 
 ### Implementation for User Story 2
 
-- [ ] T007 [US2] En `evaluar_artefacto()` (`compuerta.py`), agregar la
+- [X] T007 [US2] En `evaluar_artefacto()` (`compuerta.py`), agregar la
       validación de forma y de evidencia suficiente ANTES de calcular
       nada (contracts/compuerta.md postcondiciones 1/2): `KeyError`/forma
       inesperada en `datos["reportes"]` o en cualquier `emparejadas`/
@@ -208,7 +208,7 @@ mensaje que identifica cuál fue.
       `reportes` → `ArtefactoInvalidoError` con motivo "sin evidencia
       suficiente para juzgar" (research.md #5). Depende de T004 (T007
       modifica la misma función); debe hacer pasar T005 sin romper T002.
-- [ ] T008 [P] [US2] Implementar `leer_artefacto(ruta: Path) ->
+- [X] T008 [P] [US2] Implementar `leer_artefacto(ruta: Path) ->
       dict[str, Any]` en `compuerta.py` (contracts/compuerta.md,
       `main` postcondiciones 2/3): abre `ruta`, atrapa
       `FileNotFoundError` y `json.JSONDecodeError` por separado,
@@ -237,7 +237,7 @@ en los casos correspondientes.
 
 > **NOTE: Escribir estos tests PRIMERO, confirmar que fallan antes de implementar.**
 
-- [ ] T009 [P] [US3] En `tests/unit/test_compuerta_cli.py`, tests de
+- [X] T009 [P] [US3] En `tests/unit/test_compuerta_cli.py`, tests de
       `main(argv)` con `monkeypatch` sobre la ruta base de `mediciones/`
       (o invocando sobre `tmp_path` con la ruta resuelta explícita,
       según convenga a la implementación): (a) sin `--modo`, o con un
@@ -263,7 +263,7 @@ en los casos correspondientes.
 
 ### Implementation for User Story 3
 
-- [ ] T010 [US3] Implementar `main(argv: list[str] | None = None) -> int`
+- [X] T010 [US3] Implementar `main(argv: list[str] | None = None) -> int`
       en `compuerta.py` (contracts/compuerta.md): `argparse` con
       `--modo` `choices=("submuestra_hito1", "conjunto_completo")`,
       `required=True`, sin `default`; resuelve
