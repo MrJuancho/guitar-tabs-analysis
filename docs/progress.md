@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 005 (compuerta de la métrica) implementada completa (T001-T015):
-`medicion/compuerta.py` nuevo, solo `stdlib`, juzga `mediciones/<modo>.json`
-contra `-8.0 dB` (Principio VII) sobre la mediana de emparejadas, con
-fracción sin pareja obligatoria en el veredicto. Incorporada a `just
-gauntlet` (falla si el artefacto real no alcanza el presupuesto -- hoy
-aprueba, `-6.95 dB`). Mutación (triage, no conteo): 46 sobrevivientes,
-18 gaps reales cerrados (contexto del `Veredicto`, mensajes de error,
-`stdout` de `main`), 28 equivalentes documentados (texto de `argparse`,
-prosa no diagnóstica). Hallazgo: `# pragma: no mutate` es solo
-documentación en esta versión de `mutmut` (TODO propio de la
-herramienta, no exclusión real) -- el triage se sostiene por revisión
-humana en tasks.md. `just gauntlet` verde: 168 tests, 98.69%.
+Bug reportado: `just medir conjunto_completo` terminaba exit 0 con los
+1559 progresos de tema persistidos pero sin artefacto agregado.
+Diagnóstico exhaustivo: `ejecutar_corrida`, `construir_lista_temas`
+(1289 train + 270 validation = 1559, sin truncar, verificado) y
+`escribir_artefacto` funcionan bien -- no se reprodujo la causa exacta
+(el hueco de 16 min entre el último progreso y el artefacto sugiere que
+el proceso original seguía corriendo). Se cerró la clase de fallo:
+`escribir_artefacto` relee la ruta tras `os.replace()`, levanta
+`EscrituraIncompletaError` si no coincide -- nunca exit 0 sin artefacto
+real. Test rojo antes del arreglo. `semilla=None` tolerado en artefacto
+y compuerta. `conjunto_completo.json` real ya existe (sin commitear):
+1557 reportes, mediana `-5.55 dB`, aprueba. `gauntlet` verde: 172 tests.
 
 ## Qué sigue
 
-Features 004 y 005 completas -- el hito 1 tiene medición y compuerta.
-Sigue evaluar la corrida sobre el conjunto completo (`just medir
-conjunto_completo <ruta>`, ~23h) y decidir el hito 2 (transcripción).
+Decidir si versionar `conjunto_completo.json` (evidencia sobre el
+conjunto completo, no solo la submuestra) -- no commiteado, no fue
+parte del pedido. Decidir el hito 2 (transcripción).
 
 ## Bloqueado / pendiente de decisión
 

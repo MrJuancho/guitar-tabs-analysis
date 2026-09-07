@@ -13,7 +13,14 @@ from pathlib import Path
 import pytest
 
 from guitar_tabs_analysis.medicion import cli
-from guitar_tabs_analysis.medicion.orquestador import ArtefactoMedicion
+from guitar_tabs_analysis.medicion.orquestador import (
+    ArtefactoMedicion,
+    ManifiestoCorrida,
+    construir_lista_temas,
+    escribir_manifiesto,
+    escribir_progreso_tema,
+    procesar_tema,
+)
 from guitar_tabs_analysis.separacion.separador import ModeloDeclarado
 from tests.fixtures.separador_fixture import SeparadorFalso
 from tests.fixtures.slakh2100_fixture import EspecificacionStem, construir_tema_sintetico
@@ -120,6 +127,130 @@ def test_escribir_artefacto_es_atomico_no_deja_archivo_final_truncado(
         cli.escribir_artefacto(ruta, artefacto)
 
     assert not ruta.exists()
+
+
+def test_escribir_artefacto_falla_cerrado_si_os_replace_no_mueve_nada(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A diferencia del test anterior (`os.replace` que lanza), este
+    simula el caso más insidioso: `os.replace` "tiene éxito" (no lanza
+    ninguna excepción) pero no deja el archivo final en disco -- el modo
+    de fallo exacto detrás del bug reportado sobre `conjunto_completo`.
+    `escribir_artefacto` no puede confiar en la ausencia de excepción
+    como prueba de que el archivo quedó escrito."""
+    ruta = tmp_path / "mediciones" / "submuestra_hito1.json"
+    artefacto = _artefacto_de_prueba()
+
+    monkeypatch.setattr(cli.os, "replace", lambda origen, destino: None)
+
+    with pytest.raises(cli.EscrituraIncompletaError):
+        cli.escribir_artefacto(ruta, artefacto)
+
+    assert not ruta.exists()
+
+
+def test_escribir_artefacto_falla_cerrado_si_deja_un_artefacto_viejo_a_medias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Variante del caso anterior donde `ruta` sí existe (de una corrida
+    previa con menos temas) y `os.replace` "tiene éxito" sin reemplazarla
+    -- la relectura encuentra un archivo válido, pero con una cantidad de
+    `temas` que no coincide con el artefacto recién calculado."""
+    ruta = tmp_path / "mediciones" / "submuestra_hito1.json"
+    ruta.parent.mkdir(parents=True)
+    ruta.write_text(json.dumps({"temas": []}))
+    artefacto = _artefacto_de_prueba()  # temas=["validation/Track00000"], otra longitud
+
+    monkeypatch.setattr(cli.os, "replace", lambda origen, destino: None)
+
+    with pytest.raises(cli.EscrituraIncompletaError):
+        cli.escribir_artefacto(ruta, artefacto)
+
+
+def test_ejecutar_y_escribir_no_reporta_exito_si_el_archivo_final_no_quedo_escrito(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bug reportado: `just medir conjunto_completo` terminó con exit 0
+    sin escribir el artefacto agregado, con las 1559 corridas de tema ya
+    persistidas. La causa exacta en producción no se pudo reproducir
+    (`ejecutar_corrida`/`escribir_artefacto` funcionan correctamente
+    contra el dataset real y contra este mismo escenario a escala
+    sintética -- verificado, no solo argumentado), pero "exit 0 sin
+    producir la salida esperada" es el modo de fallo que este proyecto ya
+    encontró varias veces, y el código actual no tiene ninguna
+    verificación de que `os.replace()` haya dejado el archivo final
+    realmente en disco -- solo confía en que no haya lanzado una
+    excepción. Este test fuerza exactamente ese caso (un `os.replace`
+    que "tiene éxito" sin mover nada) sobre el modo `conjunto_completo`
+    con `SeparadorFalso`, y afirma el cierre: nunca código de salida 0
+    sin el artefacto realmente escrito."""
+    root_dir = tmp_path / "dataset"
+    (root_dir / "train").mkdir(parents=True)
+    construir_tema_sintetico(root_dir, tema_id="train/Track00000", stems=(_GUITARRA,))
+    construir_tema_sintetico(root_dir, tema_id="validation/Track00000", stems=(_GUITARRA,))
+    ruta_artefacto = tmp_path / "mediciones" / "conjunto_completo.json"
+
+    def _os_replace_silencioso(origen: object, destino: object) -> None:
+        pass  # "éxito" que no mueve nada -- exactamente el síntoma reportado
+
+    monkeypatch.setattr(cli.os, "replace", _os_replace_silencioso)
+
+    codigo = cli._ejecutar_y_escribir(
+        "conjunto_completo",
+        root_dir,
+        SeparadorFalso(),
+        tmp_path / "trabajo",
+        ruta_artefacto,
+    )
+
+    assert codigo != 0, "nunca exit 0 sin haber escrito el artefacto"
+    assert not ruta_artefacto.exists()
+
+
+def test_conjunto_completo_con_todo_el_progreso_ya_cacheado_escribe_el_artefacto(
+    tmp_path: Path,
+) -> None:
+    """Comparación explícita con `submuestra_hito1` (que sí escribe): el
+    escenario real reportado es "manifiesto + los N temas ya persistidos
+    de una corrida previa, invocar de nuevo" -- se puebla ese estado
+    directamente (sin pasar por `_ejecutar_y_escribir` una primera vez,
+    para no confundir "corrida que además persiste" con "corrida que
+    solo agrega"), y se invoca una única vez. También fija que
+    `semilla=None` (correcto para `conjunto_completo`, sin muestreo) no
+    rompe ni la serialización del artefacto ni la ruta de escritura."""
+    root_dir = tmp_path / "dataset"
+    (root_dir / "train").mkdir(parents=True)
+    for i in range(3):
+        construir_tema_sintetico(root_dir, tema_id=f"train/Track{i:05d}", stems=(_GUITARRA,))
+    construir_tema_sintetico(root_dir, tema_id="validation/Track00000", stems=(_GUITARRA,))
+
+    separador = SeparadorFalso()
+    directorio_trabajo = tmp_path / "trabajo"
+    temas = construir_lista_temas("conjunto_completo", root_dir)
+
+    escribir_manifiesto(
+        directorio_trabajo,
+        ManifiestoCorrida(
+            modo="conjunto_completo",
+            semilla=None,
+            firma_modelo=separador.modelo_declarado.firma,
+            temas=temas,
+        ),
+    )
+    directorio_temas = directorio_trabajo / "temas"
+    for tema_id in temas:
+        escribir_progreso_tema(directorio_temas, procesar_tema(tema_id, root_dir, separador))
+
+    ruta_artefacto = tmp_path / "mediciones" / "conjunto_completo.json"
+    codigo = cli._ejecutar_y_escribir(
+        "conjunto_completo", root_dir, separador, directorio_trabajo, ruta_artefacto
+    )
+
+    assert codigo == 0
+    contenido = json.loads(ruta_artefacto.read_text())
+    assert contenido["semilla"] is None
+    assert contenido["temas"] == temas
+    assert len(contenido["reportes"]) + len(contenido["exclusiones"]) == len(temas)
 
 
 def test_ejecutar_y_escribir_produce_artefacto_en_disco(tmp_path: Path) -> None:

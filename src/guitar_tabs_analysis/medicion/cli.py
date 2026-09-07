@@ -54,17 +54,46 @@ def _construir_parser() -> argparse.ArgumentParser:
     return parser
 
 
+class EscrituraIncompletaError(Exception):
+    """`os.replace()` no lanzó ninguna excepción, pero el artefacto final
+    no quedó verificablemente en disco -- exit 0 sin producir la salida
+    esperada es un modo de fallo que este proyecto ya encontró varias
+    veces (reportado sobre `conjunto_completo`: 1559 temas persistidos,
+    manifiesto completo, corrida terminada en exit 0, sin artefacto
+    agregado en ningún lado). No se confía en la ausencia de excepción
+    como prueba de éxito -- se relee lo que quedó en disco."""
+
+
 def escribir_artefacto(ruta: Path, artefacto: ArtefactoMedicion) -> None:
     """Escritura atómica del artefacto final -- mismo mecanismo que
     `orquestador.escribir_progreso_tema`/`escribir_manifiesto`
     (research.md #5): archivo temporal en el mismo directorio + `os.replace()`.
     Si el proceso se interrumpe entre escribir el temporal y renombrarlo,
     la ruta final nunca llega a existir -- nunca un artefacto truncado
-    que parezca válido."""
+    que parezca válido.
+
+    Verifica el resultado releyendo la ruta final (FR de cierre): nunca
+    reporta éxito solo porque `os.replace()` no lanzó -- confirma que el
+    archivo existe, es JSON interpretable, y que su lista de `temas`
+    coincide en longitud con la del artefacto que se acaba de calcular.
+    """
     ruta.parent.mkdir(parents=True, exist_ok=True)
     temporal = ruta.with_name(ruta.name + ".tmp")
     temporal.write_text(json.dumps(artefacto_a_dict(artefacto)))
     os.replace(temporal, ruta)
+
+    try:
+        contenido = json.loads(ruta.read_text())
+    except (FileNotFoundError, json.JSONDecodeError) as causa:
+        raise EscrituraIncompletaError(
+            f"'{ruta}' no quedó legible después de escribirlo -- {causa}."
+        ) from causa
+    if len(contenido.get("temas", [])) != len(artefacto.temas):
+        raise EscrituraIncompletaError(
+            f"'{ruta}' no coincide con el artefacto recién calculado: "
+            f"{len(contenido.get('temas', []))} temas persistidos, "
+            f"{len(artefacto.temas)} esperados."
+        )
 
 
 def _ejecutar_y_escribir(
@@ -82,7 +111,11 @@ def _ejecutar_y_escribir(
     except ModeloCambiadoError as causa:
         print(str(causa), file=sys.stderr)
         return 1
-    escribir_artefacto(ruta_artefacto, artefacto)
+    try:
+        escribir_artefacto(ruta_artefacto, artefacto)
+    except EscrituraIncompletaError as causa:
+        print(str(causa), file=sys.stderr)
+        return 2
     return 0
 
 
