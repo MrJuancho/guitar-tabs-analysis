@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -467,13 +468,32 @@ def ejecutar_corrida(
 
     directorio_temas = directorio_trabajo / "temas"
     resultados: list[ResultadoProcesamientoTema] = []
-    for tema_id in manifiesto.temas:
+    total = len(manifiesto.temas)
+    ancho_indice = len(str(total))
+    saltados = 0
+    for indice, tema_id in enumerate(manifiesto.temas, start=1):
         progreso = leer_progreso_tema(directorio_temas, tema_id)
         if progreso is None:
+            if saltados:
+                print(f"{saltados} temas ya procesados, se omiten")
+                saltados = 0
+            inicio = time.perf_counter()
             progreso = procesar_tema(tema_id, root_dir, separador)
             escribir_progreso_tema(directorio_temas, progreso)
+            duracion = time.perf_counter() - inicio
+            prefijo = f"[{indice:>{ancho_indice}}/{total}] {tema_id}"
+            if progreso.reporte is not None:
+                print(f"{prefijo}  ok  {duracion:.1f}s  {progreso.reporte.num_referencias} refs")
+            else:
+                assert progreso.exclusion is not None  # union etiquetada, nunca ambos None
+                print(f"{prefijo}  excluido: {progreso.exclusion.motivo}")
+        else:
+            saltados += 1
         resultados.append(progreso)
+    if saltados:
+        print(f"{saltados} temas ya procesados, se omiten")
 
+    print(f"agregando {total} temas")
     reportes = [r.reporte for r in resultados if r.reporte is not None]
     exclusiones = [r.exclusion for r in resultados if r.exclusion is not None]
     transformaciones_por_tema = {

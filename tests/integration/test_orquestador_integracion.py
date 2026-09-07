@@ -257,3 +257,87 @@ def test_submuestra_hito1_y_conjunto_completo_no_interfieren_entre_si(tmp_path: 
     # Ninguno de los dos modos alteró el progreso del otro -- directorios
     # de trabajo separados, sin superposición de temas persistidos.
     assert set(artefacto_submuestra.temas) != set(artefacto_completo.temas)
+
+
+@pytest.fixture
+def _dataset_3_temas(tmp_path: Path) -> Path:
+    """2 temas con guitarra (`ok`) + 1 sin ninguna (`excluido`), para
+    fijar el formato exacto de la salida de progreso sin depender de un
+    dataset grande."""
+    root_dir = tmp_path / "dataset"
+    (root_dir / "train").mkdir(parents=True)
+    construir_varios_temas_sinteticos(
+        root_dir, split="validation", cantidad=3, guitarras_por_tema=[1, 1, 0]
+    )
+    return root_dir
+
+
+def test_ejecutar_corrida_imprime_una_linea_por_tema_recien_procesado(
+    tmp_path: Path, _dataset_3_temas: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Salida de progreso (pedido explícito): una línea por tema al
+    terminarlo, en el mismo punto donde ya se persiste el progreso --
+    formato `[i/N] tema_id  ok  Xs  N refs` o `[i/N] tema_id  excluido:
+    motivo`. Sin esto, un proceso de hasta 18h corre en silencio, sin
+    forma de saber si sigue vivo (incidente real: un proceso que seguía
+    agregando se dio por muerto y se relanzó encima, produciendo una
+    condición de carrera)."""
+    ejecutar_corrida("conjunto_completo", _dataset_3_temas, SeparadorFalso(), tmp_path / "trabajo")
+
+    salida = capsys.readouterr().out
+    lineas = salida.splitlines()
+    assert "[1/3] validation/Track00000  ok  " in lineas[0]
+    assert lineas[0].rstrip().endswith("1 refs")
+    assert "[2/3] validation/Track00001  ok  " in lineas[1]
+    assert lineas[1].rstrip().endswith("1 refs")
+    assert lineas[2] == "[3/3] validation/Track00002  excluido: sin_guitarra_referencia"
+    assert "agregando 3 temas" in salida
+    assert "se omiten" not in salida  # nada saltado en una corrida sin progreso previo
+
+
+def test_ejecutar_corrida_resumida_resume_los_temas_ya_hechos_en_una_sola_linea(
+    tmp_path: Path, _dataset_3_temas: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Con los 3 temas ya persistidos de una corrida previa, reanudar NO
+    debe imprimir una línea por cada uno -- con 1559 temas ya hechos, eso
+    son 1559 líneas de ruido antes de empezar. Un resumen basta."""
+    directorio_trabajo = tmp_path / "trabajo"
+    ejecutar_corrida("conjunto_completo", _dataset_3_temas, SeparadorFalso(), directorio_trabajo)
+    capsys.readouterr()  # descarta la salida de la corrida inicial
+
+    ejecutar_corrida("conjunto_completo", _dataset_3_temas, SeparadorFalso(), directorio_trabajo)
+
+    salida = capsys.readouterr().out
+    assert salida.count("\n") == 2  # el resumen de saltados + "agregando"
+    assert "3 temas ya procesados, se omiten" in salida
+    assert "agregando 3 temas" in salida
+    assert "[1/3]" not in salida
+    assert "ok" not in salida
+    assert "excluido" not in salida
+
+
+def test_ejecutar_corrida_resumida_a_medias_imprime_el_resumen_antes_de_seguir(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Caso intermedio, más cercano al real: algunos temas ya
+    persistidos (de una corrida previa interrumpida), el resto todavía
+    no -- el resumen de saltados aparece una vez, antes de retomar las
+    líneas por tema de los que sí se procesan ahora."""
+    root_dir = tmp_path / "dataset"
+    (root_dir / "train").mkdir(parents=True)
+    construir_varios_temas_sinteticos(root_dir, split="validation", cantidad=3)
+    directorio_trabajo = tmp_path / "trabajo"
+
+    temas = construir_lista_temas("conjunto_completo", root_dir)
+    separador = SeparadorFalso()
+    escribir_progreso_tema(
+        directorio_trabajo / "temas", procesar_tema(temas[0], root_dir, separador)
+    )
+
+    ejecutar_corrida("conjunto_completo", root_dir, separador, directorio_trabajo)
+
+    lineas = capsys.readouterr().out.splitlines()
+    assert lineas[0] == "1 temas ya procesados, se omiten"
+    assert lineas[1].startswith(f"[2/3] {temas[1]}  ok  ")
+    assert lineas[2].startswith(f"[3/3] {temas[2]}  ok  ")
+    assert lineas[3] == "agregando 3 temas"

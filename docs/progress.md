@@ -14,24 +14,22 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Bug reportado: `just medir conjunto_completo` terminaba exit 0 con los
-1559 progresos de tema persistidos pero sin artefacto agregado.
-Diagnóstico exhaustivo: `ejecutar_corrida`, `construir_lista_temas`
-(1289 train + 270 validation = 1559, sin truncar, verificado) y
-`escribir_artefacto` funcionan bien -- no se reprodujo la causa exacta
-(el hueco de 16 min entre el último progreso y el artefacto sugiere que
-el proceso original seguía corriendo). Se cerró la clase de fallo:
-`escribir_artefacto` relee la ruta tras `os.replace()`, levanta
-`EscrituraIncompletaError` si no coincide -- nunca exit 0 sin artefacto
-real. Test rojo antes del arreglo. `semilla=None` tolerado en artefacto
-y compuerta. `conjunto_completo.json` real ya existe (sin commitear):
-1557 reportes, mediana `-5.55 dB`, aprueba. `gauntlet` verde: 172 tests.
+`ejecutar_corrida` (orquestador.py) ahora imprime progreso -- pedido
+directo tras el incidente de la sesión anterior (un proceso de 18h que
+seguía vivo se dio por muerto en silencio y se relanzó encima, causando
+la condición de carrera que pareció un bug de escritura). Una línea por
+tema recién procesado (`[i/N] tema_id  ok  Xs  N refs` o `excluido:
+motivo`), un resumen único para los temas ya cacheados (`N temas ya
+procesados, se omiten` -- nunca una línea por cada uno) y un aviso al
+entrar a agregación (`agregando N temas`). Sin dependencias nuevas, sin
+niveles de verbosidad. Verificado contra el `conjunto_completo` real
+(1559 temas cacheados): dos líneas, no 1559. `just gauntlet` verde: 175
+tests, 98.75%, `orquestador.py` al 100%.
 
 ## Qué sigue
 
-Decidir si versionar `conjunto_completo.json` (evidencia sobre el
-conjunto completo, no solo la submuestra) -- no commiteado, no fue
-parte del pedido. Decidir el hito 2 (transcripción).
+Hito 1 medido y documentado en ambos modos (constitución v1.6.0,
+`mediciones/*.json` ya commiteados). Decidir el hito 2 (transcripción).
 
 ## Bloqueado / pendiente de decisión
 
