@@ -1,5 +1,40 @@
 <!--
 Sync Impact Report
+- Version change: 1.5.0 → 1.6.0
+- Fuente: medición real sobre el conjunto evaluable completo (Feature
+  004, `mediciones/conjunto_completo.json` -- 1559 temas de
+  `train`+`validation`, sin muestreo, `htdemucs_6s` firma 5c90dfd2).
+  Segunda medición independiente del presupuesto ya cerrado en v1.5.0,
+  no una nueva decisión.
+- Bump MINOR: se agrega evidencia real y verificada a Principio VII --
+  el presupuesto (`−8.0 dB`) NO cambia, así que no aplica MAJOR (ninguna
+  decisión ya tomada se contradice); no es solo una aclaración de
+  redacción -- agrega una segunda corrida real con su propia mediana y
+  su propia consecuencia metodológica -- así que no es PATCH.
+
+- Principios modificados en v1.6.0 (contenido, no título ni posición):
+  VII.  "La métrica y su presupuesto" -- se agrega la subsección
+        "Evidencia adicional sobre el conjunto evaluable completo",
+        después del bloque de "Presupuesto" ya cerrado en v1.5.0: la
+        corrida sobre los 1559 temas sin muestreo (mediana de
+        emparejadas `−5.55 dB`, margen `2.45 dB`), la comparación con la
+        submuestra (`−6.95 dB`, `1.4 dB` más pesimista que el conjunto
+        completo -- el riesgo real de una muestra pequeña era salir
+        optimista, y no ocurrió), y la consecuencia explícita: valida el
+        método de muestreo, no es motivo para recalibrar el número ya
+        fijado -- recalibrar ahora sería el mismo vicio que la sección ya
+        prohíbe para forzar un pase, aplicado en la dirección inversa
+        (mover el umbral para que apruebe con más margen todavía).
+
+- Secciones añadidas: ninguna a nivel de encabezado (el nuevo contenido
+  vive dentro de Principio VII, ya existente). Secciones eliminadas:
+  ninguna.
+
+- Governance: sin cambios en los checkboxes -- los tres `ABIERTO`
+  originales ya estaban cerrados desde v1.5.0; esta enmienda agrega
+  evidencia a una decisión ya tomada, no cierra nada nuevo.
+
+- Sesión anterior (v1.4.0 → v1.5.0), preservada por referencia histórica:
 - Version change: 1.4.0 → 1.5.0
 - Fuente: primera medición real del hito 1 (Feature 004,
   `mediciones/submuestra_hito1.json` -- submuestra_hito1, semilla
@@ -435,6 +470,36 @@ submuestra declarada arriba** (`submuestra_hito1`, semilla `20260904`,
   por debajo de `−8.0 dB`, el resultado es un FALLA documentado, no una
   ocasión para mover el número.
 
+**Evidencia adicional sobre el conjunto evaluable completo -- el
+presupuesto no cambia, verificado independientemente sin muestreo**
+(`conjunto_completo`, `htdemucs_6s` firma `5c90dfd2`, sin semilla porque
+este modo no muestrea; artefacto versionado en
+`mediciones/conjunto_completo.json`).
+
+- **Evidencia.** 1559 temas (`train`+`validation`, sin muestreo), 1557
+  reportes, 2 exclusiones (`sin_guitarra_referencia`). Mediana sobre las
+  1557 referencias emparejadas: `−5.55 dB` (margen de `2.45 dB` sobre el
+  presupuesto), sobre un total de 4055 referencias (2498 sin pareja).
+- **La submuestra resultó pesimista, no optimista, respecto del
+  conjunto completo.** La mediana de la submuestra de 40 temas
+  (`−6.95 dB`) es `1.4 dB` más baja que la del conjunto completo -- el
+  riesgo real de fijar un presupuesto sobre una muestra pequeña era que
+  saliera optimista (que aprobara con margen artificial y luego el
+  conjunto completo cayera por debajo), y ocurrió lo contrario.
+- **Consecuencia sobre el método de muestreo, no sobre el número.** El
+  muestreo aleatorio con semilla declarada (más arriba en esta sección)
+  capturó la población razonablemente bien, y fijar el presupuesto sobre
+  la muestra pequeña fue la decisión conservadora, no una apuesta. Esto
+  valida el método -- no es una razón para recalibrar el presupuesto
+  ahora que hay una cifra más favorable disponible: hacerlo sería
+  exactamente el vicio que esta misma sección prohíbe arriba ("el umbral
+  no se recalibra para forzar un pase" aplica igual de fuerte a mover un
+  umbral que ya aprobaba, para que apruebe con más margen todavía).
+- **El presupuesto de `−8.0 dB` queda validado por las dos mediciones
+  independientes**, no reemplazado por ninguna: la submuestra aprueba
+  con margen de `1.05 dB`, el conjunto completo con `2.45 dB`. El número
+  sigue siendo `−8.0 dB`.
+
 ### VIII. Determinismo
 
 **Cerrado: opción (b), tolerancia numérica declarada -- aplicada de forma
@@ -581,10 +646,12 @@ documento.
       referencias emparejadas, con la proporción sin pareja como parte
       obligatoria del reporte. Cerrado con la primera medición real sobre
       la submuestra declarada (Feature 004,
-      `mediciones/submuestra_hito1.json`) -- ver Principio VII para la
-      evidencia completa.
+      `mediciones/submuestra_hito1.json`), y validado independientemente
+      con una segunda medición sobre el conjunto evaluable completo sin
+      muestreo (`mediciones/conjunto_completo.json`, v1.6.0) -- ver
+      Principio VII para la evidencia completa.
 - [x] VIII -- Política de determinismo: opción (b), tolerancia numérica
       declarada con excepción para valores exactos por construcción.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
 
-**Version**: 1.5.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-06
+**Version**: 1.6.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-07
