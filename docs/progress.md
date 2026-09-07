@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 004 cerrada (Polish, T029-T033). T029: único test `modelo_real`
-de la feature, `procesar_tema` de punta a punta con `DemucsSeparador`
-real sobre 1 tema sintético de 2s. Se eliminó (no se cubrió) la rama
-defensiva de modo inválido en `construir_lista_temas`: `mypy --strict`
-prueba que es inalcanzable (Literal cerrado + `argparse choices` en el
-único llamador real) -- misma categoría que `audio_dir` de la Feature
-001; cobertura subió a 100%. Mutación (triage no conteo): 23
-sobrevivientes, 3 equivalentes documentados (`transformaciones=[]`
-redundante con el default del dataclass), 20 gaps reales cerrados
-fortaleciendo tests existentes -- ver tasks.md T031. `just medir modo
-root_dir` agregado al justfile. `just gauntlet` verde: 147 tests, 98.70%.
+Feature 004 cerrada, constitución en v1.5.0 (Principio VII: `-8.0 dB`
+sobre mediana de emparejadas). Feature 005 (compuerta de la métrica) con
+spec/plan/research/data-model/contracts/quickstart/tasks completos.
+`/speckit-analyze` corrido y sus 5 hallazgos cerrados a nivel de
+documentos (sin código todavía): C1 HIGH (validación de
+`modelo`/`modo`/`semilla` agregada a T005/T007), F1 (`leer_artefacto`
+documentado en contracts/compuerta.md), C2 (test de firma arbitraria en
+T002), C3 (T009 reescrito, independencia real entre modos), F2 (spec.md
+corregido: la compuerta nunca tiene default). C4/C5 anotados como
+no-implementados con su razón, no como tareas.
 
 ## Qué sigue
 
-Feature 004 completa. Sigue la corrida real sobre la submuestra del
-hito 1 (`just medir submuestra_hito1 <ruta-slakh2100>`, ~36 min) para
-obtener la cifra de SI-SDR y cerrar el `ABIERTO` del presupuesto del
-Principio VII -- requiere el dataset Slakh2100 real, fuera de este repo.
+Implementar Feature 005 (`/speckit-implement`, T001-T015 de
+`specs/005-compuerta-metrica/tasks.md`): módulo nuevo
+`medicion/compuerta.py`, solo `stdlib`, TDD por user story (US1 juicio
+básico, US2 fallo cerrado, US3 CLI con `--modo`), Polish con
+integración a `just gauntlet` y triage de mutación.
 
 ## Bloqueado / pendiente de decisión
 
