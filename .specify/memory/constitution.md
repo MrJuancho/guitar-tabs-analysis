@@ -1,5 +1,38 @@
 <!--
 Sync Impact Report
+- Version change: 1.7.0 → 1.8.0
+- Fuente: pedido explícito de esta sesión, cerrando documentación de la
+  Feature 006 (detección de notas sobre guitarra limpia) -- tamaño y
+  semilla de la porción reservada de GuitarSet, criterio de cierre que
+  v1.7.0 dejó explícito para el `ABIERTO` de Principio VI.
+- Bump MINOR: se cierra un `ABIERTO` con contenido real (72 grabaciones,
+  semilla `20260908`) -- no se elimina ni contradice ninguna decisión ya
+  tomada (el split `test` de Slakh, la generalización de v1.7.0, todo
+  permanece sin cambio), así que no aplica MAJOR; no es solo una
+  aclaración de redacción -- agrega un número y una semilla que no
+  existían -- así que no es PATCH.
+
+- Principios modificados en v1.8.0 (contenido, no título ni posición):
+  VI.   "Evaluación cuantitativa y verificación cualitativa son
+        distintas" -- el bloque "Hito 2 -- porción reservada de
+        GuitarSet" deja de estar `ABIERTO`: 72 grabaciones (20% de 360),
+        semilla `20260908`, con la evidencia completa (por qué 20% y no
+        15%, por qué esa semilla, el mecanismo de protección) en el
+        propio principio. El split `test` de Slakh2100 (hito 1) no
+        cambia.
+
+- Secciones añadidas: ninguna a nivel de encabezado. Secciones
+  eliminadas: ninguna.
+
+- Governance: el checkbox "VI -- Hito 2: tamaño de la porción reservada
+  de GuitarSet y su semilla de muestreo" pasa de `[ ]` a `[x]`, con la
+  cifra resumida en la propia línea. El checkbox "VII -- Hito 2: métrica
+  principal y presupuesto numérico" permanece `[ ]` a propósito -- su
+  propio criterio de cierre (primera medición real de la Feature 006) no
+  se cumplió todavía, y rellenarlo ahora sería el mismo vicio que VII ya
+  prohíbe para el presupuesto.
+
+- Sesión anterior (v1.6.0 → v1.7.0), preservada por referencia histórica:
 - Version change: 1.6.0 → 1.7.0
 - Fuente: pedido explícito de gobernanza de esta sesión (dos cambios, sin
   tocar presupuestos ni cifras ya cerradas).
@@ -390,17 +423,32 @@ prueba del dataset como conjunto reservado: no la inventamos, es comparable
 con trabajo publicado, y elimina la discusión de cómo partir sin fugas de
 datos. Es la instancia de este principio para el hito 1, no su definición.
 
-**Hito 2 -- porción reservada de GuitarSet. ABIERTO.** Se reserva una
-porción de las 360 grabaciones de GuitarSet, seleccionada por muestreo
-aleatorio con semilla fija y declarada -- mismo criterio que la submuestra
-del hito 1 (Principio VII): reproducible, sin que el orden del identificador
-correlacione con nada del proceso de grabación. Ningún agente la
-inspecciona; se usa una sola vez al cerrar el hito 2. La ruta reservada se
-protege con el mismo hook `PreToolUse` que cubre `tests/holdout/`, igual que
-el split `test` de Slakh. *Criterio de cierre:* el tamaño de la porción y la
-semilla se fijan en `/speckit-plan` de la Feature 006 y se registran aquí
-cuando existan -- no se completan por adelantado, misma regla que ya rige
-el presupuesto de Principio VII.
+**Hito 2 -- porción reservada de GuitarSet.** Cerrado con la Feature 006
+(detección de notas sobre guitarra limpia): **72 grabaciones (20% de las
+360 de GuitarSet)**, seleccionadas por muestreo aleatorio con semilla
+declarada **`20260908`** sobre los 360 identificadores de grabación
+ordenados -- mismo criterio que la submuestra del hito 1 (Principio VII):
+reproducible, sin que el orden del identificador correlacione con nada
+del proceso de grabación.
+
+- **Por qué 20% y no 15%.** GuitarSet es chico en términos absolutos
+  (360 grabaciones) comparado con Slakh2100 (1710 temas) -- una fracción
+  fija en el extremo bajo del rango considerado (15% = 54) da una N
+  pequeña para la confirmación de cierre. El propósito generalizado de
+  este principio (v1.7.0) es confirmar que la cifra medida no es
+  sobreajuste al propio procedimiento de desarrollo, no solo protegerse
+  de selección de modelo entre varios candidatos -- una N mayor (72) da
+  una confirmación más creíble sin sacrificar capacidad real de
+  medición, porque esta feature no entrena ni afina (quedan 288
+  grabaciones, 80%, disponibles para medir).
+- **Mecanismo.** El manifiesto de las 72 grabaciones reservadas se
+  persiste en `tests/holdout/guitarset_reservado_hito2.json` (formato
+  exacto a confirmar en `/speckit-implement` de la Feature 006),
+  protegido por el mismo hook `PreToolUse` (`block_holdout.py`) que ya
+  cubre `tests/holdout/`, igual que el split `test` de Slakh.
+- Ningún agente inspecciona esas 72 grabaciones durante el desarrollo del
+  hito 2; se usan una sola vez al cerrarlo, para confirmar que la cifra
+  medida sobre las 288 restantes no fue sobreajuste al procedimiento.
 
 **Cualitativa -- música propia.** Un conjunto pequeño de grabaciones
 personales, fuera del repositorio, **sin referencia aislada y por lo tanto
@@ -720,8 +768,11 @@ solo razonado -- cada uno cuando su propio criterio de cierre se cumplió:
 los dos primeros en `/plan` de 002-metrica-separacion-guitarra, el tercero
 tras la primera medición real sobre la submuestra declarada (Feature 004,
 `mediciones/submuestra_hito1.json`). La generalización de los Principios
-VI/VII a cualquier hito (v1.7.0) reabre dos `ABIERTO` nuevos, específicos
-del hito 2 -- no una reapertura de los tres ya cerrados del hito 1.
+VI/VII a cualquier hito (v1.7.0) abrió dos `ABIERTO` nuevos, específicos
+del hito 2 -- no una reapertura de los tres ya cerrados del hito 1. El de
+VI (tamaño y semilla de la porción reservada de GuitarSet) ya cerró en
+v1.8.0; el de VII (métrica y presupuesto del hito 2) sigue abierto a
+propósito, con su propio criterio de cierre.
 
 - [x] VII -- Métrica principal: SI-SDR (Le Roux et al., 2019). Hito 1.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
@@ -736,10 +787,11 @@ del hito 2 -- no una reapertura de los tres ya cerrados del hito 1.
 - [x] VIII -- Política de determinismo: opción (b), tolerancia numérica
       declarada con excepción para valores exactos por construcción.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
-- [ ] VI -- Hito 2: tamaño de la porción reservada de GuitarSet y su
-      semilla de muestreo. Cierra en `/speckit-plan` de la Feature 006
-      (detección de notas sobre guitarra limpia).
+- [x] VI -- Hito 2: tamaño de la porción reservada de GuitarSet y su
+      semilla de muestreo. 72 grabaciones (20% de 360), semilla
+      `20260908`. Cerrado con la Feature 006 (detección de notas sobre
+      guitarra limpia) -- ver Principio VI para la evidencia completa.
 - [ ] VII -- Hito 2: métrica principal y presupuesto numérico. Cierra
       tras la primera medición real de la Feature 006, nunca antes.
 
-**Version**: 1.7.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-07
+**Version**: 1.8.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-08
