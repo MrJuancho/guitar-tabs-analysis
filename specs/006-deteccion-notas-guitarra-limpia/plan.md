@@ -80,9 +80,15 @@ contradicción. El backend de inferencia de Basic Pitch MUST ser
 `onnxruntime`, nunca TensorFlow (research.md #2).
 
 **Scale/Scope**: 360 grabaciones de GuitarSet (research.md #7, ~30 s
-cada una), medidas todas -- esta feature no aparta un subconjunto de
-desarrollo/evaluación dentro de GuitarSet (spec.md, Assumptions: no hay
-entrenamiento ni selección de modelo basada en el resultado).
+cada una). **288 (80%) medibles por esta feature; 72 (20%) reservadas
+como conjunto intocable del hito 2** (constitución Principio VI, v1.8.0;
+research.md #14): semilla declarada `20260908` sobre los 360
+identificadores ordenados, mismo criterio de muestreo que la submuestra
+del hito 1. `ejecutar_deteccion()` (contracts/deteccion.md) no decide por
+sí misma qué grabaciones mide -- recibe la lista explícita de su
+llamador; es responsabilidad de quien construye esa lista (la CLI, fuera
+de alcance de este plan hasta que `/speckit-tasks` la agregue) excluir
+las 72 reservadas de cualquier corrida de desarrollo.
 
 ## Constitution Check
 
@@ -95,22 +101,23 @@ entrenamiento ni selección de modelo basada en el resultado).
 | III. La guitarra no es un stem estándar | N/A directo -- esta feature no clasifica pistas por instrumento, GuitarSet ya es guitarra sola por construcción | N/A para esta feature |
 | IV. Fuentes de audio admisibles | GuitarSet ya declarado admisible (CC BY 4.0) desde la enmienda de constitución que fijó las fuentes del hito 2 -- esta feature no reabre esa decisión (spec.md, Assumptions). El modelo (Basic Pitch) se verifica aquí por primera vez: Apache-2.0 para código y pesos, sin asimetría, verificado contra el archivo `LICENSE` real (research.md #1) -- entrada nueva en `docs/ATRIBUCIONES.md` (research.md #13) | Compatible, verificado no supuesto |
 | V. Qué cuenta como "la guitarra" | N/A directo -- GuitarSet es guitarra sola por construcción del propio dataset, no hay clasificación de pistas que reabrir | N/A para esta feature |
-| VI. Cuantitativa vs. cualitativa | El principio en su redacción actual es específico de Slakh2100/hito 1 (split `test` reservado). Esta feature no aparta un subconjunto reservado de GuitarSet -- justificado explícitamente en spec.md (Assumptions): sin entrenamiento ni selección de modelo basada en el resultado, el riesgo que el principio protege no aplica de la misma forma. Si una feature futura comparara varios modelos entre sí, esa sí necesitaría su propio conjunto reservado | Compatible por el argumento explícito de spec.md, no una omisión |
+| VI. Cuantitativa vs. cualitativa | Generalizado a v1.7.0: todo hito reserva una porción intocable de su conjunto de evaluación. Esta feature la fija: 72 de 360 grabaciones de GuitarSet (20%), semilla `20260908` (research.md #14, constitución v1.8.0) -- protegida por el mismo hook `PreToolUse` que `tests/holdout/`, igual que el split `test` de Slakh2100 del hito 1 | Compatible, cerrado con evidencia (spec.md, Assumptions actualizado) |
 | VII. La métrica y su presupuesto | FR-009: MUST NOT definir ni evaluar ningún umbral de aprobación -- esta feature mide y reporta, el presupuesto se fija después con la evidencia (mismo patrón que el hito 1, Feature 004 → enmienda de constitución) | N/A para esta feature, por diseño -- es la entrada del futuro cierre de presupuesto para el hito 2, no el cierre en sí |
 | VIII. Determinismo | Basic Pitch corre sobre CPU vía ONNX, sin ninguna fuente de aleatoriedad declarada (a diferencia de Demucs, que sí tenía `shifts` aleatorio por defecto, Feature 003) -- se verifica en `/implement` que dos corridas sobre la misma grabación producen el mismo resultado exacto o dentro de tolerancia numérica, mismo criterio que el resto del proyecto | Compatible, a verificar empíricamente en `/implement` (mismo criterio que Feature 003 verificó `shifts=0`) |
 | IX. Datos derivados: se generan, no se leen | El artefacto final es un dato derivado producido por un script versionado; se verifica por invariantes (cantidad de grabaciones, exclusiones, denominadores de cada cifra), nunca leyendo el JSON completo a mano | Compatible, mismo patrón que el hito 1 |
 | X. Tamaño de slice | Gate de `/speckit-tasks`, no de este plan | Diferido a tasks |
 
-**Nota de gobernanza (Principios VI/VII)**: esta feature toca dos
-principios cuya redacción literal es específica del hito 1 (Slakh2100,
-Principio VI; el presupuesto de guitarra separada, Principio VII). No
-los contradice -- los aplica al hito 2 por extensión del mismo criterio,
-con su propia justificación explícita donde diverge (no hay conjunto
-reservado dentro de GuitarSet, spec.md Assumptions). Una vez que esta
-feature mida y `/speckit-constitution` fije el presupuesto real del
-hito 2, sería razonable que esa misma sesión generalice la redacción de
-estos principios para cubrir ambos hitos explícitamente -- no es trabajo
-de este plan, se deja registrado como sugerencia para esa sesión futura.
+**Nota de gobernanza (Principios VI/VII)**: los Principios VI y VII ya
+se generalizaron a cualquier hito en la constitución v1.7.0 (no son
+específicos del hito 1 desde entonces). Esta feature cierra la instancia
+del hito 2 de Principio VI: 72 de 360 grabaciones de GuitarSet (20%)
+reservadas, semilla `20260908` (research.md #14, constitución v1.8.0) --
+spec.md (Assumptions) se actualizó para reflejar esta decisión, en vez
+de mantener la justificación anterior ("no hay conjunto reservado
+dentro de GuitarSet") que la enmienda de constitución dejó obsoleta.
+Principio VII (métrica y presupuesto del hito 2) sigue sin poder
+cerrarse: su propio criterio de cierre es la primera medición real de
+esta feature, que todavía no ocurrió.
 
 Sin violaciones que requieran `Complexity Tracking`.
 
@@ -159,7 +166,15 @@ src/guitar_tabs_analysis/
 ├── analytics/
 │   ├── metrica_separacion.py       # hito 1, sin cambios
 │   └── metrica_deteccion_notas.py  # NUEVO -- NotaEstimada,
+│                                     # ExclusionDeteccion,
+│                                     # ResultadoDeteccionGrabacion (**no**
+│                                     # en deteccion/orquestador.py --
+│                                     # agregar_conjunto() las necesita en
+│                                     # su propia firma, y analytics no
+│                                     # puede importar de deteccion sin
+│                                     # ciclo, research.md #11),
 │                                     # clasificar_polifonia_en_instante(),
+│                                     # evaluar_subconjunto(),
 │                                     # evaluar_grabacion(),
 │                                     # agregar_conjunto(); envuelve
 │                                     # mir_eval.transcription
@@ -171,9 +186,11 @@ src/guitar_tabs_analysis/
                                       # criterio que medicion/
     ├── __init__.py
     └── orquestador.py               # ejecutar_deteccion();
-                                      # ArtefactoDeteccion,
-                                      # ExclusionDeteccion; fallo de
-                                      # inferencia por grabación es
+                                      # ArtefactoDeteccion (importa
+                                      # ExclusionDeteccion/
+                                      # ResultadoDeteccionGrabacion desde
+                                      # analytics, no las define); fallo
+                                      # de inferencia por grabación es
                                       # terminal (research.md #10)
 
 docs/

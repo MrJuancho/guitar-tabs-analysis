@@ -58,6 +58,15 @@ necesarias. Se calcula con `mir_eval.transcription`
 
 ## `ExclusionDeteccion`
 
+Módulo: `analytics/metrica_deteccion_notas.py` -- **no**
+`deteccion/orquestador.py` (corrección de la sesión de `/speckit-tasks`,
+research.md #11: `agregar_conjunto`, más abajo, recibe
+`list[ResultadoDeteccionGrabacion]` en su propia firma pública, y
+`analytics` no puede importar de `deteccion` sin crear una dependencia
+circular -- `deteccion` es el paquete que importa de las tres capas de
+abajo, nunca al revés). `deteccion/orquestador.py` importa este tipo
+desde aquí, igual que `NotaReferencia`/`NotaEstimada`.
+
 Una grabación apartada de la medición por fallo de inferencia (FR-012).
 
 | Campo | Tipo | Descripción |
@@ -72,6 +81,10 @@ Cases de `spec.md`) **no** es una exclusión -- se mide igual, solo que
 su exhaustividad queda sin denominador (FR-008).
 
 ## `ResultadoDeteccionGrabacion`
+
+Módulo: `analytics/metrica_deteccion_notas.py` (misma corrección que
+`ExclusionDeteccion` arriba -- `agregar_conjunto` lo necesita en su
+propia firma pública).
 
 El resultado de medir una única grabación -- unión etiquetada, igual
 patrón que `ResultadoProcesamientoTema` del hito 1.
@@ -122,6 +135,11 @@ transcripción.
 `frozen=True`.
 
 ## `ArtefactoDeteccion`
+
+Módulo: `deteccion/orquestador.py` -- a diferencia de `ExclusionDeteccion`/
+`ResultadoDeteccionGrabacion` arriba, este tipo sí vive en el orquestador:
+nada por debajo de `deteccion` necesita referenciarlo en ninguna firma,
+así que no hay riesgo de ciclo.
 
 El artefacto final de una corrida completa sobre un conjunto de
 grabaciones -- mismo rol que `ArtefactoMedicion` del hito 1.

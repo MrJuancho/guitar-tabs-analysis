@@ -393,16 +393,25 @@ subconjunto monofónico como en el polifónico.
   por-cuerda que un sistema real no tendría. Verificar en `/plan` que el
   nombre exacto de ese subconjunto en la distribución de GuitarSet
   coincide con esta descripción.
-- **Sin partición de desarrollo/evaluación dentro de GuitarSet:** a
-  diferencia de Slakh2100 (Principio VI, split `test` reservado), esta
-  feature no aparta un subconjunto de GuitarSet como "intocable". La
-  razón: el Principio VI protege contra ajustar el sistema en base a un
-  resultado ya visto, pero esta feature no entrena, no afina, y no elige
-  el modelo declarado en base a qué tan bien le va contra GuitarSet --
-  el modelo se declara en `/plan` por documentación y licencia, antes de
-  medir. Si una feature futura comparara varios modelos entre sí y
-  eligiera el que mejor mide, esa comparación sí necesitaría su propio
-  conjunto reservado -- no es el caso de esta feature.
+- **Partición de desarrollo/evaluación dentro de GuitarSet -- actualizado
+  tras la enmienda de constitución v1.7.0/v1.8.0:** esta Assumption
+  originalmente argumentaba que GuitarSet no necesitaba ningún
+  subconjunto reservado, porque el Principio VI (en su redacción
+  específica del hito 1) protegía contra ajustar el sistema en base a un
+  resultado ya visto, y esta feature no entrena, no afina, ni elige el
+  modelo en base a qué tan bien le va contra GuitarSet. Esa lectura quedó
+  obsoleta cuando la constitución generalizó el Principio VI (v1.7.0) a
+  que **todo** hito reserva una porción intocable de su conjunto de
+  evaluación -- con un propósito más amplio que solo la selección de
+  modelo: confirmar, al cerrar el hito, que la cifra medida no fue
+  sobreajuste al propio procedimiento de desarrollo. Esta feature fija
+  esa instancia (v1.8.0, `/speckit-plan` revisado): **72 de las 360
+  grabaciones de GuitarSet (20%) quedan reservadas**, muestreo aleatorio
+  con semilla declarada `20260908`, protegidas por el mismo hook
+  `PreToolUse` que ya cubre `tests/holdout/` -- ningún agente las
+  inspecciona durante el desarrollo del hito 2, se usan una sola vez al
+  cerrarlo (research.md #14, plan.md#Scale/Scope). Las 288 restantes
+  siguen disponibles para medir sin restricción.
 - **Balance = medida F (F1):** "balance entre precisión y exhaustividad"
   se interpreta como la media armónica de ambas (F1), la convención
   estándar en evaluación de transcripción musical, no un promedio simple

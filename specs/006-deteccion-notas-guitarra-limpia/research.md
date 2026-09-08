@@ -285,6 +285,23 @@ sobre Slakh2100, por tema) -- reusarlo para un flujo distinto (GuitarSet,
 por grabación, notas en vez de SI-SDR) generaría confusión de dominio sin
 ahorrar nada real.
 
+**Corrección (sesión de `/speckit-tasks`, antes de `/speckit-implement`):
+`ExclusionDeteccion` y `ResultadoDeteccionGrabacion` NO se definen en
+`deteccion/orquestador.py`.** La primera redacción de esta decisión (y el
+diagrama de `plan.md#Project Structure` que la reflejaba) las situaba ahí
+-- error detectado al escribir `contracts/deteccion.md`: la firma pública
+de `analytics.metrica_deteccion_notas.agregar_conjunto` recibe
+`list[ResultadoDeteccionGrabacion]` (que a su vez contiene
+`ExclusionDeteccion | None`), y `analytics` no puede importar de
+`deteccion` sin crear una dependencia circular -- `deteccion` es, por
+diseño, el paquete que importa de las tres capas de abajo (`ingestion`,
+`transcripcion`, `analytics`), nunca al revés. Ambos tipos se definen en
+`analytics/metrica_deteccion_notas.py`; `deteccion/orquestador.py` los
+importa desde ahí, igual que importa `NotaReferencia`/`NotaEstimada`.
+`plan.md` y `data-model.md` se corrigieron para reflejar esto -- mismo
+tipo de hallazgo que C1 de `/speckit-analyze` en la Feature 004 (una
+decisión que vivía solo en un artefacto de diseño y contradecía otro).
+
 ## 12. Presupuesto de cómputo: medido en `/implement`, no estimado aquí
 
 **Decision**: el tiempo real de inferencia de Basic Pitch sobre una
@@ -310,3 +327,51 @@ comentario de cabecera ("para cada componente de terceros cuyo uso no es
 obvio por sí mismo... Principio IV") -- Basic Pitch aporta una entrada
 más simple que la de Demucs (sin asimetría código/pesos que documentar),
 pero el mismo archivo es el lugar correcto.
+
+## 14. Reserva de GuitarSet para el cierre del hito 2 (Principio VI, constitución v1.8.0)
+
+**Decision**: 72 grabaciones (20% de las 360 de GuitarSet), seleccionadas
+por muestreo aleatorio con semilla declarada `20260908` sobre los 360
+identificadores de grabación ordenados -- reservadas como conjunto
+intocable del hito 2, nunca medidas por esta feature durante su
+desarrollo. Quedan 288 grabaciones (80%) disponibles para medir.
+
+**Rationale**: la constitución v1.7.0 generalizó el Principio VI (antes
+específico del split `test` de Slakh2100, hito 1) a que todo hito reserve
+una porción de su conjunto de evaluación, usada una sola vez al cerrar
+ese hito. Esta feature (la primera del hito 2) fija esa instancia. El
+tamaño elegido -- el extremo superior del rango 15-20% considerado, no el
+inferior -- responde a que GuitarSet es chico en términos absolutos (360)
+comparado con Slakh2100 (1710): una fracción fija en el extremo bajo
+(15% = 54 grabaciones) da una N pequeña para la confirmación de cierre.
+El propósito generalizado del principio es confirmar que la cifra medida
+no es sobreajuste al propio procedimiento de desarrollo -- no solo
+protegerse de elegir el mejor de varios modelos candidatos (que no es el
+caso de esta feature, un único modelo ya declarado por licencia en #1) --
+una N mayor (72) da una confirmación más creíble sin sacrificar capacidad
+real de medición, porque esta feature no entrena ni afina. La semilla
+`20260908` sigue el mismo formato AAAAMMDD que `20260904` (submuestra del
+hito 1, Feature 004) -- la fecha de la decisión, no un valor con ningún
+significado adicional.
+
+**Mecanismo, verificado no supuesto**: el manifiesto de las 72
+grabaciones reservadas se persistirá en
+`tests/holdout/guitarset_reservado_hito2.json` (formato exacto a
+confirmar en `/speckit-implement` -- lista de `grabacion_id`, mismo
+espíritu que cualquier otro artefacto derivado de este proyecto,
+Principio IX), protegido por el hook `PreToolUse` ya existente
+(`.claude/hooks/block_holdout.py`), que bloquea cualquier `Edit`/`Write`
+cuya ruta contenga `"tests/holdout/"` -- verificado contra el código
+fuente real del hook, no supuesto: el chequeo es un `in` de substring
+sobre la ruta, así que un archivo nuevo bajo ese directorio queda
+protegido sin ningún cambio al hook en sí.
+
+**Alternatives considered**: partir GuitarSet por intérprete (GuitarSet
+distribuye grabaciones de 6 guitarristas, un criterio de partición común
+en la literatura de transcripción para medir generalización entre
+intérpretes) -- descartado para esta decisión porque el pedido explícito
+de esta sesión fija el criterio de muestreo aleatorio con semilla, mismo
+patrón que la submuestra del hito 1 (no un split por intérprete, que
+mediría una pregunta distinta -- generalización entre guitarristas, no
+sobreajuste al procedimiento de desarrollo). Queda registrado como
+alternativa para una decisión futura si esa pregunta se vuelve relevante.
