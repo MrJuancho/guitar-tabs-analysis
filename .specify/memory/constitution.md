@@ -1,5 +1,56 @@
 <!--
 Sync Impact Report
+- Version change: 1.6.0 → 1.7.0
+- Fuente: pedido explícito de gobernanza de esta sesión (dos cambios, sin
+  tocar presupuestos ni cifras ya cerradas).
+- Bump MINOR: se generaliza la redacción de los Principios VI y VII para
+  cubrir cualquier hito (antes redactados específicamente para el hito 1),
+  y se agrega una decisión nueva (reserva de una porción de GuitarSet para
+  el hito 2, tamaño y semilla ABIERTO) -- no se elimina ni se contradice
+  ninguna decisión ya tomada (SI-SDR −8.0 dB, split `test` de Slakh, las
+  dos limitaciones declaradas, todo permanece sin cambio como evidencia
+  del hito 1), así que no aplica MAJOR; no es solo una aclaración de
+  redacción -- agrega una regla nueva de reserva de evaluación para el
+  hito 2 -- así que no es PATCH.
+
+- Principios modificados en v1.7.0 (contenido, no título ni posición):
+  VI.   "Evaluación cuantitativa y verificación cualitativa son distintas"
+        -- el bloque "Cuantitativa" se reescribe: regla general primero
+        (todo hito reserva una porción intocable de su conjunto de
+        evaluación, usada una sola vez al cierre), luego el split `test`
+        de Slakh2100 explícitamente etiquetado como la instancia del
+        hito 1, no la definición. Se agrega una instancia nueva para el
+        hito 2 (ABIERTO): porción de GuitarSet reservada por muestreo
+        aleatorio con semilla declarada, protegida por el mismo hook
+        `PreToolUse` que `tests/holdout/` -- tamaño y semilla se cierran
+        en `/speckit-plan` de la Feature 006, no aquí. Las dos
+        limitaciones declaradas (Slakh sintetizado; SI-SDR no predice
+        transcribibilidad) se conservan sin cambio de contenido, solo
+        etiquetadas "(hito 1)" para que quede explícito que son evidencia
+        de ese hito, no una propiedad general del principio.
+  VII.  "La métrica y su presupuesto" -- se agrega un párrafo de regla
+        general al inicio (cada hito declara su propia métrica y
+        presupuesto, fijado después de medir, nunca antes) y se etiqueta
+        explícitamente todo el contenido de SI-SDR/−8.0 dB ya existente
+        como "Hito 1 -- separación de guitarra". Se agrega un párrafo
+        nuevo "Hito 2 -- detección de notas. ABIERTO": métrica y
+        presupuesto sin declarar en este documento todavía, cierran tras
+        la primera medición real de la Feature 006. Ningún número ni
+        cifra existente cambia.
+
+- Secciones añadidas: ninguna a nivel de encabezado (todo el contenido
+  nuevo vive dentro de los Principios VI y VII, ya existentes, como
+  párrafos con etiqueta de hito). Secciones eliminadas: ninguna.
+
+- Governance: se agregan dos checkboxes `[ ]` nuevos -- VI (tamaño y
+  semilla de la porción reservada de GuitarSet, hito 2) y VII (métrica
+  principal y presupuesto del hito 2) --, cada uno con su propio criterio
+  de cierre explícito, siguiendo la misma regla que ya rigió los tres
+  `ABIERTO` originales del documento. El párrafo introductorio de esa
+  subsección se actualiza para reflejar que vuelven a existir `ABIERTO`
+  sin rellenar.
+
+- Sesión anterior (v1.5.0 → v1.6.0), preservada por referencia histórica:
 - Version change: 1.5.0 → 1.6.0
 - Fuente: medición real sobre el conjunto evaluable completo (Feature
   004, `mediciones/conjunto_completo.json` -- 1559 temas de
@@ -327,12 +378,29 @@ defecto a esconder.
 
 ### VI. Evaluación cuantitativa y verificación cualitativa son distintas
 
-**Cuantitativa -- Slakh2100.** Se usa la división oficial de prueba como
-conjunto reservado: no la inventamos, es comparable con trabajo publicado, y
-elimina la discusión de cómo partir sin fugas de datos. Ningún agente la
-inspecciona ni ajusta nada contra ella; se usa una vez, al cerrar el hito. El
-bloqueo es mecánico: la ruta se protege con el mismo hook `PreToolUse` que
-cubre `tests/holdout/`.
+**Cuantitativa -- regla general.** Todo hito reserva una porción de su
+conjunto de evaluación que ningún agente inspecciona ni ajusta contra ella,
+usada una sola vez al cerrar el hito para confirmar que la cifra medida no
+es sobreajuste al propio procedimiento de desarrollo. El bloqueo es
+mecánico: la ruta se protege con el mismo hook `PreToolUse` que cubre
+`tests/holdout/`.
+
+**Hito 1 -- split `test` de Slakh2100.** Se usa la división oficial de
+prueba del dataset como conjunto reservado: no la inventamos, es comparable
+con trabajo publicado, y elimina la discusión de cómo partir sin fugas de
+datos. Es la instancia de este principio para el hito 1, no su definición.
+
+**Hito 2 -- porción reservada de GuitarSet. ABIERTO.** Se reserva una
+porción de las 360 grabaciones de GuitarSet, seleccionada por muestreo
+aleatorio con semilla fija y declarada -- mismo criterio que la submuestra
+del hito 1 (Principio VII): reproducible, sin que el orden del identificador
+correlacione con nada del proceso de grabación. Ningún agente la
+inspecciona; se usa una sola vez al cerrar el hito 2. La ruta reservada se
+protege con el mismo hook `PreToolUse` que cubre `tests/holdout/`, igual que
+el split `test` de Slakh. *Criterio de cierre:* el tamaño de la porción y la
+semilla se fijan en `/speckit-plan` de la Feature 006 y se registran aquí
+cuando existan -- no se completan por adelantado, misma regla que ya rige
+el presupuesto de Principio VII.
 
 **Cualitativa -- música propia.** Un conjunto pequeño de grabaciones
 personales, fuera del repositorio, **sin referencia aislada y por lo tanto
@@ -340,31 +408,38 @@ sin métrica posible**. Sirve para detectar fallos groseros (salida en
 silencio, voz colada, artefactos) que un buen número en Slakh no revelaría.
 No produce cifras y no se publica.
 
-**Limitación declarada:** Slakh es audio sintetizado desde MIDI; el modelo
-preentrenado se entrenó con audio real. La métrica del hito 1 mide separación
-sobre guitarras sintetizadas y **no se extrapola a grabaciones reales**.
-Cualquier afirmación sobre el rendimiento en canciones reales requiere
-evidencia que este hito no produce.
+**Limitación declarada (hito 1):** Slakh es audio sintetizado desde MIDI; el
+modelo preentrenado se entrenó con audio real. La métrica del hito 1 mide
+separación sobre guitarras sintetizadas y **no se extrapola a grabaciones
+reales**. Cualquier afirmación sobre el rendimiento en canciones reales
+requiere evidencia que este hito no produce.
 
-**Segunda limitación declarada, verificada sobre la primera medición real
-(Feature 004):** SI-SDR mide fidelidad de forma de onda, no contenido
-tonal. La verificación cualitativa sobre una salida real de esa corrida
-muestra una guitarra reconocible y con tono perceptible, con ruido
-residual apreciable -- consistente con una mediana de `−6.95 dB` sobre
-las referencias emparejadas (Principio VII). Para el hito 2 lo que
-importa es si el contenido tonal alcanza para transcribir, no la
-fidelidad de forma de onda: **esta cifra no predice si la separación es
-suficiente para transcribir**. Esa validación es un hito 2 propio, no una
-consecuencia automática de un buen SI-SDR.
+**Segunda limitación declarada (hito 1), verificada sobre la primera
+medición real (Feature 004):** SI-SDR mide fidelidad de forma de onda, no
+contenido tonal. La verificación cualitativa sobre una salida real de esa
+corrida muestra una guitarra reconocible y con tono perceptible, con ruido
+residual apreciable -- consistente con una mediana de `−6.95 dB` sobre las
+referencias emparejadas (Principio VII). Para el hito 2 lo que importa es si
+el contenido tonal alcanza para transcribir, no la fidelidad de forma de
+onda: **esta cifra no predice si la separación es suficiente para
+transcribir**. Esa validación es un hito 2 propio, no una consecuencia
+automática de un buen SI-SDR.
 
 ### VII. La métrica y su presupuesto
 
-Se declara una métrica principal, un presupuesto numérico, y la evidencia que
-justifica ese número.
+**Regla general.** Cada hito declara una métrica principal y un presupuesto
+numérico sobre ella, con la evidencia que lo justifica. El presupuesto se
+fija DESPUÉS de la primera medición real de ese hito, con la evidencia
+observada y el margen justificado por escrito -- nunca antes, y nunca
+inventado.
 
 **El umbral no se recalibra para forzar un pase.** Un FALLA documentado con
 su razón es un resultado; un umbral movido después de ver el resultado no es
-nada.
+nada. La regla corre en las dos direcciones: mover un umbral que ya
+aprobaba para que apruebe con más margen todavía es el mismo vicio que
+moverlo para forzar un pase que no se dio.
+
+**Hito 1 -- separación de guitarra.**
 
 **Métrica principal: SI-SDR** (*Scale-Invariant Signal-to-Distortion
 Ratio*, Le Roux, Wisdom, Erdogan & Hershey, 2019, "SDR -- Half-baked or
@@ -500,6 +575,13 @@ este modo no muestrea; artefacto versionado en
   con margen de `1.05 dB`, el conjunto completo con `2.45 dB`. El número
   sigue siendo `−8.0 dB`.
 
+**Hito 2 -- detección de notas. ABIERTO.** Métrica principal y presupuesto
+todavía no declarados en este documento. Cierran tras la primera medición
+real de la Feature 006 (detección de notas sobre guitarra limpia) -- mismo
+criterio que el hito 1: rellenar esto por adelantado, sin la evidencia de
+una corrida real, sería exactamente el vicio que esta sección prohíbe
+arriba.
+
 ### VIII. Determinismo
 
 **Cerrado: opción (b), tolerancia numérica declarada -- aplicada de forma
@@ -632,20 +714,21 @@ criterio de cierre, declarado en el principio correspondiente -- no se
 completa antes de que ese criterio se cumpla, y no se completa como parte
 de un `/speckit-constitution` posterior "para no dejar cabos sueltos": eso
 es exactamente el vicio que VII prohíbe para el presupuesto. Los tres
-`ABIERTO` originales ya se cerraron -- con contenido real y, en los casos
-de VIII y del presupuesto de VII, verificado empíricamente, no solo
-razonado -- cada uno cuando su propio criterio de cierre se cumplió: los
-dos primeros en `/plan` de 002-metrica-separacion-guitarra, el tercero
+`ABIERTO` originales del hito 1 ya se cerraron -- con contenido real y, en
+los casos de VIII y del presupuesto de VII, verificado empíricamente, no
+solo razonado -- cada uno cuando su propio criterio de cierre se cumplió:
+los dos primeros en `/plan` de 002-metrica-separacion-guitarra, el tercero
 tras la primera medición real sobre la submuestra declarada (Feature 004,
-`mediciones/submuestra_hito1.json`). Ya no quedan `ABIERTO` en este
-documento.
+`mediciones/submuestra_hito1.json`). La generalización de los Principios
+VI/VII a cualquier hito (v1.7.0) reabre dos `ABIERTO` nuevos, específicos
+del hito 2 -- no una reapertura de los tres ya cerrados del hito 1.
 
-- [x] VII -- Métrica principal: SI-SDR (Le Roux et al., 2019). Cerrado en
-      `/plan` de 002-metrica-separacion-guitarra.
+- [x] VII -- Métrica principal: SI-SDR (Le Roux et al., 2019). Hito 1.
+      Cerrado en `/plan` de 002-metrica-separacion-guitarra.
 - [x] VII -- Presupuesto numérico: `−8.0 dB` sobre la mediana de
       referencias emparejadas, con la proporción sin pareja como parte
-      obligatoria del reporte. Cerrado con la primera medición real sobre
-      la submuestra declarada (Feature 004,
+      obligatoria del reporte. Hito 1. Cerrado con la primera medición
+      real sobre la submuestra declarada (Feature 004,
       `mediciones/submuestra_hito1.json`), y validado independientemente
       con una segunda medición sobre el conjunto evaluable completo sin
       muestreo (`mediciones/conjunto_completo.json`, v1.6.0) -- ver
@@ -653,5 +736,10 @@ documento.
 - [x] VIII -- Política de determinismo: opción (b), tolerancia numérica
       declarada con excepción para valores exactos por construcción.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
+- [ ] VI -- Hito 2: tamaño de la porción reservada de GuitarSet y su
+      semilla de muestreo. Cierra en `/speckit-plan` de la Feature 006
+      (detección de notas sobre guitarra limpia).
+- [ ] VII -- Hito 2: métrica principal y presupuesto numérico. Cierra
+      tras la primera medición real de la Feature 006, nunca antes.
 
-**Version**: 1.6.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-07
+**Version**: 1.7.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-07
