@@ -67,3 +67,62 @@ GuitarSet, EGFxSet); los pesos de un modelo preentrenado son una
 categoría distinta que ese principio no contempla todavía. Esta
 declaración resuelve el caso concreto de esta feature de forma explícita,
 sin asumir que la regla de audio le aplica automáticamente.
+
+## Basic Pitch (detección de notas, Feature 006, hito 2)
+
+**Código y pesos -- sin asimetría, a diferencia de Demucs**: [Basic
+Pitch](https://github.com/spotify/basic-pitch) (paquete `basic-pitch` en
+PyPI, versión `0.4.0` al momento de esta declaración). Licencia
+**Apache License 2.0** -- verificada contra el archivo `LICENSE` real del
+repositorio (copyright Spotify AB), que cubre tanto el código como los
+pesos preentrenados (`basic_pitch/saved_models/icassp_2022/`): a
+diferencia de Demucs, el propio `README.md` de Basic Pitch no distingue
+ninguna licencia separada para los pesos.
+
+**Modelo usado**: variante `icassp_2022`, backend `onnx` (nunca
+`tensorflow`, research.md #2 de
+`specs/006-deteccion-notas-guitarra-limpia/`).
+
+**Nota de bloqueo (sesión de `/speckit-implement`, T001-T009)**: pese a
+la licencia limpia, `basic-pitch` **no se instaló** en este slice --
+verificado contra su `pyproject.toml` real (rama `main` de
+`github.com/spotify/basic-pitch`, idéntico a la versión `0.4.0` publicada
+en PyPI): su dependencia base -- fuera de cualquier extra -- incluye
+`tensorflow>=2.4.1,<2.15.1; platform_system != 'Darwin' and
+python_version >= '3.11'`, y esa franja de `tensorflow` no publica
+ninguna rueda para `cp312` (confirmado contra PyPI: `tensorflow 2.15.0`
+solo trae `cp39`/`cp310`/`cp311`) -- instalar `basic-pitch[onnx]` es
+irresoluble en este proyecto (`requires-python = ">=3.12"`) sin importar
+qué extra se elija. Ver `pyproject.toml` y
+`specs/006-deteccion-notas-guitarra-limpia/tasks.md` (T002) para el
+detalle completo; la instalación real de `basic-pitch` (User Story 2,
+T010 en adelante) queda pendiente de que se resuelva este bloqueo.
+
+## GuitarSet (detección de notas, Feature 006, hito 2)
+
+[GuitarSet](https://zenodo.org/records/3371780) (DOI
+`10.5281/zenodo.3371780`), licencia **CC BY 4.0** -- ya admitida por el
+Principio IV de la constitución para fuentes de audio, misma categoría
+que Slakh2100. Cargado vía `mirdata`, señal `audio_mic` (research.md #6
+de `specs/006-deteccion-notas-guitarra-limpia/`), nunca `audio_mix` ni
+ninguna señal hexafónica.
+
+## `mir_eval` (métrica de detección de notas, Feature 006, hito 2)
+
+[`mir_eval`](https://github.com/craffel/mir_eval) (paquete `mir_eval` en
+PyPI). Licencia **MIT** -- verificada contra el archivo `LICENSE` real
+del repositorio y contra el metadato del paquete instalado
+(`License :: OSI Approved :: MIT License`). Usado para el emparejamiento
+óptimo y el cálculo de precisión/exhaustividad/balance
+(`mir_eval.transcription.precision_recall_f1_overlap`), y para la
+conversión MIDI→Hz (`mir_eval.util.midi_to_hz`) -- research.md #3/#4/#5
+de `specs/006-deteccion-notas-guitarra-limpia/`.
+
+## `mirdata` (carga de GuitarSet, Feature 006, hito 2)
+
+[`mirdata`](https://github.com/mir-dataset-loaders/mirdata) (paquete
+`mirdata` en PyPI). Licencia **BSD-3-Clause** -- verificada contra el
+archivo `LICENSE` real del repositorio y contra el metadato del paquete
+instalado (`License :: OSI Approved :: BSD License`). Usado para cargar
+audio y anotaciones de GuitarSet sin parsear JAMS a mano -- research.md
+#7 de `specs/006-deteccion-notas-guitarra-limpia/`.

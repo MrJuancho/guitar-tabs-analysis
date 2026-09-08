@@ -21,6 +21,23 @@ dependencies = [
     # (verificado empíricamente en esta sesión: sin esta línea, uv
     # resuelve torch desde PyPI con runtimes de CUDA de todos modos).
     "torch>=2.1",
+    # Feature 006 (hito 2, detección de notas): T005-T009 (analytics
+    # `evaluar_subconjunto`) solo necesitan mir_eval/mirdata -- ambas
+    # MIT/BSD-3-Clause, resuelven sin arrastrar tensorflow. `basic-pitch`
+    # (research.md #1/#2 de 006-deteccion-notas-guitarra-limpia) NO se
+    # agrega en este slice: verificado contra su `pyproject.toml` real
+    # (github.com/spotify/basic-pitch, rama `main`, idéntico a la versión
+    # 0.4.0 publicada en PyPI) que su dependencia base -- no bajo NINGÚN
+    # extra -- incluye `tensorflow>=2.4.1,<2.15.1; platform_system !=
+    # 'Darwin' and python_version >= '3.11'`, y esa franja de tensorflow
+    # no publica ninguna rueda para cp312 (confirmado contra PyPI:
+    # tensorflow 2.15.0 solo trae cp39/cp310/cp311) -- instalar
+    # `basic-pitch[onnx]` es irresoluble en este proyecto
+    # (`requires-python = ">=3.12"`) sin importar qué extra se elija, no
+    # solo indeseable. T002 queda documentado como bloqueado, no completo
+    # -- ver tasks.md.
+    "mir_eval>=0.7",
+    "mirdata>=0.3",
 ]
 
 [build-system]
@@ -51,6 +68,12 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 module = "soundfile"
+ignore_missing_imports = true
+
+# mir_eval no distribuye stubs ni un marcador `py.typed` (Feature 006,
+# T009) -- mismo tratamiento que soundfile arriba.
+[[tool.mypy.overrides]]
+module = "mir_eval.*"
 ignore_missing_imports = true
 
 [tool.ruff]
@@ -124,6 +147,7 @@ name = "Capas: no se saltan ni se invierten (EJEMPLO -- reemplaza por tu arquite
 type = "layers"
 layers = [
     "guitar_tabs_analysis.separacion",
+    "guitar_tabs_analysis.transcripcion",
     "guitar_tabs_analysis.analytics",
     "guitar_tabs_analysis.ingestion",
 ]
@@ -133,6 +157,14 @@ layers = [
 # caso que AGENTS.md ya anticipa ("si el proyecto tiene un orquestador...
 # no lo agregues a la lista `layers`... déjalo fuera a propósito, como una
 # excepción documentada" -- research.md #6 de 004-medicion-linea-base).
+# `guitar_tabs_analysis.deteccion` (Feature 006, hito 2) tampoco aparece
+# en esta lista, mismo criterio exacto que `medicion`: es el orquestador
+# que coordina `ingestion`/`transcripcion`/`analytics` a la vez
+# (research.md #11 de 006-deteccion-notas-guitarra-limpia).
+# `guitar_tabs_analysis.transcripcion` sí se agrega, en la misma posición
+# relativa que `separacion` (puede importar de `analytics`/`ingestion`,
+# ninguna de las dos importa de vuelta) -- mismo tratamiento que cuando se
+# agregó `separacion` (Feature 003).
 
 [[tool.importlinter.contracts]]
 name = "quality es transversal: no depende de analytics (EJEMPLO)"

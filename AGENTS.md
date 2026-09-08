@@ -433,4 +433,28 @@ guantelete, provócalo -- no asumas que el código implica el comportamiento.
   en vez de depender de que alguien se acuerde. Candidato para el próximo
   slice de mejora del arnés -- y, si se confirma útil aquí, proponerlo
   upstream en `gauntlet-template`, no solo parchearlo en este proyecto.
+- **`gauntlet-fast` (y por lo tanto el hook `PostToolUse`/`Stop`) es ciego
+  a archivos nunca trackeados.** Detectado el 2026-09-08 (Feature 006,
+  T001-T009): su selección de archivos usa `git diff --name-only
+  --diff-filter=d HEAD -- src tests`, que solo compara contra `HEAD` --
+  un archivo `.py` completamente nuevo que todavía no pasó por ningún
+  `git add` no aparece ahí, así que `ruff check`/`mypy --strict` nunca
+  corren sobre él hasta el primer `git add`. Verificado empíricamente:
+  seis archivos `.py` nuevos de ese slice (`metrica_deteccion_notas.py`,
+  `guitarset.py`, dos `__init__.py`, dos archivos de test) produjeron
+  "Sin cambios .py que revisar." en `gauntlet-fast` pese a existir en el
+  árbol de trabajo -- `just gauntlet` completo (que sí corre
+  `ruff format --check`/`lint-imports`/`pytest` sobre `src tests`
+  completos, sin acotar por diff) los cubrió igual, y una corrida manual
+  de `mypy --strict`/`ruff check` apuntada a esos archivos confirmó que
+  no ocultaba ningún defecto real en esta ocasión -- pero la compuerta
+  rápida (`gauntlet-fast`, y con ella el hook `PostToolUse` de cada
+  edición y el `Stop` de fin de turno) no los verificó en ningún momento
+  hasta que se hizo `git add`. Mismo patrón que el hallazgo fundacional de
+  `jq` (ADR/AGENTS.md arriba): una compuerta que no puede ver algo lo
+  reporta como "nada que revisar" en vez de fallar. Fix candidato para un
+  slice futuro (con su propio test rojo primero, "Regla: primero el test
+  rojo, luego el fix" arriba): agregar `git ls-files --others
+  --exclude-standard -- src tests` a la selección de `gauntlet-fast`,
+  junto al `git diff` existente.
 <!-- /PROJECT-SPECIFIC -->
