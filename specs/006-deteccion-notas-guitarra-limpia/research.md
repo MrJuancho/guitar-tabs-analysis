@@ -2,8 +2,14 @@
 
 ## 1. Modelo preentrenado: Basic Pitch (Spotify)
 
-**Decision**: `basic-pitch` (Spotify, paquete `basic-pitch` en PyPI),
-instalado con el extra `[onnx]`.
+**Decision**: `basic-pitch` (Spotify, paquete `basic-pitch` en PyPI).
+
+**Corrección (sesión de `/speckit-implement`, T010-T015): "instalado con
+el extra `[onnx]`" ya NO aplica.** Ver #15 más abajo -- `basic-pitch` se
+instala sin ningún extra, en un entorno Python 3.10 aparte, donde
+resuelve a backend TFLite. La elección del modelo en sí (Basic Pitch,
+licencia Apache-2.0 sin asimetría) no cambia -- lo que cambió es CÓMO se
+instala y CON QUÉ backend corre, no CUÁL modelo.
 
 **Rationale, verificado no supuesto**: es el único candidato investigado
 con una licencia única y sin ambigüedad cubriendo TANTO el código COMO
@@ -49,34 +55,38 @@ obligatoria.
   (notas discretas con inicio) ni distinguir acordes, que esta feature
   necesita medir por separado (FR-006).
 
-## 2. Backend de inferencia: `onnx`, nunca `tensorflow`
+## 2. Backend de inferencia -- SUPERADO por #15: `tflite`, no `onnx`
 
-**Decision**: instalar `basic-pitch[onnx]` explícitamente, sin el extra
-`[tf]`, y confirmar en `/implement` que `onnxruntime` queda como único
-backend disponible.
+**Este apartado queda como registro histórico de la decisión original de
+`/speckit-plan`; #15 documenta la decisión real, verificada en
+`/speckit-implement`, que lo reemplaza.**
 
-**Rationale, verificado no supuesto**: el `pyproject.toml` real de
-`basic-pitch` NO incluye `tensorflow` en sus dependencias base -- vive
-solo bajo el extra `tf`. Pero `basic_pitch/__init__.py` elige el backend
-por prioridad en tiempo de import: TensorFlow primero si está presente,
-luego CoreML, luego TFLite, y ONNX al final
-(`if TF_PRESENT: ... elif CT_PRESENT: ... elif TFLITE_PRESENT: ... elif
-ONNX_PRESENT: ...`). Si el extra `[tf]` se instalara (aunque sea
-transitivamente por otra dependencia), `basic-pitch` preferiría
-TensorFlow en silencio. Instalar únicamente `[onnx]` garantiza que
-`ONNX_PRESENT` sea la única opción verdadera, y mantiene el mismo
-espíritu que la Feature 003 ya estableció para Demucs: CPU-only, sin
-arrastrar un framework de ML más pesado del necesario (research.md #7 de
-003, índice `pytorch-cpu`). `onnxruntime` en sí es MIT (verificado
-contra `LICENSE` de `microsoft/onnxruntime`).
+**Decision original (`/plan`, incorrecta -- ver #15)**: instalar
+`basic-pitch[onnx]` explícitamente, sin el extra `[tf]`, y confirmar en
+`/implement` que `onnxruntime` queda como único backend disponible.
 
-**Alternatives considered**: dejar el backend por defecto (TensorFlow) --
-descartado porque agrega una dependencia mucho más pesada que no aporta
-nada sobre ONNX para este caso de uso (inferencia CPU, sin
-entrenamiento), y porque el propio código de `basic-pitch` la prioriza
-en silencio si está presente -- un riesgo de regresión invisible si
-cualquier otra dependencia futura arrastrara `tensorflow` de forma
-transitiva.
+**Por qué era incorrecta, verificado en `/speckit-implement` (T002 de
+`tasks.md`, sesión de T001-T009): `basic-pitch[onnx]` es irresoluble en
+Python 3.12** -- la dependencia BASE de `basic-pitch` (fuera de
+cualquier extra) incluye `tensorflow>=2.4.1,<2.15.1; python_version >=
+'3.11'`, y esa franja de TensorFlow no publica rueda `cp312`. Reabrir
+el modelo en Python 3.10 (research.md #15) tampoco salva la elección de
+`onnx`: `onnxruntime` (`v1.24.3`, la única versión disponible al
+verificar) tampoco publica rueda `cp310` -- verificado empíricamente
+(`uv add "basic-pitch[onnx]"` sobre un proyecto Python 3.10 falla con
+"doesn't have a source distribution or wheel for the current platform").
+El backend real y único disponible en 3.10 es **TFLite**
+(`tflite-runtime`), que la dependencia base de `basic-pitch` SÍ instala
+sin ningún extra cuando `python_version < '3.11'` -- verificado
+importando `basic_pitch` en ese entorno y confirmando
+`TFLITE_PRESENT=True`, `TF_PRESENT=ONNX_PRESENT=CT_PRESENT=False`.
+
+**El argumento original de research.md #2 (nunca la CUDA/GPU-oriented
+TensorFlow completa, un framework más liviano para CPU) sigue vigente,
+solo que TFLite -- no ONNX -- es la opción que lo satisface en la única
+versión de Python donde `basic-pitch` resuelve limpio.** TFLite es en sí
+mismo un runtime liviano orientado a inferencia (no a entrenamiento),
+consistente con el mismo espíritu que motivó evitar TensorFlow completo.
 
 ## 3. Tolerancia de tono y ventana de inicio: los defaults de `mir_eval`, no inventados
 
@@ -375,3 +385,97 @@ patrón que la submuestra del hito 1 (no un split por intérprete, que
 mediría una pregunta distinta -- generalización entre guitarristas, no
 sobreajuste al procedimiento de desarrollo). Queda registrado como
 alternativa para una decisión futura si esa pregunta se vuelve relevante.
+
+## 15. `basic-pitch` real: entorno Python 3.10 aparte, invocado por subproceso
+
+**Decision**: un segundo proyecto `uv`, `envs/basic_pitch_py310/`, fijado
+a Python 3.10 (`requires-python = "==3.10.*"`), con su propio
+`pyproject.toml`/`uv.lock` versionados -- **nunca** se baja el
+`requires-python` del proyecto principal (`>=3.12`). Dependencias de ese
+proyecto, las tres verificadas necesarias, no solo `basic-pitch` solo:
+
+- `basic-pitch` (sin ningún extra -- research.md #2 corregido: la base
+  ya resuelve a TFLite en 3.10, sin extra que pedir).
+- `numpy<2` -- **pin necesario, no cosmético**: `tflite-runtime==2.14.0`
+  (que `basic-pitch` arrastra) es una extensión compilada contra la ABI
+  C de NumPy 1.x; con NumPy 2.x (lo que resuelve por defecto sin este
+  pin) falla en tiempo de ejecución con `AttributeError: _ARRAY_API not
+  found` al construir el intérprete de TFLite -- verificado
+  reproduciendo el error y confirmando que desaparece con el pin.
+- `setuptools<81` -- **pin necesario, no cosmético**: `resampy`
+  (dependencia transitiva de `basic-pitch` vía `librosa`) importa
+  `pkg_resources` en tiempo de import: `setuptools>=81` lo eliminó por
+  completo (no solo lo deprecó) -- verificado reproduciendo
+  `ModuleNotFoundError: No module named 'pkg_resources'` con
+  `setuptools==84.0.0` (el que resuelve sin pin) y confirmando que
+  `setuptools==80.10.2` sí lo incluye (con warning de deprecación, no
+  error).
+
+**Verificado de punta a punta, no solo que resuelve**: un audio
+sintético de 1s a 440 Hz, corrido a través de `basic_pitch.inference.predict()`
+en este entorno exacto, produce un evento de nota con `pitch_midi=69`
+(A4, la nota correcta) -- la cadena de dependencias no solo instala, la
+inferencia real funciona.
+
+**Comunicación por archivos, no por stdout**: el adaptador
+(`transcripcion/basic_pitch_transcriptor.py`, entorno principal, Python
+3.12) invoca un script (`envs/basic_pitch_py310/transcribir_subproceso.py`)
+pasándole la ruta del audio y una ruta de salida para el JSON de notas --
+nunca stdin/stdout para los datos. Razón, verificada empíricamente:
+`basic_pitch`/sus dependencias emiten advertencias reales durante el
+import y la inferencia (`WARNING:root:Coremltools is not installed...`,
+`WARNING:root:onnxruntime is not installed...`, y el propio
+`UserWarning` de `pkg_resources`) -- mezclarlas con la salida de datos en
+stdout exigiría un protocolo de framing que un archivo de salida evita
+por completo.
+
+**Invocación directa del intérprete del venv, nunca `uv run` en tiempo
+de llamada.** El adaptador ejecuta
+`envs/basic_pitch_py310/.venv/bin/python transcribir_subproceso.py ...`
+directamente -- no `uv run --project envs/basic_pitch_py310 ...`.
+Razón: `uv run` sincroniza el entorno (y con él, su lock) implícitamente
+antes de ejecutar, exactamente el mismo antipatrón que AGENTS.md ya
+documenta para `uv.lock` del proyecto principal ("un chequeo de estado
+va antes de cualquier comando que pueda repararlo") -- si el adaptador
+usara `uv run`, un desincronizado real entre `pyproject.toml` y
+`uv.lock` de ese entorno secundario se curaría en silencio en cada
+invocación, y `just doctor` (más abajo) nunca lo detectaría. Invocar el
+intérprete del venv ya materializado hace que un entorno desincronizado
+falle con un error real (módulo ausente o versión equivocada) en vez de
+autorepararse.
+
+**`just doctor` verifica el entorno secundario, en el mismo orden que ya
+usa para el principal** (chequeo de estado ANTES de cualquier `uv run`
+que pueda sincronizar): primero `uv lock --check` dentro de
+`envs/basic_pitch_py310/` (falla si el lock no corresponde al
+`pyproject.toml` de ese proyecto, sin tocar el entorno), y solo después
+`uv run --project envs/basic_pitch_py310 python -c "import basic_pitch"`
+(que si `uv lock --check` ya pasó, no tiene nada que sincronizar en
+silencio) para confirmar que el intérprete 3.10 existe y `basic_pitch`
+importa ahí de verdad -- "un componente no verificado en el entorno real
+es un componente que no existe" (AGENTS.md).
+
+**Fallo cerrado en el script del subproceso.** El script escribe el JSON
+de salida SOLO en el camino feliz; ante cualquier excepción, imprime el
+detalle a stderr, sale con código distinto de cero, y **no** escribe (ni
+deja a medio escribir) el archivo de salida -- una lista vacía de notas
+es un resultado legítimo (silencio real, spec.md US2 AS3) y nunca puede
+confundirse con un fallo. El adaptador trata como fallo real (envuelto en
+`TranscripcionFallidaError`, nunca dejado crudo) cualquiera de: código de
+salida distinto de cero, archivo de salida ausente, o JSON malformado --
+nunca asume "sin notas" por defecto ante cualquiera de esos tres casos.
+
+**Pesos ya incluidos en el paquete, sin descarga aparte** (confirmado
+consistente con research.md #1): `predict()` resuelve su modelo por
+defecto a un archivo `.tflite` dentro del propio paquete instalado
+(`.../site-packages/basic_pitch/saved_models/icassp_2022/nmp.tflite`).
+
+**Alternatives considered**: un proceso persistente (servidor local que
+mantiene el modelo cargado entre invocaciones) -- descartado por ahora,
+no por costo conocido sino por falta de evidencia: recargar el modelo
+por grabación podría ser barato o caro sobre 288 grabaciones, y esa
+optimización se mide antes de construirse (mismo principio "medido, no
+estimado" de research.md #12), no se asume. Relajar `requires-python`
+del proyecto principal a `>=3.10` para evitar un segundo entorno --
+descartado explícitamente por esta sesión: el proyecto principal no baja
+de 3.12.

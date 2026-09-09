@@ -50,7 +50,9 @@ archivo**, no muestras cargadas en memoria -- a diferencia de
 `separacion.separador.Separador` (hito 1), porque `basic_pitch.inference.predict()`
 solo acepta ruta de archivo, no un array en memoria (verificado contra
 el código fuente real, research.md #1) -- este protocolo sigue la forma
-que el modelo real exige, no la del hito 1 por inercia.
+que el modelo real exige, no la del hito 1 por inercia. Esta forma no
+cambió con research.md #15 (subprocess): `ruta_audio` es exactamente lo
+que el adaptador reenvía al subproceso.
 
 ### Postcondiciones
 
@@ -62,15 +64,50 @@ que el modelo real exige, no la del hito 1 por inercia.
 2. **Fallo de inferencia.** Si el modelo no puede procesar el archivo
    (error real, no ausencia de notas), MUST levantar una excepción
    propia (`TranscripcionFallidaError` o equivalente) -- nunca dejar
-   propagar una excepción cruda de `basic_pitch`/`onnxruntime` sin
-   envolver, mismo criterio que `SeparacionFallidaError` del hito 1.
+   propagar una excepción cruda sin envolver, mismo criterio que
+   `SeparacionFallidaError` del hito 1. Para `BasicPitchTranscriptor`
+   (research.md #15), "el modelo no puede procesar el archivo" cubre
+   tres casos concretos del subproceso, los tres tratados igual (nunca
+   una lista vacía por defecto): código de salida distinto de cero,
+   archivo de salida JSON ausente, o JSON presente pero malformado.
 
 ## `transcripcion.basic_pitch_transcriptor.BasicPitchTranscriptor`
 
-Implementación real de `Transcriptor` -- único módulo de esta feature
-que importa `basic_pitch`. Construye una sola vez (carga el modelo ONNX
-declarado, research.md #1/#2), reutilizable entre llamadas a
-`transcribir()`.
+Implementación real de `Transcriptor` -- **corregido en
+`/speckit-implement` (research.md #15): NO importa `basic_pitch`
+directamente.** `basic-pitch` es irresoluble en Python 3.12 (research.md
+#2); esta clase invoca por subproceso el intérprete de un entorno Python
+3.10 aparte (`envs/basic_pitch_py310/.venv/bin/python`, invocado
+directamente, nunca vía `uv run` -- research.md #15) corriendo
+`envs/basic_pitch_py310/transcribir_subproceso.py` sobre `ruta_audio`,
+con una ruta de salida JSON temporal como segundo argumento. Ningún
+módulo del proyecto principal (`src/guitar_tabs_analysis/`) importa
+`basic_pitch` -- vive enteramente en el entorno secundario, que `just
+doctor` verifica por separado.
+
+## `envs/basic_pitch_py310/transcribir_subproceso.py` (fuera de `src/`, entorno Python 3.10 aparte)
+
+```text
+uso: python transcribir_subproceso.py <ruta_audio> <ruta_salida_json>
+```
+
+No es un módulo del paquete `guitar_tabs_analysis` -- corre bajo un
+intérprete distinto (research.md #15), invocado como proceso externo,
+nunca importado.
+
+### Postcondiciones
+
+1. **Éxito.** MUST escribir en `ruta_salida_json` un array JSON de
+   objetos `{"tono_midi": float, "inicio_s": float, "fin_s": float}` (un
+   objeto por evento de nota que `basic_pitch.inference.predict()`
+   devuelve, posiblemente un array vacío -- silencio total es válido) y
+   MUST salir con código `0`.
+2. **Fallo.** Ante cualquier excepción real durante la inferencia, MUST
+   imprimir el detalle en stderr, MUST salir con código distinto de
+   cero, y MUST NOT escribir `ruta_salida_json` (ni dejarlo a medio
+   escribir) -- el archivo de salida ausente es, junto con el código de
+   salida, la señal de fallo que el adaptador (`BasicPitchTranscriptor`)
+   traduce a `TranscripcionFallidaError`.
 
 ## `analytics.metrica_deteccion_notas`
 

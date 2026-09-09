@@ -29,14 +29,17 @@ dependencia (no memoria ni documentación de segunda mano), en
 
 **Language/Version**: Python 3.12 (mismo `requires-python` que el resto del proyecto)
 
-**Primary Dependencies**: `basic-pitch[onnx]` (Apache-2.0, código y
-pesos -- research.md #1/#2, nunca el extra `[tf]`), `mir_eval` (MIT --
-research.md #3/#4/#5, ya viene como dependencia transitiva de
-`basic-pitch` pero se declara directa porque este proyecto la usa
-explícitamente, no solo indirectamente), `mirdata` (BSD-3-Clause --
-research.md #7). Ninguna reemplaza ni convive en conflicto con las
-dependencias del hito 1 (`torch`/`demucs` siguen siendo exclusivas de
-`separacion`).
+**Primary Dependencies (proyecto principal, Python 3.12)**: `mir_eval`
+(MIT -- research.md #3/#4/#5), `mirdata` (BSD-3-Clause -- research.md
+#7). Ninguna reemplaza ni convive en conflicto con las dependencias del
+hito 1 (`torch`/`demucs` siguen siendo exclusivas de `separacion`).
+**`basic-pitch` NO es una dependencia del proyecto principal** --
+corregido en `/speckit-implement` (research.md #2/#15): es irresoluble
+en Python 3.12 (su dependencia base arrastra `tensorflow<2.15.1`, sin
+rueda `cp312`). Vive en `envs/basic_pitch_py310/`, un segundo proyecto
+`uv` fijado a Python 3.10, con sus propias dependencias (`basic-pitch`
+sin extra, `numpy<2`, `setuptools<81` -- research.md #15) y su propio
+`uv.lock`, invocado por subproceso desde `transcripcion/basic_pitch_transcriptor.py`.
 
 **Storage**: Ninguna nueva más allá del patrón ya establecido -- el
 artefacto final (`ArtefactoDeteccion`) se persiste como JSON pequeño y
@@ -47,15 +50,17 @@ fijar en `/speckit-tasks`.
 **Testing**: `pytest` + `hypothesis`. Toda la lógica de emparejamiento,
 clasificación de polifonía y agregación se prueba con notas construidas
 a mano y un `TranscriptorFalso` sintético (mismo patrón que
-`SeparadorFalso` del hito 1), en milisegundos, sin `basic_pitch`/
-`onnxruntime` cargando ningún modelo. Un único test nuevo marcado
+`SeparadorFalso` del hito 1), en milisegundos, sin invocar el
+subproceso de `basic_pitch` en absoluto. Un único test nuevo marcado
 `modelo_real` ejercita `BasicPitchTranscriptor.transcribir()` de punta a
-punta sobre una grabación corta real de GuitarSet -- nunca corre como
-parte de `just gauntlet`.
+punta -- subproceso real incluido -- sobre una grabación corta real de
+GuitarSet -- nunca corre como parte de `just gauntlet`.
 
 **Target Platform**: Linux (WSL/Ubuntu), CPU-only -- sin cambios
-respecto al hito 1; Basic Pitch corre sobre `onnxruntime` (research.md
-#2), sin GPU ni framework de ML pesado adicional.
+respecto al hito 1; Basic Pitch corre sobre TFLite (research.md #2/#15,
+corregido de la decisión original de ONNX -- irresoluble en cp312 y en
+cp310 por igual), dentro de un entorno Python 3.10 aparte, sin GPU ni
+framework de ML pesado adicional.
 
 **Project Type**: Single project -- dos capas nuevas (`ingestion/guitarset.py`
 en la capa ya existente; `transcripcion/`, capa nueva paralela a
@@ -76,8 +81,12 @@ aborta la corrida (FR-012, research.md #10). La duración de las notas
 (estimadas y de referencia) nunca participa del criterio de acierto
 (FR-004, research.md #4) aunque sí participa de la clasificación de
 polifonía (research.md #8) -- dos usos distintos del mismo dato, no una
-contradicción. El backend de inferencia de Basic Pitch MUST ser
-`onnxruntime`, nunca TensorFlow (research.md #2).
+contradicción. El backend de inferencia de Basic Pitch MUST ser TFLite,
+nunca TensorFlow completo (research.md #2/#15, corregido -- ONNX
+resultó irresoluble en cp312 y en cp310 por igual). El proyecto
+principal MUST NOT bajar su `requires-python` de `>=3.12` para
+acomodar `basic-pitch` -- vive en un entorno Python 3.10 aparte,
+invocado por subproceso (research.md #15), nunca importado en proceso.
 
 **Scale/Scope**: 360 grabaciones de GuitarSet (research.md #7, ~30 s
 cada una). **288 (80%) medibles por esta feature; 72 (20%) reservadas
@@ -103,7 +112,7 @@ las 72 reservadas de cualquier corrida de desarrollo.
 | V. Qué cuenta como "la guitarra" | N/A directo -- GuitarSet es guitarra sola por construcción del propio dataset, no hay clasificación de pistas que reabrir | N/A para esta feature |
 | VI. Cuantitativa vs. cualitativa | Generalizado a v1.7.0: todo hito reserva una porción intocable de su conjunto de evaluación. Esta feature la fija: 72 de 360 grabaciones de GuitarSet (20%), semilla `20260908` (research.md #14, constitución v1.8.0) -- protegida por el mismo hook `PreToolUse` que `tests/holdout/`, igual que el split `test` de Slakh2100 del hito 1 | Compatible, cerrado con evidencia (spec.md, Assumptions actualizado) |
 | VII. La métrica y su presupuesto | FR-009: MUST NOT definir ni evaluar ningún umbral de aprobación -- esta feature mide y reporta, el presupuesto se fija después con la evidencia (mismo patrón que el hito 1, Feature 004 → enmienda de constitución) | N/A para esta feature, por diseño -- es la entrada del futuro cierre de presupuesto para el hito 2, no el cierre en sí |
-| VIII. Determinismo | Basic Pitch corre sobre CPU vía ONNX, sin ninguna fuente de aleatoriedad declarada (a diferencia de Demucs, que sí tenía `shifts` aleatorio por defecto, Feature 003) -- se verifica en `/implement` que dos corridas sobre la misma grabación producen el mismo resultado exacto o dentro de tolerancia numérica, mismo criterio que el resto del proyecto | Compatible, a verificar empíricamente en `/implement` (mismo criterio que Feature 003 verificó `shifts=0`) |
+| VIII. Determinismo | Basic Pitch corre sobre CPU vía TFLite (corregido de ONNX, research.md #2/#15), en un subproceso Python 3.10 aparte -- sin ninguna fuente de aleatoriedad declarada en el modelo en sí (a diferencia de Demucs, que sí tenía `shifts` aleatorio por defecto, Feature 003); el límite de proceso agrega una superficie nueva a verificar (¿produce el subproceso el mismo resultado invocación tras invocación sobre el mismo archivo?) que Demucs no tenía -- se verifica en `/implement` que dos invocaciones sobre la misma grabación producen el mismo resultado exacto o dentro de tolerancia numérica, mismo criterio que el resto del proyecto | Compatible, a verificar empíricamente en `/implement` (mismo criterio que Feature 003 verificó `shifts=0`) |
 | IX. Datos derivados: se generan, no se leen | El artefacto final es un dato derivado producido por un script versionado; se verifica por invariantes (cantidad de grabaciones, exclusiones, denominadores de cada cifra), nunca leyendo el JSON completo a mano | Compatible, mismo patrón que el hito 1 |
 | X. Tamaño de slice | Gate de `/speckit-tasks`, no de este plan | Diferido a tasks |
 
@@ -160,8 +169,11 @@ src/guitar_tabs_analysis/
 │   ├── __init__.py
 │   ├── transcriptor.py             # Protocol Transcriptor,
 │                                     # ModeloTranscripcionDeclarado
-│   └── basic_pitch_transcriptor.py # único módulo que importa
-│                                     # basic_pitch; backend onnx forzado
+│   └── basic_pitch_transcriptor.py # invoca por subproceso el
+│                                     # intérprete de envs/basic_pitch_py310/
+│                                     # (research.md #15) -- NO importa
+│                                     # basic_pitch en proceso, es
+│                                     # irresoluble en Python 3.12
 │                                     # (research.md #2)
 ├── analytics/
 │   ├── metrica_separacion.py       # hito 1, sin cambios
@@ -192,6 +204,26 @@ src/guitar_tabs_analysis/
                                       # analytics, no las define); fallo
                                       # de inferencia por grabación es
                                       # terminal (research.md #10)
+
+envs/
+└── basic_pitch_py310/                # NUEVO -- segundo proyecto uv,
+                                       # Python 3.10 fijo (research.md #15).
+                                       # El proyecto principal (>=3.12) NO
+                                       # depende de este directorio para
+                                       # nada -- es el entorno principal el
+                                       # que lo invoca por subproceso, no
+                                       # al revés.
+    ├── pyproject.toml                 # basic-pitch (sin extra), numpy<2,
+    │                                   # setuptools<81 -- los tres pines
+    │                                   # verificados necesarios, no solo
+    │                                   # basic-pitch a secas
+    ├── uv.lock                        # versionado -- reproducibilidad,
+                                        # no opcional
+    └── transcribir_subproceso.py      # CLI: <ruta_audio> <ruta_salida_json>
+                                        # -- éxito escribe el JSON y sale 0;
+                                        # fallo NUNCA escribe el archivo,
+                                        # sale distinto de 0
+                                        # (contracts/deteccion.md)
 
 docs/
 └── ATRIBUCIONES.md                  # TOCADO -- nueva sección para Basic
@@ -238,10 +270,23 @@ contrato `layers`, documentado en el propio `pyproject.toml` con un
 comentario, mismo patrón que la Feature 004 ya dejó para `medicion`
 (research.md #6 de esa feature).
 
+**Corrección (sesión de `/speckit-implement`, T010-T015): un segundo
+entorno, `envs/basic_pitch_py310/`, se suma a la Opción 1 de arriba --
+no la reemplaza.** `src/`/`tests/` del proyecto principal siguen siendo
+un único proyecto Python 3.12; `envs/basic_pitch_py310/` es un proyecto
+`uv` independiente, con su propio `pyproject.toml`/`uv.lock`, fuera del
+árbol de import-linter por completo (no es un paquete de
+`guitar_tabs_analysis`, corre bajo otro intérprete) -- ver research.md
+#15 para por qué es necesario (`basic-pitch` es irresoluble en 3.12) y
+research.md #2 para la corrección del backend (TFLite, no ONNX).
+
 ## Complexity Tracking
 
 *Sin violaciones de principios que requieran justificación -- tabla
-omitida. La complejidad real nueva (una capa más y un segundo paquete
-orquestador) sigue exactamente el mismo patrón arquitectónico que el
-hito 1 ya estableció y validó, documentado arriba y en research.md #11,
-no una excepción ad hoc de esta feature.*
+omitida. La complejidad real nueva (una capa más, un segundo paquete
+orquestador, y -- corrección de esta sesión -- un segundo entorno Python
+para `basic-pitch`) sigue un patrón justificado por necesidad técnica
+verificada (research.md #2/#15: sin ONNX ni un `basic-pitch` resoluble
+en 3.12, no hay forma de correr el modelo declarado sin un entorno
+aparte), no una excepción ad hoc ni una preferencia arquitectónica sin
+respaldo.*

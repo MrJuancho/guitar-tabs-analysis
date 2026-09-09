@@ -1,0 +1,26 @@
+# Entorno Python 3.10 aparte para basic-pitch (Feature 006, research.md #15
+# de specs/006-deteccion-notas-guitarra-limpia/): basic-pitch es irresoluble
+# en Python 3.12 (su dependencia base arrastra tensorflow<2.15.1, sin rueda
+# cp312) -- este proyecto uv independiente aisla esa dependencia, invocado
+# por subproceso desde transcripcion/basic_pitch_transcriptor.py del
+# proyecto principal. Nunca se corre `uv run` sobre este proyecto en tiempo
+# de llamada, solo el intérprete del venv ya materializado -- ver
+# transcribir_subproceso.py.
+[project]
+name = "basic-pitch-py310"
+version = "0.1.0"
+description = "Entorno Python 3.10 aislado para basic-pitch (Feature 006, research.md #15)"
+requires-python = "==3.10.*"
+dependencies = [
+    "basic-pitch",
+    # Pin necesario, no cosmético (research.md #15): tflite-runtime==2.14.0
+    # (que basic-pitch arrastra) es una extensión compilada contra la ABI
+    # C de NumPy 1.x -- con NumPy 2.x falla en tiempo de ejecución con
+    # AttributeError: _ARRAY_API not found al construir el intérprete de
+    # TFLite.
+    "numpy<2",
+    # Pin necesario, no cosmético (research.md #15): resampy (dependencia
+    # transitiva de basic-pitch via librosa) importa pkg_resources en
+    # tiempo de import -- setuptools>=81 lo eliminó por completo.
+    "setuptools<81",
+]

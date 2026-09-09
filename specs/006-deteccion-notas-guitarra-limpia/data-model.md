@@ -129,7 +129,7 @@ transcripción.
 | `nombre` | `str` | `"Basic Pitch"` |
 | `variante` | `str` | `"icassp_2022"` (nombre del modelo dentro del paquete, research.md #1) |
 | `firma` | `str` | Identificador corto verificado en vivo contra el modelo real durante `/implement` -- no se inventa en este documento, mismo criterio que la Feature 003 aplicó para `htdemucs_6s` |
-| `backend` | `str` | `"onnx"` -- declarado explícitamente (research.md #2), para que el artefacto registre con qué backend de inferencia se corrió |
+| `backend` | `str` | `"tflite"` -- corregido en `/speckit-implement` (research.md #2/#15: `onnx` resultó irresoluble tanto en Python 3.12 como en 3.10; el backend real, único disponible sin instalar TensorFlow completo, es TFLite) -- declarado explícitamente para que el artefacto registre con qué backend de inferencia se corrió |
 | `licencia` | `str` | `"Apache-2.0 (código y pesos) -- ver docs/ATRIBUCIONES.md"` |
 
 `frozen=True`.

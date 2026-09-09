@@ -79,24 +79,35 @@ pesos preentrenados (`basic_pitch/saved_models/icassp_2022/`): a
 diferencia de Demucs, el propio `README.md` de Basic Pitch no distingue
 ninguna licencia separada para los pesos.
 
-**Modelo usado**: variante `icassp_2022`, backend `onnx` (nunca
-`tensorflow`, research.md #2 de
-`specs/006-deteccion-notas-guitarra-limpia/`).
+**Modelo usado**: variante `icassp_2022`, backend `tflite` -- corregido
+en la sesión de T010-T015 (research.md #2/#15 de
+`specs/006-deteccion-notas-guitarra-limpia/`): ni `tensorflow` ni `onnx`
+resuelven en ningún entorno viable para este proyecto (ver nota debajo);
+`tflite-runtime` es el único backend que la dependencia base de
+`basic-pitch` instala sin ningún extra en Python 3.10, verificado en vivo
+(`TFLITE_PRESENT=True`, el resto de las banderas de backend en `False`).
 
-**Nota de bloqueo (sesión de `/speckit-implement`, T001-T009)**: pese a
-la licencia limpia, `basic-pitch` **no se instaló** en este slice --
-verificado contra su `pyproject.toml` real (rama `main` de
+**Nota histórica (sesión de `/speckit-implement`, T001-T009): `basic-pitch`
+no se pudo instalar en el proyecto principal (Python 3.12)** -- verificado
+contra su `pyproject.toml` real (rama `main` de
 `github.com/spotify/basic-pitch`, idéntico a la versión `0.4.0` publicada
 en PyPI): su dependencia base -- fuera de cualquier extra -- incluye
 `tensorflow>=2.4.1,<2.15.1; platform_system != 'Darwin' and
 python_version >= '3.11'`, y esa franja de `tensorflow` no publica
 ninguna rueda para `cp312` (confirmado contra PyPI: `tensorflow 2.15.0`
-solo trae `cp39`/`cp310`/`cp311`) -- instalar `basic-pitch[onnx]` es
-irresoluble en este proyecto (`requires-python = ">=3.12"`) sin importar
-qué extra se elija. Ver `pyproject.toml` y
-`specs/006-deteccion-notas-guitarra-limpia/tasks.md` (T002) para el
-detalle completo; la instalación real de `basic-pitch` (User Story 2,
-T010 en adelante) queda pendiente de que se resuelva este bloqueo.
+solo trae `cp39`/`cp310`/`cp311`) -- irresoluble en este proyecto
+(`requires-python = ">=3.12"`) sin importar qué extra se elija.
+
+**Resuelto (sesión de T010-T015): entorno Python 3.10 aparte.**
+`basic-pitch` (sin ningún extra), `numpy<2` y `setuptools<81` viven en
+`envs/basic_pitch_py310/` -- un segundo proyecto `uv`, fijado a Python
+3.10, con su propio `pyproject.toml`/`uv.lock` versionados, invocado por
+subproceso desde `transcripcion/basic_pitch_transcriptor.py` (que nunca
+importa `basic_pitch` directamente). El proyecto principal sigue en
+`requires-python = ">=3.12"`, sin cambios. Ver research.md #15 para el
+detalle completo verificado (los tres pines, la inferencia real sobre un
+seno de 440 Hz, y por qué la invocación es directa al intérprete del venv
+y nunca `uv run` en tiempo de llamada).
 
 ## GuitarSet (detección de notas, Feature 006, hito 2)
 

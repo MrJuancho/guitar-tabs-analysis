@@ -35,8 +35,27 @@ gauntlet-fast *files:
         # NO matchea -- queda fuera de ruff/mypy en silencio. Se pide el
         # árbol completo a git y se filtra la extensión afuera, sin depender
         # de la semántica de wildmatch.
-        targets=$(git diff --name-only --diff-filter=d HEAD -- src tests 2>/dev/null \
+        tracked=$(git diff --name-only --diff-filter=d HEAD -- src tests 2>/dev/null \
             | grep '\.py$' || true)
+        # `git diff HEAD` solo ve archivos que git YA conoce -- un módulo
+        # nuevo creado en este slice, todavía sin ningún `git add`, no tiene
+        # ninguna diferencia que registrar contra HEAD y queda afuera en
+        # silencio (séptimo caso de "una compuerta que examina menos de lo
+        # que parece", ADR-0001 sección 9: exactamente el caso más común de
+        # un slice que agrega funcionalidad -- un archivo nuevo -- quedaba
+        # fuera de ruff/mypy, y por lo tanto del hook Stop, hasta el primer
+        # commit). Se suman los archivos sin trackear con
+        # `git ls-files --others --exclude-standard`, que respeta
+        # `.gitignore` -- un archivo ignorado a propósito no debe entrar
+        # solo por no estar trackeado todavía.
+        untracked=$(git ls-files --others --exclude-standard -- src tests 2>/dev/null \
+            | grep '\.py$' || true)
+        # `git diff` (archivos que git ya conoce, con cambios) y
+        # `ls-files --others` (archivos que git todavía NO conoce) son
+        # estructuralmente disjuntos -- una misma ruta no puede aparecer en
+        # los dos a la vez -- así que `sort -u` es defensa en profundidad,
+        # no una corrección de una colisión real observada.
+        targets=$(printf '%s\n%s\n' "$tracked" "$untracked" | grep '\.py$' | sort -u || true)
     else
         targets="{{ files }}"
     fi
@@ -127,7 +146,15 @@ mutation-diff:
     # directamente bajo el paquete -- __init__.py incluido -- así que también
     # se saltaba mutation-diff en silencio. Filtrando la extensión afuera de
     # git en vez de con el pathspec.
-    mods=$(git diff --name-only --diff-filter=d "$base"...HEAD -- src \
+    #
+    # Mismo séptimo caso que gauntlet-fast (ver comentario ahí y ADR-0001
+    # sección 9): el diff contra "$base" tampoco ve un módulo nuevo sin
+    # trackear -- mutmut no generaría un solo mutante para él hasta el
+    # primer `git add`. Se suma `git ls-files --others --exclude-standard`
+    # a la misma selección, antes de filtrar la extensión y convertir rutas
+    # a nombres de módulo.
+    mods=$( { git diff --name-only --diff-filter=d "$base"...HEAD -- src; \
+              git ls-files --others --exclude-standard -- src; } \
            | grep '\.py$' \
            | sed 's|src/||; s|/|.|g; s|\.py$||; s|\.__init__$||' | sort -u || true)
     if [ -z "$mods" ]; then echo "Sin módulos modificados."; exit 0; fi
@@ -205,6 +232,27 @@ doctor:
     for m in ruff mypy pytest mutmut importlinter hypothesis; do
         uv run python -c "import ${m//-/_}" 2>/dev/null || { echo "FALTA (paquete Python): $m"; fallo=1; }
     done
+    # Entorno secundario de Basic Pitch (Feature 006, research.md #15):
+    # mismo orden que arriba -- chequeo de estado (uv lock --check) ANTES
+    # de cualquier comando que pueda sincronizar en silencio. Solo si el
+    # lock está al día se invoca el intérprete del venv ya materializado
+    # directamente (nunca `uv run`, que sincronizaría el entorno -- y con
+    # él, su uv.lock -- implícitamente antes de importar nada, curando un
+    # desincronizado real antes de que este chequeo llegara a verlo).
+    if [ -d envs/basic_pitch_py310 ]; then
+        (cd envs/basic_pitch_py310 && uv lock --check) >/dev/null 2>&1 \
+            || { echo "FALTA: envs/basic_pitch_py310/uv.lock desincronizado con su pyproject.toml -- correr 'uv lock' dentro de ese directorio."; fallo=1; }
+        if [ -x envs/basic_pitch_py310/.venv/bin/python ]; then
+            envs/basic_pitch_py310/.venv/bin/python -c "import basic_pitch" >/dev/null 2>&1 \
+                || { echo "FALTA: basic_pitch no importa en envs/basic_pitch_py310/.venv -- correr 'uv sync' dentro de ese directorio."; fallo=1; }
+        else
+            echo "FALTA: envs/basic_pitch_py310/.venv no existe -- correr 'uv sync' dentro de ese directorio."
+            fallo=1
+        fi
+    else
+        echo "FALTA: envs/basic_pitch_py310/ no existe -- ver research.md #15 de specs/006-deteccion-notas-guitarra-limpia/."
+        fallo=1
+    fi
     [ $fallo -eq 0 ] && echo "Guantelete completo." || exit 1
 
 clean:

@@ -14,8 +14,9 @@ just gauntlet
 
 Todo esto usa un `TranscriptorFalso` sintético (mismo patrón que
 `SeparadorFalso` del hito 1) y notas de referencia construidas a mano,
-en milisegundos, sin `basic_pitch`/`onnxruntime`/`mir_eval` cargando
-ningún modelo real:
+en milisegundos, sin invocar el subproceso de `basic_pitch` en absoluto
+(research.md #15) -- el entorno `envs/basic_pitch_py310/` ni siquiera
+necesita existir para que `just gauntlet` pase:
 
 - Pares de notas dentro/fuera de tolerancia de tono, dentro/fuera de
   ventana de inicio, en el borde exacto de cada una, con duraciones
@@ -50,6 +51,13 @@ reconozca) sin lanzar ninguna excepción no controlada.
 viene con este repositorio -- se descarga aparte (por ejemplo, vía
 `mirdata.initialize("guitarset").download()`) a una ruta local que el
 test/CLI recibe como parámetro, igual que Slakh2100 en el hito 1.
+
+**Segundo prerrequisito, nuevo en esta sesión (research.md #15):** el
+entorno `envs/basic_pitch_py310/` debe existir y estar sincronizado --
+`just doctor` lo verifica (intérprete 3.10, `basic_pitch` importable
+ahí, lock en sincronía) antes de que este test intente invocarlo. Sin
+ese entorno, el test se salta visible (mismo mecanismo que sin GuitarSet
+en disco), nunca falla en silencio ni pasa por accidente.
 
 ## Ejecución manual real -- medir sobre GuitarSet completo
 

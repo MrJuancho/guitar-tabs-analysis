@@ -76,6 +76,12 @@ ignore_missing_imports = true
 module = "mir_eval.*"
 ignore_missing_imports = true
 
+# mirdata tampoco distribuye stubs ni un marcador `py.typed` (Feature 006,
+# T012, verificado contra el paquete instalado) -- mismo tratamiento.
+[[tool.mypy.overrides]]
+module = "mirdata.*"
+ignore_missing_imports = true
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100
