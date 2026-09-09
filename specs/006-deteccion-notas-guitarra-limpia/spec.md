@@ -319,6 +319,24 @@ subconjunto monofónico como en el polifónico.
   ese fallo individual, y MUST continuar con la siguiente grabación del
   conjunto -- mismo criterio que el hito 1 ya estableció para un fallo
   duro por tema (Feature 004, FR-006).
+- **FR-013**: El emparejamiento (FR-005) MUST ocurrir siempre dentro de
+  una única grabación -- una nota estimada MUST NOT poder acreditarse
+  contra una nota de referencia de una grabación distinta, sin importar
+  qué tan cerca caigan sus instantes de inicio. Al agregar sobre un
+  conjunto de grabaciones (FR-007), el sistema MUST sumar los conteos ya
+  resueltos por grabación (notas acertadas, número de referencias,
+  número de estimadas) y derivar precisión/exhaustividad/balance de esa
+  suma -- MUST NOT juntar las notas crudas de distintas grabaciones en
+  un solo conjunto antes de emparejar. Es una propiedad de corrección de
+  la métrica, no una optimización de rendimiento: dos grabaciones son
+  clips independientes sin relación temporal entre sí, y emparejar entre
+  ellas produciría aciertos espurios por coincidencia de reloj relativo
+  -- inflando las cifras reportadas sin que reflejen nada real sobre la
+  calidad de la detección. (Hallazgo de `/speckit-implement`,
+  2026-09-09: la primera implementación de `agregar_conjunto` violaba
+  esto -- pooleaba notas crudas de las 288 grabaciones antes de
+  emparejar, lo que además demostró ser inviable en memoria, ver
+  research.md #16.)
 
 ### Key Entities
 
@@ -355,7 +373,9 @@ subconjunto monofónico como en el polifónico.
   acierta contra cuál.
 - **SC-002**: El 100% de los aciertos reportados cumplen simultáneamente
   el criterio de tono y el de inicio -- ninguno se reporta como acierto
-  por cumplir solo uno de los dos.
+  por cumplir solo uno de los dos. El 100% de los aciertos, además,
+  emparejan una nota estimada con una de referencia de la MISMA
+  grabación -- el 0% son aciertos entre grabaciones distintas (FR-013).
 - **SC-003**: El 100% de las cifras reportadas (global, monofónica,
   polifónica) están acompañadas de cuántas notas de referencia se
   calcularon, y el 0% de los subconjuntos vacíos produce una cifra

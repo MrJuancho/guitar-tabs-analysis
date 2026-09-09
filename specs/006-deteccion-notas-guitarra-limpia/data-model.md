@@ -115,6 +115,7 @@ monofónico, o polifónico).
 | `balance_f1` | `float \| None` | `None` si `precision` o `exhaustividad` son `None` |
 | `num_notas_referencia` | `int` | Denominador real de `exhaustividad` -- se reporta aunque sea 0 (FR-008, nunca una cifra sin decir con cuántos casos se calculó) |
 | `num_notas_estimadas` | `int` | Denominador real de `precision` |
+| `verdaderos_positivos` | `int` | Conteo crudo de notas acertadas (`len(matching)` de `mir_eval.transcription.match_notes`) -- agregado en `/speckit-implement` (research.md #16, FR-013) para que `agregar_conjunto` pueda SUMAR conteos entre grabaciones y derivar la razón final, en vez de emparejar un pool de notas crudas de grabaciones distintas (defecto real: OOM medido en ~61 GB, y aciertos espurios entre clips sin relación) |
 
 `frozen=True`.
 

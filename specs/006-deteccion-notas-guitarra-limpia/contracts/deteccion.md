@@ -116,10 +116,14 @@ def evaluar_subconjunto(
     notas_referencia: list[NotaReferencia],
     notas_estimadas: list[NotaEstimada],
 ) -> ResultadoSubconjunto:
-    """Acierto/emparejamiento vía mir_eval.transcription sobre un
-    conjunto de notas SIN partir por polifonía -- el bloque que
-    evaluar_grabacion/agregar_conjunto invocan una vez por subconjunto
-    (global, monofónico, polifónico)."""
+    """Acierto/emparejamiento vía mir_eval.transcription sobre las notas
+    de UNA grabación (o un subconjunto de ellas, mono/poli), SIN partir
+    por polifonía dentro de esta función -- esa partición es
+    responsabilidad de quien la invoca (evaluar_grabacion). MUST NOT
+    recibir notas de más de una grabación a la vez (research.md #16,
+    FR-013) -- el resultado incluye `verdaderos_positivos` (el conteo de
+    aciertos, no solo las razones ya divididas) para que agregar_conjunto
+    pueda sumarlo entre grabaciones sin volver a emparejar."""
     ...
 
 def clasificar_polifonia_en_instante(
@@ -137,8 +141,13 @@ def evaluar_grabacion(
 def agregar_conjunto(
     resultados: list[ResultadoDeteccionGrabacion],
 ) -> tuple[ResultadoSubconjunto, ResultadoSubconjunto, ResultadoSubconjunto]:
-    """Mismo cálculo que evaluar_grabacion, pero sobre el pool de todas
-    las grabaciones exitosas del conjunto (nunca sobre las excluidas)."""
+    """Emparejamiento SIEMPRE dentro de cada grabación no excluida
+    (evaluar_grabacion, una vez por grabación) -- MUST NOT juntar notas
+    crudas de grabaciones distintas antes de emparejar (FR-013,
+    research.md #16). Agrega SUMANDO los conteos ya resueltos
+    (verdaderos_positivos, num_notas_referencia, num_notas_estimadas) de
+    cada grabación, y deriva precisión/exhaustividad/balance de esa suma
+    -- nunca de un pool de notas ni de un promedio de resultados."""
     ...
 ```
 
@@ -156,42 +165,56 @@ ambos tipos desde aquí.
 
 ### Postcondiciones
 
-1. **Acierto sobre un conjunto sin partir (FR-003/FR-004/FR-005).**
-   `evaluar_subconjunto` MUST calcular el emparejamiento con
-   `mir_eval.transcription` (`onset_tolerance=0.05`, `pitch_tolerance=50.0`,
-   `offset_ratio=None`, research.md #3/#4/#5) sobre las listas que recibe
-   tal cual, sin ninguna partición por polifonía -- esa partición es
-   responsabilidad exclusiva de quien la invoca (`evaluar_grabacion`/
-   `agregar_conjunto`, postcondición 3 más abajo), nunca de esta función.
+1. **Acierto sobre las notas de una grabación, nunca entre grabaciones
+   (FR-003/FR-004/FR-005/FR-013, research.md #16).** `evaluar_subconjunto`
+   MUST calcular el emparejamiento con `mir_eval.transcription.match_notes`
+   (`onset_tolerance=0.05`, `pitch_tolerance=50.0`, `offset_ratio=None`,
+   research.md #3/#4/#5) sobre las listas que recibe tal cual -- MUST
+   asumir que ambas listas pertenecen a la MISMA grabación (esta función
+   no lo verifica por sí misma; es responsabilidad de quien la invoca no
+   pasarle notas pooleadas de grabaciones distintas). MUST devolver,
+   además de precisión/exhaustividad/balance, `verdaderos_positivos`
+   (`len(matching)`) -- el conteo crudo, no solo las razones ya
+   divididas, para que pueda sumarse entre grabaciones sin reemparejar
+   (postcondición 5). Ninguna partición por polifonía ocurre dentro de
+   esta función -- responsabilidad de quien la invoca (`evaluar_grabacion`,
+   postcondición 4), nunca de esta función.
 2. **Subconjunto vacío (FR-008).** Si `notas_referencia` está vacía,
    `evaluar_subconjunto` MUST devolver `exhaustividad=None` (nunca una
    división por cero); si `notas_estimadas` está vacía, MUST devolver
    `precision=None`; si ambas condiciones aplican, ambos campos (y
-   `balance_f1`) son `None`. Este guard ocurre **antes** de invocar
-   `mir_eval`, sin depender de cómo se comporte esa librería ante una
-   entrada vacía (a verificar contra su código fuente real en
-   `/speckit-implement`, no supuesto aquí).
+   `balance_f1`) son `None` y `verdaderos_positivos=0`. Este guard ocurre
+   **antes** de invocar `mir_eval.transcription.match_notes` (que no se
+   invoca en absoluto si cualquiera de las dos listas está vacía).
 3. **Clasificación (FR-006, research.md #8).** `clasificar_polifonia_en_instante`
    MUST devolver `"polifonica"` si dos o más notas de `notas_referencia`
    solapan `instante_s`, `"monofonica"` en cualquier otro caso (incluido
    el caso degenerado de cero referencias solapando).
-4. **Partición por polifonía (FR-003/FR-004/FR-005, research.md #9).**
-   `evaluar_grabacion` MUST partir primero el conjunto de notas
-   (referencia y estimadas) en monofónico/polifónico vía
+4. **Partición por polifonía dentro de una grabación (FR-003/FR-004/
+   FR-005/FR-013, research.md #9).** `evaluar_grabacion` MUST partir
+   primero el conjunto de notas de UNA grabación (referencia y
+   estimadas) en monofónico/polifónico vía
    `clasificar_polifonia_en_instante` (postcondición 3), y llamar
    `evaluar_subconjunto` (postcondición 1) **una vez por subconjunto**
    -- global (sin partir), monofónico, polifónico -- nunca calculando un
-   emparejamiento global y dividiendo el resultado después.
-5. **Agregación (FR-007).** `agregar_conjunto` MUST combinar el pool de
-   notas de todas las grabaciones **no excluidas** antes de partir por
-   polifonía y evaluar -- clasificando las notas de cada grabación contra
-   las referencias de esa misma grabación (nunca cruzando grabaciones),
-   acumulando en tres pools (global/mono/poli) a través de todas las
-   grabaciones, e invocando `evaluar_subconjunto` una vez por pool --
-   nunca promedia los resultados de `evaluar_grabacion` calculados por
-   grabación (evitaría, por ejemplo, que una grabación con muchas notas
-   pesara más que una con pocas, que es exactamente el comportamiento
-   esperado de una métrica agregada, no promediada).
+   emparejamiento global y dividiendo el resultado después. Las tres
+   listas de notas que recibe (y las que arma para cada subconjunto)
+   pertenecen siempre a esa única grabación.
+5. **Agregación por SUMA DE CONTEOS, nunca por pool de notas (FR-007/
+   FR-013, research.md #16 -- corregido tras el hallazgo de OOM en
+   `/speckit-implement`).** `agregar_conjunto` MUST llamar
+   `evaluar_grabacion` (postcondición 4) **una vez por grabación no
+   excluida**, sobre las notas de ESA grabación únicamente -- MUST NOT,
+   en ningún punto, construir una lista de notas que combine dos o más
+   grabaciones antes de invocar `evaluar_subconjunto`/`match_notes`.
+   Para cada uno de los tres subconjuntos (global/mono/poli), MUST sumar
+   `verdaderos_positivos`, `num_notas_referencia` y `num_notas_estimadas`
+   de todas las grabaciones no excluidas, y derivar la
+   precisión/exhaustividad/balance final de esa suma (mismo guard de
+   denominador cero que la postcondición 2, aplicado a los conteos ya
+   sumados) -- nunca promedia los `ResultadoSubconjunto` calculados por
+   grabación (una grabación con muchas notas debe pesar más que una con
+   pocas).
 
 ## `deteccion.orquestador`
 

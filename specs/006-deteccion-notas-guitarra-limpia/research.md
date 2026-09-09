@@ -491,3 +491,99 @@ estimado" de research.md #12), no se asume. Relajar `requires-python`
 del proyecto principal a `>=3.10` para evitar un segundo entorno --
 descartado explícitamente por esta sesión: el proyecto principal no baja
 de 3.12.
+
+## 16. `agregar_conjunto` no debe emparejar notas crudas pooleadas -- corrección de #9, con evidencia real de OOM
+
+**Contexto real, no hipotético**: `just detectar medibles <root_dir>`
+sobre las 288 grabaciones reales de GuitarSet fue matado por el kernel
+(OOM, señal 9) dos veces, consumiendo del orden de 61 GB. Diagnóstico
+completo en la sesión de `/speckit-implement` correspondiente, medido
+antes de tocar código (AGENTS.md, "Regla: primero el test rojo... /
+Una afirmación cuantitativa se verifica numéricamente").
+
+**Lo que el diagnóstico DESCARTÓ, con medición, no solo lectura de
+código**: instrumentar `leer_grabacion`+`BasicPitchTranscriptor.transcribir`
+sobre 25 grabaciones reales, midiendo RSS del proceso padre después de
+cada una, dio una curva CHATA (151 MB inicial, sube a ~220 MB en la
+primera iteración por imports, se mantiene en 220-232 MB durante las 24
+restantes) -- ninguna acumulación por grabación. Confirmado además
+leyendo el código fuente real instalado de `mirdata` (`Dataset.track()`
+construye un `Track` nuevo cada vez, sin cachear nada a nivel de
+`Dataset`; `Track.audio_mic` es una `@property` común, no
+`@cached_property`; `leer_grabacion` nunca la toca, solo usa
+`audio_mic_path` -- un string -- y `notes_all`, anotaciones, no audio).
+`ResultadoDeteccionGrabacion` nunca guardó la lectura completa, solo las
+listas de notas ya extraídas (verificado, no solo diseñado así).
+
+**La causa real, medida**: `agregar_conjunto` pooleaba las notas de
+referencia y estimadas de las 288 grabaciones en dos listas únicas
+(hasta ~57.600 notas de referencia) y llamaba
+`analytics.metrica_deteccion_notas.evaluar_subconjunto` (research.md #9,
+T009) **una sola vez** sobre ese pool -- para el subconjunto global, y
+de nuevo para monofónico y polifónico. Adentro,
+`mir_eval.transcription.match_notes` (research.md #5) construye
+matrices densas N×M vía `np.subtract.outer` (distancias de onset, de
+tono, y las máscaras booleanas resultantes) -- memoria **cuadrática** en
+el tamaño del pool. Confirmado escalando `evaluar_subconjunto` con notas
+sintéticas, midiendo `resource.getrusage().ru_maxrss`:
+
+```
+N_ref= 1000  N_est=  900   delta=   22.2 MB
+N_ref= 3000  N_est= 2700   delta=  172.9 MB   (~8x por 3x más notas)
+N_ref= 6000  N_est= 5400   delta=  581.5 MB   (~26x por 6x más notas)
+N_ref=12000  N_est=10800   delta= 2320.9 MB   (~104x por 12x más notas)
+```
+
+Extrapolando la tendencia cuadrática a la escala real (~57.600 notas de
+referencia pooleadas) da del orden de ~53 GB solo para la matriz global
+-- consistente con los ~61 GB observados, sumando monofónico/polifónico.
+
+**El defecto no es solo de memoria -- es de corrección de la métrica,
+más grave.** Emparejar notas pooleadas de grabaciones distintas permite
+que una nota de la grabación A se acredite contra una de la grabación B
+si sus instantes de inicio relativos caen dentro de los 50 ms de
+tolerancia -- coincidencia estructuralmente probable entre clips de
+~30 s con onsets independientes, no un caso de laboratorio raro. Esos
+aciertos son espurios: no dicen nada sobre si el modelo detectó bien esa
+nota, solo que dos clips sin relación tuvieron un reloj relativo
+parecido. Las cifras que el diseño pooled habría producido (si hubiera
+tenido memoria suficiente para terminar) estaban infladas por este
+efecto -- FR-013 de `spec.md` fija esto como requisito explícito de
+corrección, no como optimización de rendimiento.
+
+**Decision**: emparejar SIEMPRE dentro de una única grabación
+(`evaluar_grabacion`, ya lo hacía correctamente desde T019 -- el defecto
+estaba únicamente en `agregar_conjunto`), acumulando los **conteos** ya
+resueltos (`verdaderos_positivos`, `num_notas_referencia`,
+`num_notas_estimadas`) por grabación, y derivar precisión/exhaustividad/
+balance de la SUMA de esos conteos entre grabaciones -- nunca de un
+pool de notas crudas. `evaluar_subconjunto` (T009) se extiende para
+exponer `verdaderos_positivos` en `ResultadoSubconjunto` -- antes
+calculaba precisión/exhaustividad/balance con
+`mir_eval.transcription.precision_recall_f1_overlap` (que descarta el
+conteo de aciertos, solo devuelve las tres razones ya divididas más
+`avg_overlap_ratio`, que este proyecto tampoco usa); ahora llama
+`mir_eval.transcription.match_notes` directamente (research.md #5: sigue
+siendo mir_eval quien resuelve el emparejamiento, no una reimplementación
+propia) y deriva las tres razones con la misma fórmula exacta que
+`precision_recall_f1_overlap` usa internamente
+(`precision=TP/num_est`, `exhaustividad=TP/num_ref`,
+`balance_f1=mir_eval.util.f_measure(precision, exhaustividad)` --
+verificado línea por línea contra el código fuente real de
+`precision_recall_f1_overlap`, mismo resultado exacto, ahora con el
+conteo intermedio expuesto). `mir_eval.transcription.validate(...)` se
+llama explícitamente antes de `match_notes` (antes la hacía
+`precision_recall_f1_overlap` por dentro) para no perder la validación
+de intervalos/formas que ya existía.
+
+Con este diseño, cada llamada a `match_notes` opera sobre las notas de
+UNA grabación (del orden de 100-500 notas de referencia, matrices de
+~500×500 ≈ 2 MB) -- la memoria deja de escalar con el tamaño del
+conjunto agregado, escala con el tamaño de la grabación más grande, que
+research.md #9 ya fijó en un orden de magnitud manejable.
+
+**Alternatives considered**: mantener el pool pero acotar su tamaño (p.
+ej. lotes de N grabaciones) -- descartado porque no resuelve el defecto
+de corrección (dos grabaciones del mismo lote seguirían pudiendo
+emparejarse entre sí), solo lo reduce en magnitud; el rediseño por
+conteos lo elimina por completo, no lo mitiga.
