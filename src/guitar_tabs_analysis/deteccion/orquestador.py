@@ -18,7 +18,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import mirdata
 
@@ -26,11 +26,16 @@ from guitar_tabs_analysis.analytics.metrica_deteccion_notas import (
     TOLERANCIA_TONO_CENTS,
     VENTANA_INICIO_S,
     ExclusionDeteccion,
+    NotaEstimada,
     ResultadoDeteccionGrabacion,
     ResultadoSubconjunto,
     agregar_conjunto,
 )
-from guitar_tabs_analysis.ingestion.guitarset import GrabacionNoExisteError, leer_grabacion
+from guitar_tabs_analysis.ingestion.guitarset import (
+    GrabacionNoExisteError,
+    NotaReferencia,
+    leer_grabacion,
+)
 from guitar_tabs_analysis.transcripcion.transcriptor import (
     ModeloTranscripcionDeclarado,
     TranscripcionFallidaError,
@@ -187,3 +192,78 @@ def ejecutar_deteccion(
         monofonico=monofonico,
         polifonico=polifonico,
     )
+
+
+# ---------------------------------------------------------------------
+# Serialización de ArtefactoDeteccion (T030) -- función pura, sin tocar
+# disco (quien escribe el archivo final es `deteccion.cli`, Fase 7).
+# Mismo patrón exacto que `medicion.orquestador.artefacto_a_dict`.
+# ---------------------------------------------------------------------
+
+
+def _nota_referencia_a_dict(nota: NotaReferencia) -> dict[str, Any]:
+    return {"tono_midi": nota.tono_midi, "inicio_s": nota.inicio_s, "fin_s": nota.fin_s}
+
+
+def _nota_estimada_a_dict(nota: NotaEstimada) -> dict[str, Any]:
+    return {"tono_midi": nota.tono_midi, "inicio_s": nota.inicio_s, "fin_s": nota.fin_s}
+
+
+def _exclusion_a_dict(exclusion: ExclusionDeteccion) -> dict[str, Any]:
+    return {"grabacion_id": exclusion.grabacion_id, "detalle": exclusion.detalle}
+
+
+def _resultado_subconjunto_a_dict(resultado: ResultadoSubconjunto) -> dict[str, Any]:
+    return {
+        "precision": resultado.precision,
+        "exhaustividad": resultado.exhaustividad,
+        "balance_f1": resultado.balance_f1,
+        "num_notas_referencia": resultado.num_notas_referencia,
+        "num_notas_estimadas": resultado.num_notas_estimadas,
+    }
+
+
+def _resultado_deteccion_grabacion_a_dict(resultado: ResultadoDeteccionGrabacion) -> dict[str, Any]:
+    return {
+        "grabacion_id": resultado.grabacion_id,
+        "notas_referencia": (
+            [_nota_referencia_a_dict(nota) for nota in resultado.notas_referencia]
+            if resultado.notas_referencia is not None
+            else None
+        ),
+        "notas_estimadas": (
+            [_nota_estimada_a_dict(nota) for nota in resultado.notas_estimadas]
+            if resultado.notas_estimadas is not None
+            else None
+        ),
+        "exclusion": (
+            _exclusion_a_dict(resultado.exclusion) if resultado.exclusion is not None else None
+        ),
+    }
+
+
+def artefacto_a_dict(artefacto: ArtefactoDeteccion) -> dict[str, Any]:
+    """`dict` JSON-compatible con todo lo que FR-011 exige: modelo
+    declarado, tolerancia de tono y ventana de inicio aplicadas, la lista
+    de grabaciones, las exclusiones con su motivo, los resultados crudos
+    por grabación, y el desglose global/monofónico/polifónico de las tres
+    cifras."""
+    return {
+        "modelo": {
+            "nombre": artefacto.modelo.nombre,
+            "variante": artefacto.modelo.variante,
+            "firma": artefacto.modelo.firma,
+            "backend": artefacto.modelo.backend,
+            "licencia": artefacto.modelo.licencia,
+        },
+        "tolerancia_tono_cents": artefacto.tolerancia_tono_cents,
+        "ventana_inicio_s": artefacto.ventana_inicio_s,
+        "grabaciones": artefacto.grabaciones,
+        "exclusiones": [_exclusion_a_dict(e) for e in artefacto.exclusiones],
+        "resultados_por_grabacion": [
+            _resultado_deteccion_grabacion_a_dict(r) for r in artefacto.resultados_por_grabacion
+        ],
+        "global": _resultado_subconjunto_a_dict(artefacto.global_),
+        "monofonico": _resultado_subconjunto_a_dict(artefacto.monofonico),
+        "polifonico": _resultado_subconjunto_a_dict(artefacto.polifonico),
+    }
