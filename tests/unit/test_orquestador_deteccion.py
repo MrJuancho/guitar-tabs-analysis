@@ -30,9 +30,7 @@ class _DatasetFalsoTrackIds:
         self.track_ids = track_ids
 
 
-def _monkeypatch_mirdata_track_ids(
-    monkeypatch: pytest.MonkeyPatch, track_ids: list[str]
-) -> None:
+def _monkeypatch_mirdata_track_ids(monkeypatch: pytest.MonkeyPatch, track_ids: list[str]) -> None:
     def _initialize_falso(nombre: str, data_home: str) -> _DatasetFalsoTrackIds:
         assert nombre == "guitarset"
         return _DatasetFalsoTrackIds(track_ids)
@@ -60,9 +58,7 @@ def test_medibles_nunca_incluye_ninguna_de_las_72_reservadas_recalculadas(
     en el resultado de `modo="medibles"`."""
     _monkeypatch_mirdata_track_ids(monkeypatch, _IDS_SINTETICOS_DESORDENADOS)
 
-    reservados_esperados = set(
-        random.Random(20260908).sample(_IDS_SINTETICOS_ORDENADOS, 72)
-    )
+    reservados_esperados = set(random.Random(20260908).sample(_IDS_SINTETICOS_ORDENADOS, 72))
 
     medibles = construir_lista_grabaciones("medibles", Path("/cualquier/ruta"))
 
@@ -74,9 +70,7 @@ def test_reservado_devuelve_exactamente_los_72_recalculados(
 ) -> None:
     _monkeypatch_mirdata_track_ids(monkeypatch, _IDS_SINTETICOS_DESORDENADOS)
 
-    reservados_esperados = sorted(
-        random.Random(20260908).sample(_IDS_SINTETICOS_ORDENADOS, 72)
-    )
+    reservados_esperados = sorted(random.Random(20260908).sample(_IDS_SINTETICOS_ORDENADOS, 72))
 
     reservado = construir_lista_grabaciones("reservado", Path("/cualquier/ruta"))
 

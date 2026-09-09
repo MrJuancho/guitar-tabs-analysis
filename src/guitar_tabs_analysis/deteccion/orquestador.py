@@ -15,8 +15,12 @@ el contrato completo (T023, User Story 3).
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
+
+import mirdata
 
 from guitar_tabs_analysis.analytics.metrica_deteccion_notas import (
     TOLERANCIA_TONO_CENTS,
@@ -32,6 +36,56 @@ from guitar_tabs_analysis.transcripcion.transcriptor import (
     TranscripcionFallidaError,
     Transcriptor,
 )
+
+# ---------------------------------------------------------------------
+# construir_lista_grabaciones (T028) -- contracts/deteccion.md,
+# postcondición 1 de `deteccion.orquestador`, research.md #14.
+# ---------------------------------------------------------------------
+
+SEMILLA_RESERVA_HITO2 = 20260908
+"""research.md #14 -- 72 de 360 grabaciones de GuitarSet (20%) reservadas
+para el cierre del hito 2, Principio VI de la constitución v1.8.0."""
+
+TAMANO_RESERVA_HITO2 = 72
+
+
+def construir_lista_grabaciones(
+    modo: Literal["medibles", "reservado"],
+    root_dir: Path,
+    *,
+    tamano_reserva: int = TAMANO_RESERVA_HITO2,
+    semilla_reserva: int = SEMILLA_RESERVA_HITO2,
+) -> list[str]:
+    """Deriva la partición medibles/reservado de GuitarSet EN VIVO de
+    `semilla_reserva` en cada invocación -- MUST NOT leer ni escribir
+    ningún archivo de manifiesto (research.md #14, corrección de
+    T028/Fase 7: la decisión original preveía un manifiesto persistido en
+    `tests/holdout/`, descartada a favor de esto -- un manifiesto
+    cacheado en disco no reflejaría un cambio de `semilla_reserva` en el
+    código, este cálculo sí).
+
+    Enumera los identificadores de GuitarSet vía `dataset.track_ids`
+    (`mirdata.core.Dataset`, verificado contra su código fuente real,
+    instalado en este proyecto -- `mirdata/core.py` línea 466), los
+    ordena (reproducibilidad, mismo criterio que
+    `medicion.orquestador.construir_lista_temas`, cuyo orden de
+    `mirdata`/`os.listdir` no tiene garantía propia de estabilidad), y
+    calcula `random.Random(semilla_reserva).sample(todos, tamano_reserva)`
+    una única vez: con `modo="reservado"` devuelve esa muestra (ordenada);
+    con `modo="medibles"` devuelve el complemento exacto, en el mismo
+    orden que `todos` -- ambos derivados del mismo cálculo, así que son
+    complementarios por construcción (unión = `todos`, intersección
+    vacía), nunca dos invocaciones de `random.Random` con parámetros
+    distintos que podrían divergir.
+    """
+    dataset = mirdata.initialize("guitarset", data_home=str(root_dir))
+    todos = sorted(dataset.track_ids)
+    reservados = set(random.Random(semilla_reserva).sample(todos, tamano_reserva))
+    if modo == "reservado":
+        return sorted(reservados)
+    if modo == "medibles":
+        return [grabacion_id for grabacion_id in todos if grabacion_id not in reservados]
+
 
 # ---------------------------------------------------------------------
 # ArtefactoDeteccion -- data-model.md. Vive aquí (no en `analytics`):
