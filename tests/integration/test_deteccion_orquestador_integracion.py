@@ -330,3 +330,42 @@ def test_ejecutar_deteccion_grabacion_sin_notas_de_referencia_se_mide_no_se_excl
     assert resultado.notas_referencia == []
     assert artefacto.global_.exhaustividad is None
     assert artefacto.global_.precision == 0.0
+
+
+# ---------------------------------------------------------------------
+# Salida de progreso (T032a) -- mismo patrón exacto que
+# medicion.orquestador.ejecutar_corrida (commit "salida de progreso en
+# ejecutar_corrida"), sin la parte de "ya procesados, se omiten": este
+# orquestador no tiene persistencia por grabación ni reanudación.
+# ---------------------------------------------------------------------
+
+
+def test_ejecutar_deteccion_imprime_una_linea_por_grabacion_y_un_aviso_al_agregar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Sin esto, una corrida larga trabaja en silencio -- mismo motivo
+    exacto que motivó el patrón en `medicion.orquestador.ejecutar_corrida`
+    (proceso vivo confundido con muerto, condición de carrera real)."""
+    track_ok = _TrackFalso(
+        audio_mic_path="/datos/rec_ok_mic.wav",
+        notes_all=_NoteDataFalso(intervals=np.array([[0.0, 0.5]]), pitches=np.array([60.0])),
+    )
+    dataset = _DatasetFalso({"rec_ok": track_ok})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+    transcriptor = _TranscriptorSelectivo(
+        fallos={},
+        notas={"rec_ok_mic.wav": [NotaEstimada(tono_midi=60.0, inicio_s=0.01, fin_s=0.5)]},
+    )
+
+    ejecutar_deteccion(["rec_ok", "rec_no_existe"], tmp_path, transcriptor)
+
+    salida = capsys.readouterr().out
+    lineas = salida.splitlines()
+    assert "[1/2] rec_ok  ok  " in lineas[0]
+    assert lineas[0].rstrip().endswith("1 notas")
+    assert (
+        lineas[1]
+        == "[2/2] rec_no_existe  excluido: La grabación 'rec_no_existe' "
+        "no existe en el índice de GuitarSet."
+    )
+    assert lineas[2] == "agregando 2 grabaciones"
