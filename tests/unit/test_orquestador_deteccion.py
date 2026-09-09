@@ -6,13 +6,26 @@ se descarga GuitarSet real (constitución Principio IV).
 
 from __future__ import annotations
 
+import json
 import random
 from pathlib import Path
 
 import pytest
 
+from guitar_tabs_analysis.analytics.metrica_deteccion_notas import (
+    ExclusionDeteccion,
+    NotaEstimada,
+    ResultadoDeteccionGrabacion,
+    ResultadoSubconjunto,
+)
 from guitar_tabs_analysis.deteccion import orquestador
-from guitar_tabs_analysis.deteccion.orquestador import construir_lista_grabaciones
+from guitar_tabs_analysis.deteccion.orquestador import (
+    ArtefactoDeteccion,
+    artefacto_a_dict,
+    construir_lista_grabaciones,
+)
+from guitar_tabs_analysis.ingestion.guitarset import NotaReferencia
+from guitar_tabs_analysis.transcripcion.transcriptor import ModeloTranscripcionDeclarado
 
 # ---------------------------------------------------------------------
 # construir_lista_grabaciones (T028-T029) -- contracts/deteccion.md,
@@ -120,3 +133,126 @@ def test_semilla_reserva_distinta_cambia_por_completo_el_conjunto_reservado(
     )
 
     assert set(reservado_semilla_por_defecto) & set(reservado_otra_semilla) == set()
+
+
+# ---------------------------------------------------------------------
+# artefacto_a_dict (T030-T031) -- contracts/deteccion.md, FR-011.
+# ---------------------------------------------------------------------
+
+
+def _artefacto_de_prueba() -> ArtefactoDeteccion:
+    return ArtefactoDeteccion(
+        modelo=ModeloTranscripcionDeclarado(
+            nombre="Basic Pitch",
+            variante="icassp_2022",
+            firma="3db297d5",
+            backend="tflite",
+            licencia="Apache-2.0 -- solo para tests",
+        ),
+        tolerancia_tono_cents=50.0,
+        ventana_inicio_s=0.05,
+        grabaciones=["00_BN1-129-Eb_comp", "99_excluida"],
+        exclusiones=[ExclusionDeteccion("99_excluida", "la transcripción falló: ...")],
+        resultados_por_grabacion=[
+            ResultadoDeteccionGrabacion(
+                grabacion_id="00_BN1-129-Eb_comp",
+                notas_referencia=[NotaReferencia(tono_midi=60.0, inicio_s=1.0, fin_s=1.5)],
+                notas_estimadas=[NotaEstimada(tono_midi=60.0, inicio_s=1.01, fin_s=1.4)],
+                exclusion=None,
+            ),
+            ResultadoDeteccionGrabacion(
+                grabacion_id="99_excluida",
+                notas_referencia=None,
+                notas_estimadas=None,
+                exclusion=ExclusionDeteccion("99_excluida", "la transcripción falló: ..."),
+            ),
+        ],
+        global_=ResultadoSubconjunto(
+            precision=1.0,
+            exhaustividad=1.0,
+            balance_f1=1.0,
+            num_notas_referencia=1,
+            num_notas_estimadas=1,
+        ),
+        monofonico=ResultadoSubconjunto(
+            precision=1.0,
+            exhaustividad=1.0,
+            balance_f1=1.0,
+            num_notas_referencia=1,
+            num_notas_estimadas=1,
+        ),
+        polifonico=ResultadoSubconjunto(
+            precision=None,
+            exhaustividad=None,
+            balance_f1=None,
+            num_notas_referencia=0,
+            num_notas_estimadas=0,
+        ),
+    )
+
+
+def test_artefacto_a_dict_expone_las_claves_de_nivel_superior_de_fr011() -> None:
+    """FR-011: modelo, tolerancia, ventana, grabaciones, exclusiones con
+    motivo, resultados por grabación, y el desglose global/monofónico/
+    polifónico."""
+    datos = artefacto_a_dict(_artefacto_de_prueba())
+
+    assert set(datos.keys()) == {
+        "modelo",
+        "tolerancia_tono_cents",
+        "ventana_inicio_s",
+        "grabaciones",
+        "exclusiones",
+        "resultados_por_grabacion",
+        "global",
+        "monofonico",
+        "polifonico",
+    }
+
+
+def test_artefacto_a_dict_no_pierde_ningun_valor_en_el_round_trip_json() -> None:
+    artefacto = _artefacto_de_prueba()
+
+    datos = artefacto_a_dict(artefacto)
+    recuperado = json.loads(json.dumps(datos))
+
+    assert recuperado == datos
+    assert recuperado["modelo"] == {
+        "nombre": "Basic Pitch",
+        "variante": "icassp_2022",
+        "firma": "3db297d5",
+        "backend": "tflite",
+        "licencia": "Apache-2.0 -- solo para tests",
+    }
+    assert recuperado["grabaciones"] == ["00_BN1-129-Eb_comp", "99_excluida"]
+    assert recuperado["exclusiones"] == [
+        {"grabacion_id": "99_excluida", "detalle": "la transcripción falló: ..."}
+    ]
+    assert recuperado["resultados_por_grabacion"] == [
+        {
+            "grabacion_id": "00_BN1-129-Eb_comp",
+            "notas_referencia": [{"tono_midi": 60.0, "inicio_s": 1.0, "fin_s": 1.5}],
+            "notas_estimadas": [{"tono_midi": 60.0, "inicio_s": 1.01, "fin_s": 1.4}],
+            "exclusion": None,
+        },
+        {
+            "grabacion_id": "99_excluida",
+            "notas_referencia": None,
+            "notas_estimadas": None,
+            "exclusion": {"grabacion_id": "99_excluida", "detalle": "la transcripción falló: ..."},
+        },
+    ]
+    assert recuperado["global"] == {
+        "precision": 1.0,
+        "exhaustividad": 1.0,
+        "balance_f1": 1.0,
+        "num_notas_referencia": 1,
+        "num_notas_estimadas": 1,
+    }
+    assert recuperado["polifonico"] == {
+        "precision": None,
+        "exhaustividad": None,
+        "balance_f1": None,
+        "num_notas_referencia": 0,
+        "num_notas_estimadas": 0,
+    }
