@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/block_holdout.py"
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/block_holdout.py\" || exit 2"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/ruff_on_edit.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ruff_on_edit.sh\""
           }
         ]
       }
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/gauntlet_stop.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/gauntlet_stop.sh\" || exit 2"
           }
         ]
       }

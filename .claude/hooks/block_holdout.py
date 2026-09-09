@@ -7,6 +7,21 @@ de cualquier tipo), se BLOQUEA por defecto en vez de dejar pasar. Es la
 lección fundacional de este patrón: un hook que depende de una herramienta
 ausente (originalmente `jq`) y cae a `exit 0` en silencio deja de proteger
 sin que nadie se entere.
+
+Nota sobre el caso 5 de esa misma deuda
+(docs/adr/0001-arquitectura-del-guantelete.md, sección 9): este script no
+tenía lógica propia dependiente del directorio de trabajo (compara un
+substring contra `file_path`, que Claude Code entrega absoluto), pero la
+forma en que `settings.json` lo invocaba sí -- `python3
+.claude/hooks/block_holdout.py` con ruta relativa fallaba con "No such
+file or directory" si el cwd del proceso que dispara el hook no era la
+raíz del proyecto, y ese fallo de invocación (código de salida distinto
+de 2) NO bloqueaba el evento PreToolUse pese a que este script está
+diseñado para fallar cerrado -- el fallo ocurría antes de que una sola
+línea de este archivo corriera. Corregido en `settings.json`:
+`${CLAUDE_PROJECT_DIR}` (ruta absoluta, variable oficial de Claude Code)
+más `|| exit 2` para que cualquier fallo de la invocación misma, no solo
+de la lógica interna, termine en el único código que de verdad bloquea.
 """
 
 from __future__ import annotations
