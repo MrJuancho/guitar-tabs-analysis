@@ -16,6 +16,7 @@ el contrato completo (T023, User Story 3).
 from __future__ import annotations
 
 import random
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -140,35 +141,53 @@ def ejecutar_deteccion(
     grabación, y las tres cifras (global/monofónico/polifónico)
     calculadas con `agregar_conjunto` sobre las grabaciones no excluidas
     -- MUST NOT comparar ninguna cifra contra ningún umbral (FR-009,
-    postcondición 3)."""
+    postcondición 3).
+
+    Salida de progreso (T032a, mismo patrón exacto que
+    `medicion.orquestador.ejecutar_corrida`): una línea por grabación al
+    terminarla (`[i/N] grabacion_id  ok  Xs  N notas` o `[i/N]
+    grabacion_id  excluido: detalle`), y un aviso al entrar a la
+    agregación (`agregando N grabaciones`) -- sin la parte de "ya
+    procesados, se omiten" del patrón original: este orquestador no
+    tiene persistencia por grabación ni reanudación, así que esa rama
+    nunca aplica."""
     resultados: list[ResultadoDeteccionGrabacion] = []
-    for grabacion_id in grabaciones:
+    total = len(grabaciones)
+    ancho_indice = len(str(total))
+    for indice, grabacion_id in enumerate(grabaciones, start=1):
+        prefijo = f"[{indice:>{ancho_indice}}/{total}] {grabacion_id}"
+        inicio = time.perf_counter()
         try:
             lectura = leer_grabacion(grabacion_id, root_dir)
         except GrabacionNoExisteError as causa:
+            exclusion = ExclusionDeteccion(grabacion_id, str(causa))
             resultados.append(
                 ResultadoDeteccionGrabacion(
                     grabacion_id=grabacion_id,
                     notas_referencia=None,
                     notas_estimadas=None,
-                    exclusion=ExclusionDeteccion(grabacion_id, str(causa)),
+                    exclusion=exclusion,
                 )
             )
+            print(f"{prefijo}  excluido: {exclusion.detalle}")
             continue
 
         try:
             notas_estimadas = transcriptor.transcribir(lectura.ruta_audio)
         except TranscripcionFallidaError as causa:
+            exclusion = ExclusionDeteccion(grabacion_id, str(causa))
             resultados.append(
                 ResultadoDeteccionGrabacion(
                     grabacion_id=grabacion_id,
                     notas_referencia=None,
                     notas_estimadas=None,
-                    exclusion=ExclusionDeteccion(grabacion_id, str(causa)),
+                    exclusion=exclusion,
                 )
             )
+            print(f"{prefijo}  excluido: {exclusion.detalle}")
             continue
 
+        duracion = time.perf_counter() - inicio
         resultados.append(
             ResultadoDeteccionGrabacion(
                 grabacion_id=grabacion_id,
@@ -177,7 +196,9 @@ def ejecutar_deteccion(
                 exclusion=None,
             )
         )
+        print(f"{prefijo}  ok  {duracion:.1f}s  {len(lectura.notas_referencia)} notas")
 
+    print(f"agregando {total} grabaciones")
     exclusiones = [r.exclusion for r in resultados if r.exclusion is not None]
     global_, monofonico, polifonico = agregar_conjunto(resultados)
 

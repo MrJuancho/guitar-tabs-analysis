@@ -364,8 +364,7 @@ def test_ejecutar_deteccion_imprime_una_linea_por_grabacion_y_un_aviso_al_agrega
     assert "[1/2] rec_ok  ok  " in lineas[0]
     assert lineas[0].rstrip().endswith("1 notas")
     assert (
-        lineas[1]
-        == "[2/2] rec_no_existe  excluido: La grabación 'rec_no_existe' "
+        lineas[1] == "[2/2] rec_no_existe  excluido: La grabación 'rec_no_existe' "
         "no existe en el índice de GuitarSet."
     )
     assert lineas[2] == "agregando 2 grabaciones"
