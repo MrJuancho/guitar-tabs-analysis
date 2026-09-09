@@ -364,17 +364,29 @@ real de medición, porque esta feature no entrena ni afina. La semilla
 hito 1, Feature 004) -- la fecha de la decisión, no un valor con ningún
 significado adicional.
 
-**Mecanismo, verificado no supuesto**: el manifiesto de las 72
-grabaciones reservadas se persistirá en
-`tests/holdout/guitarset_reservado_hito2.json` (formato exacto a
-confirmar en `/speckit-implement` -- lista de `grabacion_id`, mismo
-espíritu que cualquier otro artefacto derivado de este proyecto,
-Principio IX), protegido por el hook `PreToolUse` ya existente
-(`.claude/hooks/block_holdout.py`), que bloquea cualquier `Edit`/`Write`
-cuya ruta contenga `"tests/holdout/"` -- verificado contra el código
-fuente real del hook, no supuesto: el chequeo es un `in` de substring
-sobre la ruta, así que un archivo nuevo bajo ese directorio queda
-protegido sin ningún cambio al hook en sí.
+**Mecanismo -- corregido en `/speckit-implement` (T028, Fase 7): SIN
+manifiesto persistido.** La decisión original de este apartado preveía
+un archivo `tests/holdout/guitarset_reservado_hito2.json` protegido por
+el hook `PreToolUse`. Se descarta a favor de algo más fuerte, pedido
+explícito de esa sesión: **la reserva se deriva de la semilla en cada
+invocación, nunca se lee de una lista escrita a mano ni cacheada en
+disco**. `construir_lista_grabaciones(modo, root_dir, *,
+tamano_reserva=72, semilla_reserva=20260908)`
+(`deteccion/orquestador.py`) enumera los identificadores reales de
+GuitarSet vía `mirdata`, ordenados, y calcula
+`random.Random(semilla_reserva).sample(todos, tamano_reserva)` -- ese
+mismo cálculo, con `modo="reservado"`, da las 72; con
+`modo="medibles"`, da el complemento (288). Un manifiesto estático
+tendría un defecto real: si alguien cambiara `semilla_reserva` en el
+código, un archivo cacheado en disco NO cambiaría solo, y la partición
+efectiva (la que el archivo describe) quedaría desincronizada de la que
+el código dice usar -- exactamente el tipo de fuente-de-verdad-doble que
+este proyecto evita en otros lados (p. ej. por qué `uv.lock` se verifica
+contra `pyproject.toml` en vez de asumirse). Con cálculo en vivo, cambiar
+la semilla cambia la partición completa de forma automática y visible en
+el diff del propio código -- no hace falta ningún hook de protección de
+archivo para esta reserva en particular (el hook de `tests/holdout/`
+sigue existiendo para lo que ya protegía, esto no lo toca).
 
 **Alternatives considered**: partir GuitarSet por intérprete (GuitarSet
 distribuye grabaciones de 6 guitarristas, un criterio de partición común

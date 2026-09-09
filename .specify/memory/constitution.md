@@ -1,5 +1,29 @@
 <!--
 Sync Impact Report
+- Version change: 1.8.0 → 1.8.1
+- Fuente: `/speckit-implement` de la Feature 006 (T028-T035, Fase 7 --
+  CLI y filtro de la reserva) decidió el mecanismo real de la reserva de
+  GuitarSet: cálculo en vivo desde la semilla, sin manifiesto
+  persistido -- distinto de lo que v1.8.0 había previsto
+  (`tests/holdout/guitarset_reservado_hito2.json` + hook de protección).
+- Bump PATCH: corrige CÓMO se implementa un mecanismo ya decidido -- el
+  número (72/360) y la semilla (`20260908`) no cambian, tampoco el
+  propósito de la reserva; es una aclaración de mecanismo, no una nueva
+  decisión ni la eliminación de una ya tomada.
+
+- Principios modificados en v1.8.1 (contenido, no título ni posición):
+  VI.   "Evaluación cuantitativa y verificación cualitativa son
+        distintas" -- el bloque "Mecanismo" del apartado "Hito 2 --
+        porción reservada de GuitarSet" se reescribe: sin manifiesto en
+        `tests/holdout/`, la reserva se deriva de
+        `random.Random(20260908).sample(...)` en cada invocación de
+        `construir_lista_grabaciones`, con `modo="medibles"`/
+        `"reservado"` complementarios por construcción.
+
+- Secciones añadidas: ninguna. Secciones eliminadas: ninguna. Governance:
+  sin cambios en ningún checkbox.
+
+- Sesión anterior (v1.7.0 → v1.8.0), preservada por referencia histórica:
 - Version change: 1.7.0 → 1.8.0
 - Fuente: pedido explícito de esta sesión, cerrando documentación de la
   Feature 006 (detección de notas sobre guitarra limpia) -- tamaño y
@@ -441,11 +465,23 @@ del proceso de grabación.
   una confirmación más creíble sin sacrificar capacidad real de
   medición, porque esta feature no entrena ni afina (quedan 288
   grabaciones, 80%, disponibles para medir).
-- **Mecanismo.** El manifiesto de las 72 grabaciones reservadas se
-  persiste en `tests/holdout/guitarset_reservado_hito2.json` (formato
-  exacto a confirmar en `/speckit-implement` de la Feature 006),
-  protegido por el mismo hook `PreToolUse` (`block_holdout.py`) que ya
-  cubre `tests/holdout/`, igual que el split `test` de Slakh.
+- **Mecanismo -- corregido en `/speckit-implement` de la Feature 006
+  (T028-T035): sin manifiesto persistido.** La reserva se deriva en vivo
+  de la semilla en cada invocación de `construir_lista_grabaciones`
+  (`deteccion/orquestador.py`):
+  `random.Random(20260908).sample(<identificadores ordenados>, 72)`.
+  `modo="reservado"` da esas 72; `modo="medibles"` da el complemento
+  (288) -- ambos derivados del mismo cálculo, complementarios por
+  construcción. Un manifiesto cacheado en disco tendría una fuente de
+  verdad separada del código: si alguien cambiara la semilla, el archivo
+  no cambiaría solo, y la partición efectiva quedaría desincronizada de
+  la que el código dice usar. Con cálculo en vivo, cambiar la semilla
+  cambia la partición completa de forma automática y visible en el
+  propio diff -- sin necesidad de ningún archivo ni hook de protección
+  adicional para esta reserva en particular. La CLI
+  (`deteccion/cli.py`) expone esto como `--modo {medibles,reservado}`,
+  sin valor por defecto -- un default que apuntara a `"reservado"`
+  mediría el conjunto que este principio prohíbe tocar.
 - Ningún agente inspecciona esas 72 grabaciones durante el desarrollo del
   hito 2; se usan una sola vez al cerrarlo, para confirmar que la cifra
   medida sobre las 288 restantes no fue sobreajuste al procedimiento.
@@ -794,4 +830,4 @@ propósito, con su propio criterio de cierre.
 - [ ] VII -- Hito 2: métrica principal y presupuesto numérico. Cierra
       tras la primera medición real de la Feature 006, nunca antes.
 
-**Version**: 1.8.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-08
+**Version**: 1.8.1 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-08

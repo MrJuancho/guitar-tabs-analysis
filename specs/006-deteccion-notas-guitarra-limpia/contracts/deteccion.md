@@ -196,6 +196,15 @@ ambos tipos desde aquí.
 ## `deteccion.orquestador`
 
 ```python
+def construir_lista_grabaciones(
+    modo: Literal["medibles", "reservado"],
+    root_dir: Path,
+    *,
+    tamano_reserva: int = 72,
+    semilla_reserva: int = 20260908,
+) -> list[str]:
+    ...
+
 def ejecutar_deteccion(
     grabaciones: list[str],
     root_dir: Path,
@@ -211,20 +220,33 @@ contrato `layers` de import-linter (research.md #11), mismo criterio que
 
 ### Postcondiciones
 
-1. **Por grabación (FR-012, research.md #10).** Para cada
-   `grabacion_id` de `grabaciones`, MUST leerla (`ingestion.guitarset`),
+1. **Reserva derivada de la semilla, nunca de una lista persistida
+   (Principio VI, research.md #14/#15).** `construir_lista_grabaciones`
+   MUST calcular `random.Random(semilla_reserva).sample(<todos los
+   identificadores ordenados>, tamano_reserva)` en cada invocación --
+   MUST NOT leer ni escribir ningún archivo de manifiesto. Con
+   `modo="reservado"` MUST devolver esa muestra; con `modo="medibles"`
+   MUST devolver el complemento exacto (`todos` menos la muestra) --
+   ambos derivados del mismo cálculo, de forma que su unión sea siempre
+   `todos` y su intersección siempre vacía, nunca dos cálculos
+   independientes que podrían divergir.
+2. **Por grabación (FR-012, research.md #10).** Para cada
+   `grabacion_id` de `grabaciones` (la lista que `ejecutar_deteccion`
+   recibe de su llamador -- típicamente el resultado de
+   `construir_lista_grabaciones("medibles", ...)`, pero esta función no
+   lo impone ni lo verifica), MUST leerla (`ingestion.guitarset`),
    transcribirla (`transcriptor.transcribir`), y si cualquiera de los
    dos pasos falla con una excepción real, MUST registrar esa grabación
    como `ExclusionDeteccion` con el detalle del error, y MUST continuar
    con la siguiente grabación -- nunca abortar la corrida completa por
    un fallo individual.
-2. **Artefacto final (FR-011).** Al completar todas las grabaciones,
+3. **Artefacto final (FR-011).** Al completar todas las grabaciones,
    MUST devolver un único `ArtefactoDeteccion` con el modelo declarado,
    la tolerancia y ventana aplicadas, la lista de grabaciones, las
    exclusiones con su motivo, los resultados crudos por grabación, y las
    tres cifras (global/monofónico/polifónico) calculadas con
    `analytics.metrica_deteccion_notas.agregar_conjunto` sobre las
    grabaciones no excluidas.
-3. **Sin umbral (FR-009).** MUST NOT comparar ninguna cifra contra
+4. **Sin umbral (FR-009).** MUST NOT comparar ninguna cifra contra
    ningún valor de aprobación -- termina en devolver el artefacto, nunca
    en un veredicto de pase/falla.
