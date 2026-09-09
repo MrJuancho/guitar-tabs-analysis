@@ -205,6 +205,14 @@ medir modo root_dir:
 compuerta modo:
     uv run python -m guitar_tabs_analysis.medicion.compuerta --modo {{ modo }}
 
+# Corre la detección de notas del hito 2 (Feature 006) con Basic Pitch
+# real. `modo` es "medibles" (288 grabaciones, 80% de GuitarSet -- las
+# únicas que se miden durante el desarrollo) o "reservado" (las 72
+# restantes, solo para el cierre del hito 2, Principio VI) -- sin valor
+# por defecto, ver deteccion/cli.py.
+detectar modo root_dir:
+    uv run python -m guitar_tabs_analysis.deteccion.cli --modo {{ modo }} --root-dir {{ root_dir }}
+
 # ---------------------------------------------------------------
 # Entorno
 # ---------------------------------------------------------------
