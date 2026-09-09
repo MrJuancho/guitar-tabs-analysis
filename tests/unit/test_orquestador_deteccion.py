@@ -173,6 +173,7 @@ def _artefacto_de_prueba() -> ArtefactoDeteccion:
             balance_f1=1.0,
             num_notas_referencia=1,
             num_notas_estimadas=1,
+            verdaderos_positivos=1,
         ),
         monofonico=ResultadoSubconjunto(
             precision=1.0,
@@ -180,6 +181,7 @@ def _artefacto_de_prueba() -> ArtefactoDeteccion:
             balance_f1=1.0,
             num_notas_referencia=1,
             num_notas_estimadas=1,
+            verdaderos_positivos=1,
         ),
         polifonico=ResultadoSubconjunto(
             precision=None,
@@ -187,6 +189,7 @@ def _artefacto_de_prueba() -> ArtefactoDeteccion:
             balance_f1=None,
             num_notas_referencia=0,
             num_notas_estimadas=0,
+            verdaderos_positivos=0,
         ),
     )
 

@@ -72,6 +72,7 @@ class ResultadoSubconjunto:
     balance_f1: float | None
     num_notas_referencia: int
     num_notas_estimadas: int
+    verdaderos_positivos: int
 
 
 @dataclass(frozen=True)
@@ -116,34 +117,32 @@ VENTANA_INICIO_S = 0.05
 `onset_tolerance` de `mir_eval`."""
 
 
-def evaluar_subconjunto(
-    notas_referencia: list[NotaReferencia],
-    notas_estimadas: list[NotaEstimada],
+def _resultado_desde_conteos(
+    verdaderos_positivos: int,
+    num_notas_referencia: int,
+    num_notas_estimadas: int,
 ) -> ResultadoSubconjunto:
-    """Acierto/emparejamiento vía `mir_eval.transcription` sobre un
-    conjunto de notas SIN partir por polifonía (contracts/deteccion.md,
-    postcondición 1) -- `evaluar_grabacion`/`agregar_conjunto` (User
-    Story 3) son quienes invocan esto una vez por subconjunto.
+    """Deriva `ResultadoSubconjunto` de tres conteos ya resueltos --
+    compartido entre `evaluar_subconjunto` (conteo de UNA llamada a
+    `mir_eval.transcription.match_notes`) y `agregar_conjunto` (conteos ya
+    SUMADOS entre grabaciones, research.md #16) para no duplicar el guard
+    de denominador-cero (FR-008) en dos lugares.
 
-    Guard explícito de listas vacías ANTES de invocar `mir_eval`
-    (postcondición 2, FR-008): `mir_eval.transcription.precision_recall_f1_overlap`
-    devuelve `(0.0, 0.0, 0.0, 0.0)` para AMBAS métricas cuando cualquiera
-    de las dos listas está vacía -- sin distinguir cuál -- así que ese
-    comportamiento crudo nunca se usa directamente; los tres casos de
-    FR-008 se resuelven a mano, antes de llamar a la librería:
+    Mismos tres casos de FR-008, resueltos antes de dividir:
 
     - Ambas vacías: `precision`/`exhaustividad`/`balance_f1` en `None`
       (ningún denominador tiene sentido).
-    - Solo `notas_referencia` vacía: `exhaustividad=None` (sin
+    - Solo `num_notas_referencia == 0`: `exhaustividad=None` (sin
       denominador), `precision=0.0` (ninguna estimada tiene con qué
       acertar, pero SÍ hay denominador -- `num_notas_estimadas`).
-    - Solo `notas_estimadas` vacía: `precision=None` (sin denominador),
-      `exhaustividad=0.0` (nada acertó, pero SÍ hay denominador --
-      `num_notas_referencia`).
-    """
-    num_notas_referencia = len(notas_referencia)
-    num_notas_estimadas = len(notas_estimadas)
-
+    - Solo `num_notas_estimadas == 0`: `precision=None` (sin
+      denominador), `exhaustividad=0.0` (nada acertó, pero SÍ hay
+      denominador -- `num_notas_referencia`).
+    - Ninguna vacía: `precision=TP/num_est`, `exhaustividad=TP/num_ref`,
+      `balance_f1=mir_eval.util.f_measure(precision, exhaustividad)` --
+      misma fórmula exacta que `mir_eval.transcription.precision_recall_f1_overlap`
+      aplica internamente (verificado línea por línea contra su código
+      fuente real, research.md #16)."""
     if num_notas_referencia == 0 and num_notas_estimadas == 0:
         return ResultadoSubconjunto(
             precision=None,
@@ -151,6 +150,7 @@ def evaluar_subconjunto(
             balance_f1=None,
             num_notas_referencia=0,
             num_notas_estimadas=0,
+            verdaderos_positivos=0,
         )
     if num_notas_referencia == 0:
         return ResultadoSubconjunto(
@@ -159,6 +159,7 @@ def evaluar_subconjunto(
             balance_f1=None,
             num_notas_referencia=0,
             num_notas_estimadas=num_notas_estimadas,
+            verdaderos_positivos=verdaderos_positivos,
         )
     if num_notas_estimadas == 0:
         return ResultadoSubconjunto(
@@ -167,7 +168,59 @@ def evaluar_subconjunto(
             balance_f1=None,
             num_notas_referencia=num_notas_referencia,
             num_notas_estimadas=0,
+            verdaderos_positivos=verdaderos_positivos,
         )
+
+    precision = verdaderos_positivos / num_notas_estimadas
+    exhaustividad = verdaderos_positivos / num_notas_referencia
+    balance_f1 = mir_eval.util.f_measure(precision, exhaustividad)
+    return ResultadoSubconjunto(
+        precision=precision,
+        exhaustividad=exhaustividad,
+        balance_f1=balance_f1,
+        num_notas_referencia=num_notas_referencia,
+        num_notas_estimadas=num_notas_estimadas,
+        verdaderos_positivos=verdaderos_positivos,
+    )
+
+
+def evaluar_subconjunto(
+    notas_referencia: list[NotaReferencia],
+    notas_estimadas: list[NotaEstimada],
+) -> ResultadoSubconjunto:
+    """Acierto/emparejamiento vía `mir_eval.transcription.match_notes`
+    sobre las notas de UNA grabación (o un subconjunto de ellas, mono/
+    poli) -- SIN partir por polifonía dentro de esta función
+    (contracts/deteccion.md, postcondición 1). MUST NOT recibir notas de
+    más de una grabación a la vez (research.md #16, FR-013): esta
+    función asume que ambas listas pertenecen a la MISMA grabación, no lo
+    verifica por sí misma -- es responsabilidad de quien la invoca
+    (`evaluar_grabacion`/`agregar_conjunto`).
+
+    Llama `mir_eval.transcription.match_notes` DIRECTAMENTE (no
+    `precision_recall_f1_overlap`) para exponer `verdaderos_positivos`
+    (`len(matching)`) -- research.md #16: verificado línea por línea
+    contra el código fuente real de `precision_recall_f1_overlap` que
+    internamente hace exactamente `matching = match_notes(...)`,
+    `precision = len(matching)/len(est_pitches)`,
+    `recall = len(matching)/len(ref_pitches)`,
+    `f_measure = mir_eval.util.f_measure(precision, recall)` -- mismo
+    resultado exacto, ahora con el conteo intermedio expuesto para que
+    `agregar_conjunto` pueda sumarlo entre grabaciones sin reemparejar.
+    `mir_eval.transcription.validate(...)` se llama explícitamente antes
+    de `match_notes` (antes la hacía `precision_recall_f1_overlap` por
+    dentro) para no perder la validación de formas/longitudes/tonos
+    positivos que ya existía.
+
+    Guard explícito de listas vacías ANTES de invocar `mir_eval`
+    (postcondición 2, FR-008, delegado a `_resultado_desde_conteos`):
+    `match_notes` no se invoca en absoluto si cualquiera de las dos
+    listas está vacía."""
+    num_notas_referencia = len(notas_referencia)
+    num_notas_estimadas = len(notas_estimadas)
+
+    if num_notas_referencia == 0 or num_notas_estimadas == 0:
+        return _resultado_desde_conteos(0, num_notas_referencia, num_notas_estimadas)
 
     # `dtype=np.float64` explícito en las cuatro conversiones de abajo
     # sobrevive mutado a `dtype=None` (mutation testing, T009) --
@@ -206,6 +259,13 @@ def evaluar_subconjunto(
         dtype=np.float64,
     )
 
+    # Misma validación que `precision_recall_f1_overlap` hacía por
+    # dentro antes de emparejar (research.md #16) -- llamada
+    # explícitamente ahora que se invoca `match_notes` directamente:
+    # formas, longitudes consistentes entre intervalos/tonos, y tonos
+    # estrictamente positivos.
+    mir_eval.transcription.validate(ref_intervals, ref_pitches, est_intervals, est_pitches)
+
     # `onset_tolerance=VENTANA_INICIO_S`/`pitch_tolerance=TOLERANCIA_TONO_CENTS`
     # sobreviven mutados a la línea completa OMITIDA (mutation testing,
     # T009) -- equivalente confirmado: sin el argumento explícito,
@@ -219,7 +279,7 @@ def evaluar_subconjunto(
     # no suprimiría selectivamente estas dos líneas sin también suprimir
     # la mutación real de `ref_intervals`/`ref_pitches`/etc. arriba en la
     # misma sentencia, así que tampoco lleva `# pragma: no mutate`.
-    precision, exhaustividad, balance_f1, _ = mir_eval.transcription.precision_recall_f1_overlap(
+    matching = mir_eval.transcription.match_notes(
         ref_intervals,
         ref_pitches,
         est_intervals,
@@ -229,13 +289,7 @@ def evaluar_subconjunto(
         offset_ratio=None,
     )
 
-    return ResultadoSubconjunto(
-        precision=float(precision),
-        exhaustividad=float(exhaustividad),
-        balance_f1=float(balance_f1),
-        num_notas_referencia=num_notas_referencia,
-        num_notas_estimadas=num_notas_estimadas,
-    )
+    return _resultado_desde_conteos(len(matching), num_notas_referencia, num_notas_estimadas)
 
 
 # ---------------------------------------------------------------------
@@ -260,13 +314,13 @@ def clasificar_polifonia_en_instante(
 
 
 # ---------------------------------------------------------------------
-# _particionar_por_polifonia -- helper compartido entre evaluar_grabacion
-# (T019) y agregar_conjunto (T021): ambas necesitan clasificar las notas
-# de UNA grabación (referencia y estimada) contra las referencias de esa
-# MISMA grabación y partir en mono/poli -- extraído para no duplicar el
-# bucle de clasificación dos veces (mismo criterio de extracción que
-# `calcular_mediana_agregada`/`calcular_distribucion_referencias` en
-# Feature 004, ver tasks.md T016-T024, "Reutilización sugerida").
+# _particionar_por_polifonia -- helper de evaluar_grabacion (T019): parte
+# las notas de UNA grabación (referencia y estimada) en mono/poli,
+# clasificando siempre contra `notas_referencia` de esa misma grabación
+# (research.md #8). `agregar_conjunto` (T021) ya NO llama a este helper
+# directamente (research.md #16, corrección post-OOM): delega la
+# partición a `evaluar_grabacion`, una vez por grabación no excluida, y
+# solo suma los conteos que esa función ya devuelve.
 # ---------------------------------------------------------------------
 
 
@@ -332,21 +386,25 @@ def evaluar_grabacion(
 def agregar_conjunto(
     resultados: list[ResultadoDeteccionGrabacion],
 ) -> tuple[ResultadoSubconjunto, ResultadoSubconjunto, ResultadoSubconjunto]:
-    """Mismo cálculo que `evaluar_grabacion`, pero sobre el pool de todas
-    las grabaciones no excluidas de `resultados` (contracts/deteccion.md
-    postcondición 5): clasifica las notas de cada grabación contra las
-    referencias de esa misma grabación (nunca cruzando grabaciones,
-    `_particionar_por_polifonia`), acumula en tres pools (global/mono/
-    poli) a través de todas las grabaciones no excluidas, y llama
-    `evaluar_subconjunto` una vez por pool -- nunca promedia los
-    resultados calculados por grabación (una grabación con muchas notas
-    pesa más que una con pocas, por diseño)."""
-    pool_referencia_global: list[NotaReferencia] = []
-    pool_estimada_global: list[NotaEstimada] = []
-    pool_referencia_mono: list[NotaReferencia] = []
-    pool_referencia_poli: list[NotaReferencia] = []
-    pool_estimada_mono: list[NotaEstimada] = []
-    pool_estimada_poli: list[NotaEstimada] = []
+    """Agrega sobre todas las grabaciones no excluidas de `resultados`
+    (contracts/deteccion.md postcondición 5, corregida en
+    research.md #16 tras el hallazgo de OOM/corrección de
+    `/speckit-implement`): emparejamiento SIEMPRE dentro de cada
+    grabación (`evaluar_grabacion`, una vez por grabación no excluida)
+    -- MUST NOT juntar notas crudas de grabaciones distintas antes de
+    emparejar (FR-013). Acumula, para cada uno de los tres subconjuntos
+    (global/mono/poli), los conteos ya resueltos por grabación
+    (`verdaderos_positivos`, `num_notas_referencia`, `num_notas_estimadas`)
+    SUMADOS a través de todas las grabaciones no excluidas, y deriva
+    precisión/exhaustividad/balance de esa suma (`_resultado_desde_conteos`)
+    -- nunca promedia los `ResultadoSubconjunto` calculados por grabación
+    (una grabación con muchas notas pesa más que una con pocas, por
+    diseño), y nunca empareja notas de una grabación contra las de otra
+    (research.md #16: aciertos espurios entre clips sin relación
+    temporal, además del costo cuadrático en memoria del pool)."""
+    tp_global = num_ref_global = num_est_global = 0
+    tp_mono = num_ref_mono = num_est_mono = 0
+    tp_poli = num_ref_poli = num_est_poli = 0
 
     for resultado in resultados:
         if resultado.exclusion is not None:
@@ -356,18 +414,23 @@ def agregar_conjunto(
         assert resultado.notas_referencia is not None
         assert resultado.notas_estimadas is not None
 
-        pool_referencia_global.extend(resultado.notas_referencia)
-        pool_estimada_global.extend(resultado.notas_estimadas)
-
-        referencia_mono, referencia_poli, estimada_mono, estimada_poli = _particionar_por_polifonia(
+        global_grab, mono_grab, poli_grab = evaluar_grabacion(
             resultado.notas_referencia, resultado.notas_estimadas
         )
-        pool_referencia_mono.extend(referencia_mono)
-        pool_referencia_poli.extend(referencia_poli)
-        pool_estimada_mono.extend(estimada_mono)
-        pool_estimada_poli.extend(estimada_poli)
 
-    global_ = evaluar_subconjunto(pool_referencia_global, pool_estimada_global)
-    monofonico = evaluar_subconjunto(pool_referencia_mono, pool_estimada_mono)
-    polifonico = evaluar_subconjunto(pool_referencia_poli, pool_estimada_poli)
+        tp_global += global_grab.verdaderos_positivos
+        num_ref_global += global_grab.num_notas_referencia
+        num_est_global += global_grab.num_notas_estimadas
+
+        tp_mono += mono_grab.verdaderos_positivos
+        num_ref_mono += mono_grab.num_notas_referencia
+        num_est_mono += mono_grab.num_notas_estimadas
+
+        tp_poli += poli_grab.verdaderos_positivos
+        num_ref_poli += poli_grab.num_notas_referencia
+        num_est_poli += poli_grab.num_notas_estimadas
+
+    global_ = _resultado_desde_conteos(tp_global, num_ref_global, num_est_global)
+    monofonico = _resultado_desde_conteos(tp_mono, num_ref_mono, num_est_mono)
+    polifonico = _resultado_desde_conteos(tp_poli, num_ref_poli, num_est_poli)
     return global_, monofonico, polifonico

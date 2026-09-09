@@ -150,6 +150,7 @@ def test_subconjunto_vacio_ambas_listas_da_todo_none() -> None:
         balance_f1=None,
         num_notas_referencia=0,
         num_notas_estimadas=0,
+        verdaderos_positivos=0,
     )
 
 
@@ -306,6 +307,7 @@ def test_evaluar_grabacion_100_por_ciento_monofonica_reporta_polifonico_none() -
         balance_f1=None,
         num_notas_referencia=0,
         num_notas_estimadas=0,
+        verdaderos_positivos=0,
     )
     assert mono.num_notas_referencia == 2
     assert mono.precision == 1.0
@@ -332,6 +334,7 @@ def test_evaluar_grabacion_estimada_sin_ninguna_referencia_es_monofonica_y_resta
         balance_f1=None,
         num_notas_referencia=0,
         num_notas_estimadas=0,
+        verdaderos_positivos=0,
     )
 
 
@@ -483,6 +486,7 @@ def test_agregar_conjunto_todas_monofonicas_da_polifonico_agregado_none() -> Non
         balance_f1=None,
         num_notas_referencia=0,
         num_notas_estimadas=0,
+        verdaderos_positivos=0,
     )
 
 

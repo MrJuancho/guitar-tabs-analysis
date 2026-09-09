@@ -81,6 +81,7 @@ _SUBCONJUNTO_VACIO = ResultadoSubconjunto(
     balance_f1=None,
     num_notas_referencia=0,
     num_notas_estimadas=0,
+    verdaderos_positivos=0,
 )
 
 

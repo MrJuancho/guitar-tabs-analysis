@@ -14,27 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 006, Fase 7 (CLI, T028-T035) completa. `construir_lista_grabaciones`
-deriva la reserva de GuitarSet EN VIVO de la semilla `20260908`
-(`random.Random(...).sample(track_ids ordenados, 72)`) en cada
-invocación -- SIN manifiesto persistido (corrección sobre `research.md`
-#14, que preveía uno en `tests/holdout/`); medibles/reservado derivan del
-mismo cálculo, complementarios por construcción. `artefacto_a_dict`
-serializa `ArtefactoDeteccion` (FR-011). `ejecutar_deteccion` imprime
-progreso por grabación. `deteccion/cli.py` (nuevo): `--modo`/`--root-dir`
-required, escritura atómica + verificación releyendo el archivo final,
-mismo mecanismo que `medicion/cli.py`. Recipe `just detectar`. `just
-gauntlet` verde: 240 tests, 98.38% (`orquestador.py` 100%, `cli.py` 84%).
+Incidente real: `just detectar medibles` mató por el kernel dos veces
+(~61 GB) sobre 288 grabaciones. Diagnóstico medido descartó audio/mirdata
+-- RSS del bucle plano (151->232 MB/25 grabaciones reales). Causa real:
+`agregar_conjunto` pooleaba notas de las 288 grabaciones antes de
+emparejar -- `mir_eval.match_notes` arma matrices N×M, cuadrático
+(research.md #16). Defecto de CORRECCIÓN, no solo memoria: permitía
+aciertos entre grabaciones sin relación temporal. FR-013 lo prohíbe
+ahora. Arreglo: emparejar siempre por grabación, sumar conteos
+(`verdaderos_positivos` nuevo) y derivar la razón de la suma. Verificado
+a escala real (288×200 notas): 0.59s, delta 23.8 MB (antes: OOM). `just
+gauntlet` verde: 242 tests, 98.40%.
 
 ## Qué sigue
 
-Feature 006 completa (35 tareas de `tasks.md`). Pendiente antes de cerrar
-el hito 2: correr `just detectar medibles <root_dir>` contra GuitarSet
-real para la cifra real -- nunca `--modo reservado` hasta el cierre
-formal (Principio VI). Considerar mutation testing acotado sobre
-`deteccion/cli.py`/`deteccion/orquestador.py` antes de cerrar del todo.
+Re-correr `just detectar medibles <root_dir>` contra GuitarSet real -- la
+corrida anterior (sin commitear) no sirve: 288/288 exclusiones por
+dataset incompleto en ese momento, y con el diseño roto. Después:
+mutation testing acotado antes de cerrar la Feature 006.
 
 ## Bloqueado / pendiente de decisión
 
-Ninguno nuevo. Sin manifiesto de reservados -- se deriva en vivo, nunca
-se persiste. Licencia de pesos de Demucs: no verificada independientemente.
+Ninguno nuevo. `mediciones/deteccion_medibles.json` (sin commitear) es
+basura de una corrida inválida, se sobrescribe en la próxima. Licencia
+de pesos de Demucs: no verificada independientemente.
