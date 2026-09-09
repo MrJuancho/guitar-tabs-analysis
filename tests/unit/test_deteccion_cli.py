@@ -208,20 +208,23 @@ def _monkeypatch_mirdata(monkeypatch: pytest.MonkeyPatch, dataset: _DatasetFalso
 def test_ejecutar_y_escribir_produce_artefacto_en_disco(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    track = _TrackFalso(
-        audio_mic_path="/datos/grabacion_000_mic.wav",
-        notes_all=_NoteDataFalso(intervals=np.array([[0.0, 0.5]]), pitches=np.array([60.0])),
-    )
-    dataset = _DatasetFalso({"grabacion_000": track})
+    """Dominio sintético de 100 identificadores (por encima de
+    `tamano_reserva=72`, el default real que `_ejecutar_y_escribir` no
+    sobreescribe -- mismos parámetros que usaría la CLI real) -- las 100
+    comparten el mismo `_TrackFalso` (sin notas de referencia), así que
+    el resultado no depende de cuáles 28 exactas caen en `"medibles"`,
+    solo de que sean 100 - 72 = 28."""
+    track = _TrackFalso(audio_mic_path="/datos/dummy_mic.wav", notes_all=None)
+    dominio = sorted(f"grabacion_{i:03d}" for i in range(100))
+    dataset = _DatasetFalso(dict.fromkeys(dominio, track))
     _monkeypatch_mirdata(monkeypatch, dataset)
-    transcriptor = TranscriptorFalso(
-        modelo_declarado=MODELO_FALSO,
-    )
+    transcriptor = TranscriptorFalso(modelo_declarado=MODELO_FALSO)
     ruta_artefacto = tmp_path / "mediciones" / "deteccion_medibles.json"
 
     codigo = cli._ejecutar_y_escribir("medibles", tmp_path, transcriptor, ruta_artefacto)
 
     assert codigo == 0
     contenido = json.loads(ruta_artefacto.read_text())
-    assert contenido["grabaciones"] == ["grabacion_000"]
+    assert len(contenido["grabaciones"]) == 28
+    assert contenido["exclusiones"] == []
     assert contenido["modelo"]["nombre"] == "ModeloFalso"
