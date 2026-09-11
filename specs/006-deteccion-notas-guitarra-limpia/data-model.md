@@ -40,11 +40,17 @@ ClasificacionPolifonia = Literal["monofonica", "polifonica"]
 Propiedad derivada, nunca persistida de forma independiente -- se
 calcula sobre un instante de tiempo contra un conjunto de
 `NotaReferencia` (research.md #8): 0 o 1 referencias solapando ese
-instante → `"monofonica"`; 2 o más → `"polifonica"`. Se evalúa tanto
-para cada `NotaReferencia` (en su propio inicio) como para cada
-`NotaEstimada` sin pareja (en su propio inicio, contra las referencias
-de la misma grabación) -- la fuente de la clasificación es siempre la
-referencia, nunca la propia predicción (FR-006).
+instante → `"monofonica"`; 2 o más → `"polifonica"`. Se evalúa para cada
+`NotaReferencia` en su propio inicio. Para una `NotaEstimada`, la regla
+depende de si se acredita contra una referencia (FR-005) o no
+(research.md #17, FR-014): si se acredita, HEREDA la clasificación de
+la referencia con la que empareja -- nunca se reevalúa por su propio
+inicio; solo una estimada SIN pareja (un falso positivo) se clasifica
+por su propio inicio contra las referencias de la misma grabación. En
+ambos casos la fuente de la clasificación es siempre la referencia,
+nunca la propia predicción (FR-006) -- lo que cambia es SOBRE QUÉ
+instante se evalúa esa fuente cuando la estimada sí tiene con qué
+heredar.
 
 ## `Acierto`
 
@@ -154,8 +160,13 @@ grabaciones -- mismo rol que `ArtefactoMedicion` del hito 1.
 | `exclusiones` | `list[ExclusionDeteccion]` | Con su motivo (FR-011) |
 | `resultados_por_grabacion` | `list[ResultadoDeteccionGrabacion]` | Notas crudas por grabación, no agregadas |
 | `global_` | `ResultadoSubconjunto` | Sobre todas las notas de referencia/estimadas del conjunto |
-| `monofonico` | `ResultadoSubconjunto` | Sobre el subconjunto monofónico (research.md #8/#9) |
-| `polifonico` | `ResultadoSubconjunto` | Sobre el subconjunto polifónico |
+| `monofonico` | `ResultadoSubconjunto` | Sobre el subconjunto monofónico, partición heredada de un único emparejamiento (research.md #8/#17, FR-014) |
+| `polifonico` | `ResultadoSubconjunto` | Sobre el subconjunto polifónico, misma partición |
+
+Invariante permanente entre estos tres (SC-007, research.md #17):
+`monofonico.verdaderos_positivos + polifonico.verdaderos_positivos ==
+global_.verdaderos_positivos` -- igual que ya vale, sin excepción, para
+`num_notas_referencia` y `num_notas_estimadas` de los tres.
 
 `frozen=True`. `global_` lleva guion bajo final porque `global` es
 palabra reservada de Python -- se serializa como `"global"` en el JSON

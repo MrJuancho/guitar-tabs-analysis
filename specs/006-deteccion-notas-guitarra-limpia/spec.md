@@ -337,6 +337,34 @@ subconjunto monofónico como en el polifónico.
   esto -- pooleaba notas crudas de las 288 grabaciones antes de
   emparejar, lo que además demostró ser inviable en memoria, ver
   research.md #16.)
+- **FR-014**: La clasificación monofónico/polifónico de una nota
+  estimada que SÍ se acredita contra una nota de referencia (FR-005)
+  MUST heredarse de esa nota de referencia -- MUST NOT determinarse
+  evaluando el propio instante de inicio de la estimada por separado.
+  El sistema MUST derivar el desglose mono/poli (FR-007) de un ÚNICO
+  emparejamiento por grabación (FR-005), nunca de emparejamientos
+  independientes recalculados dentro de cada subconjunto ya partido --
+  es la misma propiedad que FR-013 exige entre grabaciones, aplicada
+  ahora dentro de una sola: clasificar o agrupar antes de emparejar, en
+  cualquiera de sus dos formas, produce aciertos que existen en el
+  conjunto global y desaparecen de ambos subconjuntos parciales. Una
+  nota estimada que NO se acredita contra ninguna referencia (un falso
+  positivo) no tiene de qué heredar: para ese caso, y solo para ese
+  caso, el sistema MUST clasificarla con la misma regla de FR-006
+  evaluada en su propio instante de inicio contra las notas de
+  referencia de la misma grabación (research.md #8) -- FR-007 exige la
+  cifra de precisión completa en ambos subconjuntos, y una nota sin
+  pareja MUST contar en el denominador de alguno de los dos, nunca
+  quedar sin clasificar.
+  (Hallazgo posterior a T035, sesión 2026-09-10: sobre
+  `mediciones/deteccion_medibles.json`, la suma de verdaderos positivos
+  de monofónico + polifónico (29682) era menor que el global (36995) --
+  una diferencia de 7313, confirmada de forma independiente contando
+  7329 pares del emparejamiento global cuya nota de referencia y su
+  estimada acreditada clasificaban distinto. Causa: `evaluar_grabacion`
+  reclasificaba y volvía a emparejar cada lado por separado dentro de
+  cada subconjunto, en vez de derivar la partición del emparejamiento
+  ya resuelto.)
 
 ### Key Entities
 
@@ -390,6 +418,13 @@ subconjunto monofónico como en el polifónico.
   individual aparecen en el reporte como exclusiones con un motivo
   distinguible, y el 0% de ellos detiene la medición antes de que se
   intenten todas las grabaciones restantes del conjunto.
+- **SC-007**: Para cualquier conjunto de grabaciones medidas, la suma de
+  verdaderos positivos del subconjunto monofónico y del polifónico es
+  siempre exactamente igual al de la cifra global -- igual que la suma
+  de referencias y la suma de estimadas de ambos subconjuntos ya lo son
+  (FR-014). Ninguna corrida reporta una cifra global que sea mayor (ni
+  menor) que ambas cifras parciales a la vez, cuando ambos subconjuntos
+  tienen datos.
 
 ## Assumptions
 

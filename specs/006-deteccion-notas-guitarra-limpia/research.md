@@ -191,19 +191,28 @@ verifica la integridad del dataset (checksums) como parte de su propio
 contrato, una capa de confianza adicional sin costo de implementación
 extra.
 
-## 8. Clasificación de polifonía: solape de intervalos, generalizada a notas estimadas sin pareja
+## 8. Clasificación de polifonía: solape de intervalos, generalizada a notas estimadas sin pareja -- ALCANCE CORREGIDO por #17
 
 **Decision**: dos notas de referencia se consideran simultáneas si sus
 intervalos `[inicio, fin]` se superponen en cualquier medida (solape
 parcial cuenta). Una nota de referencia es monofónica si ningún otro
 intervalo de referencia la solapa, polifónica si al menos uno lo hace.
-Esta misma regla se generaliza a **cualquier** nota estimada, sea que
-haya acertado o no (FR-007 exige el desglose de precisión también, no
-solo exhaustividad): se evalúa cuántos intervalos de referencia solapan
-el instante de inicio de la nota estimada -- 0 o 1 clasifica como
-monofónica (caso degenerado incluido: una nota inventada durante un
-silencio real no tiene ninguna referencia con la que ser polifónica), 2
-o más como polifónica.
+Esta misma regla se generaliza a cualquier nota estimada que NO se
+acredite contra ninguna referencia (FR-007 exige el desglose de
+precisión también, no solo exhaustividad, y un falso positivo debe
+contar en el denominador de algún subconjunto): se evalúa cuántos
+intervalos de referencia solapan el instante de inicio de la nota
+estimada -- 0 o 1 clasifica como monofónica (caso degenerado incluido:
+una nota inventada durante un silencio real no tiene ninguna referencia
+con la que ser polifónica), 2 o más como polifónica. **Corrección de
+#17: esta regla NO aplica a una nota estimada que sí se acredita contra
+una referencia** -- esa hereda la clasificación de la referencia con la
+que empareja (FR-014). La redacción original de esta decisión (research
+del `/speckit-plan` inicial) decía "cualquier nota estimada, sea que
+haya acertado o no"; `data-model.md` ya decía correctamente "sin
+pareja" desde el principio -- la implementación de `/speckit-implement`
+siguió la redacción de aquí, no la de `data-model.md`, y ahí nació el
+defecto que #17 diagnostica y corrige.
 
 **Rationale**: FR-006 fija la clasificación solo para notas de
 referencia explícitamente, dejando abierto (a propósito, ver `spec.md`
@@ -213,9 +222,14 @@ ninguna referencia que la respalde. Generalizar la misma regla de solape
 (evaluada siempre contra la referencia, nunca contra lo que el sistema
 detectó) es la única forma de calcular precisión por subconjunto
 (FR-007) sin violar FR-006 ("nunca a partir de las notas que el propio
-sistema estimó") -- la fuente de la clasificación sigue siendo
-exclusivamente la anotación de referencia, evaluada en un instante
-distinto según el caso.
+sistema estimó") para el caso de un falso positivo -- la fuente de la
+clasificación sigue siendo exclusivamente la anotación de referencia,
+evaluada en un instante distinto según el caso. Para una nota estimada
+que SÍ empareja, en cambio, ya existe una referencia concreta de la cual
+heredar (la que la acreditó) -- evaluarla de nuevo por su propio instante
+es una segunda fuente de clasificación independiente de la primera, y
+#17 muestra que ambas fuentes discrepan con frecuencia suficiente para
+romper la aritmética de la agregación.
 
 **Alternatives considered**: dejar las notas estimadas sin pareja fuera
 de cualquier bucket de polifonía (un tercer grupo "sin clasificar") --
@@ -224,21 +238,27 @@ subconjuntos (mono y poli), y un tercer grupo no pedido fragmentaría el
 reporte sin necesidad -- la generalización de arriba clasifica siempre,
 sin dejar ningún caso sin resolver.
 
-## 9. Cálculo por subconjunto: partir el conjunto de notas antes de evaluar
+## 9. Cálculo por subconjunto: partir el conjunto de notas antes de evaluar -- SUPERADO por #17
 
-**Decision**: antes de invocar `mir_eval.transcription`, el conjunto de
-notas de referencia y el de notas estimadas de una grabación se separan
-en dos subconjuntos (monofónico/polifónico, según #8), y se invoca la
-evaluación de `mir_eval` **una vez por subconjunto**, de forma
-independiente -- nunca calculando el emparejamiento global una sola vez
-y dividiendo el resultado después.
+**Decision** (superada, ver #17): antes de invocar
+`mir_eval.transcription`, el conjunto de notas de referencia y el de
+notas estimadas de una grabación se separan en dos subconjuntos
+(monofónico/polifónico, según #8), y se invoca la evaluación de
+`mir_eval` **una vez por subconjunto**, de forma independiente -- nunca
+calculando el emparejamiento global una sola vez y dividiendo el
+resultado después.
 
-**Rationale**: `mir_eval.transcription.precision_recall_f1_overlap`
+**Rationale** (obsoleto desde #16): `mir_eval.transcription.precision_recall_f1_overlap`
 calcula precisión/exhaustividad/balance agregados sobre el conjunto que
 recibe, sin exponer a qué subconjunto pertenece cada coincidencia
-individual en su valor de retorno -- partir la entrada es más simple y
-más verificable que extraer índices de emparejamiento internos de la
-biblioteca (que no son parte de su contrato público estable).
+individual en su valor de retorno -- partir la entrada parecía más
+simple y más verificable que extraer índices de emparejamiento internos
+de la biblioteca. Esta razón dejó de aplicar desde #16: `evaluar_subconjunto`
+pasó a llamar `mir_eval.transcription.match_notes` **directamente**, que
+SÍ devuelve los índices `(ref_idx, est_idx)` de cada par emparejado como
+parte de su contrato público estable -- la premisa que motivaba partir
+antes de emparejar ya no era cierta para el código real desde ese
+momento, y #9 nunca se revisó a la luz de ese cambio hasta #17.
 
 ## 10. Fallo de inferencia sobre una grabación individual: exclusión terminal
 
@@ -581,6 +601,91 @@ UNA grabación (del orden de 100-500 notas de referencia, matrices de
 ~500×500 ≈ 2 MB) -- la memoria deja de escalar con el tamaño del
 conjunto agregado, escala con el tamaño de la grabación más grande, que
 research.md #9 ya fijó en un orden de magnitud manejable.
+
+## 17. La partición mono/poli pierde verdaderos positivos -- corrección de #8/#9, con evidencia real sobre `mediciones/deteccion_medibles.json`
+
+**Contexto real, no hipotético**: la primera corrida completa sobre las
+288 grabaciones medibles dio `balance_f1` GLOBAL (0.7394) mayor que el
+de AMBAS particiones (monofónico 0.6094, polifónico 0.5835) -- imposible
+si las particiones cubren el conjunto sin solape ni resto, que es
+justamente el caso: `num_notas_referencia` de mono (15280) + poli
+(34258) suma exacto el global (49538), igual `num_notas_estimadas`
+(22559 + 27965 = 50524). Solo `verdaderos_positivos` no suma: mono
+(11529, derivado de `precision × num_notas_estimadas`, verificado
+igual vía `exhaustividad × num_notas_referencia`) + poli (18153) = 29682,
+contra 36995 del global -- una diferencia de 7313 (19.8% del total
+global).
+
+**Diagnóstico medido, no supuesto**: se reprodujo `evaluar_grabacion`
+sobre las notas crudas de cada una de las 288 grabaciones que
+`mediciones/deteccion_medibles.json` ya guarda en
+`resultados_por_grabacion` (sin volver a transcribir), y además se
+recalculó el emparejamiento GLOBAL de cada grabación explícitamente con
+`mir_eval.transcription.match_notes` para inspeccionar cada par
+`(ref_idx, est_idx)` uno por uno. De los 36995 pares emparejados en el
+global, 7329 tienen `clasificar_polifonia_en_instante(ref.inicio_s, ...)
+!= clasificar_polifonia_en_instante(est.inicio_s, ...)` -- prácticamente
+el mismo orden de magnitud que la diferencia observada (7329 vs 7313; la
+pequeña discrepancia es el efecto de segundo orden de que cada
+subconjunto reempareja con un pool más chico, que a veces encuentra
+pareja nueva para una nota huérfana). Confirma la causa con dos
+mediciones independientes que coinciden.
+
+**La causa real**: `_particionar_por_polifonia` (T019) clasificaba cada
+nota ESTIMADA por su propio `inicio_s` contra la densidad de referencia
+en ese instante (research.md #8, tal como estaba redactado antes de esta
+sesión) -- **incluyendo** las que sí empataban con una referencia.
+`mir_eval.transcription.match_notes` tolera hasta 50 ms de diferencia de
+onset (research.md #3) entre una referencia y su estimada acreditada:
+si la referencia cae en un instante con 2+ notas solapando (polifónica)
+pero la estimada que la empareja tiene su propio onset unos milisegundos
+antes o después, en un punto donde esa densidad ya no llega a 2
+(monofónica), el par queda partido -- la referencia va al subconjunto
+polifónico, la estimada al monofónico. Como además `evaluar_grabacion`
+(research.md #9) volvía a invocar `match_notes` de forma independiente
+dentro de cada subconjunto ya partido, ese acierto no tiene ninguna
+oportunidad de recuperarse: la referencia y la estimada que en el global
+formaban un par ya no están en la misma lista de candidatos en ningún
+subconjunto. El resultado es un acierto real que existe en el global y
+desaparece de ambos parciales -- mismo defecto que #16 (agrupar/clasificar
+antes de emparejar en vez de después), aquí en su variante de
+clasificación en lugar de pooling entre grabaciones.
+
+**Decision**: `evaluar_grabacion` pasa a emparejar **una sola vez** por
+grabación (la misma llamada que ya calculaba el resultado global,
+reutilizada), y clasifica cada par `(ref_idx, est_idx)` devuelto por
+`match_notes` con la clasificación de **la referencia de ese par**
+(`clasificar_polifonia_en_instante(notas_referencia[ref_idx].inicio_s,
+notas_referencia)`) -- la estimada emparejada HEREDA esa clasificación,
+nunca se reevalúa por su propio instante. Cada nota de referencia sigue
+clasificándose por su propio instante exactamente como antes (FR-006,
+sin cambios: eso nunca fue el defecto, los conteos de referencia ya
+sumaban exacto). Cada nota estimada que **no** aparece en ningún par del
+matching (un falso positivo) se clasifica por la regla general de #8
+-- su propio instante contra la densidad de referencia -- porque no hay
+ninguna referencia de la cual heredar; ese caso no cambia. FR-014
+(`spec.md`) fija este requisito.
+
+Con este diseño, por construcción, cada par emparejado contribuye a
+exactamente un subconjunto (nunca a ninguno, nunca a dos) -- la suma de
+`verdaderos_positivos` de mono y poli es SIEMPRE igual a la del global,
+sin excepción, porque ambas cifras se derivan de particionar el mismo
+conjunto fijo de pares, no de dos emparejamientos que puedan discrepar
+entre sí. `evaluar_subconjunto` (T009, research.md #16) no cambia --
+sigue siendo el único punto que invoca `match_notes`, ahora llamado una
+vez por grabación en vez de tres.
+
+**Alternatives considered**: clasificar la nota estimada emparejada
+por SU PROPIO instante pero además arrastrar el par completo a ambos
+subconjuntos si las clasificaciones discrepan (contarlo dos veces) --
+descartado: rompería SC-002 (cada acierto es de una MISMA grabación,
+pero además debe ser de un subconjunto bien definido, nunca de dos a la
+vez) y produciría `verdaderos_positivos` de un subconjunto mayores que
+sus propias `num_notas_referencia`/`num_notas_estimadas`, un resultado
+sin sentido. Promediar o interpolar entre las dos clasificaciones --
+descartado por la misma razón que #8 ya fijó: la fuente de la
+clasificación es la anotación de referencia, no un cálculo derivado que
+mezcle ambos lados.
 
 **Alternatives considered**: mantener el pool pero acotar su tamaño (p.
 ej. lotes de N grabaciones) -- descartado porque no resuelve el defecto

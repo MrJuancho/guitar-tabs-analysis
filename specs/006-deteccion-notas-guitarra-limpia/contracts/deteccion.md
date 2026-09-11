@@ -190,16 +190,34 @@ ambos tipos desde aquí.
    MUST devolver `"polifonica"` si dos o más notas de `notas_referencia`
    solapan `instante_s`, `"monofonica"` en cualquier otro caso (incluido
    el caso degenerado de cero referencias solapando).
-4. **Partición por polifonía dentro de una grabación (FR-003/FR-004/
-   FR-005/FR-013, research.md #9).** `evaluar_grabacion` MUST partir
-   primero el conjunto de notas de UNA grabación (referencia y
-   estimadas) en monofónico/polifónico vía
-   `clasificar_polifonia_en_instante` (postcondición 3), y llamar
-   `evaluar_subconjunto` (postcondición 1) **una vez por subconjunto**
-   -- global (sin partir), monofónico, polifónico -- nunca calculando un
-   emparejamiento global y dividiendo el resultado después. Las tres
-   listas de notas que recibe (y las que arma para cada subconjunto)
-   pertenecen siempre a esa única grabación.
+4. **Partición por polifonía dentro de una grabación, heredada de un
+   ÚNICO emparejamiento (FR-003/FR-004/FR-005/FR-006/FR-014, research.md
+   #17 -- corregido tras el hallazgo de verdaderos-positivos perdidos en
+   `/speckit-implement`; SUPERA la redacción anterior de esta
+   postcondición, que partía antes de emparejar, research.md #9).**
+   `evaluar_grabacion` MUST emparejar las notas de UNA grabación **una
+   sola vez** (la misma llamada que resuelve el resultado global,
+   postcondición 1) -- MUST NOT invocar `mir_eval.transcription.match_notes`
+   más de una vez por grabación. Para cada par `(ref_idx, est_idx)` que
+   ese único emparejamiento devuelve, MUST clasificar el par con
+   `clasificar_polifonia_en_instante` (postcondición 3) evaluada sobre
+   la nota de REFERENCIA del par (`notas_referencia[ref_idx].inicio_s`)
+   -- la nota estimada del par MUST heredar esa clasificación, MUST NOT
+   evaluarse por su propio instante. Cada nota de referencia (emparejada
+   o no) MUST seguir clasificándose por su propio instante (FR-006, sin
+   cambio). Cada nota estimada que NO aparece en ningún par del
+   emparejamiento (falso positivo) MUST clasificarse por la regla
+   general de la postcondición 3 evaluada en su propio instante -- no
+   hay ninguna referencia de la cual heredar. `evaluar_grabacion` deriva
+   las tres cifras (global/mono/poli) de particionar ese único conjunto
+   de pares y de notas ya clasificadas -- MUST NOT llamar
+   `evaluar_subconjunto` de nuevo sobre listas ya partidas para mono o
+   poli (eso reemparejaría con un pool de candidatos más chico y podría
+   perder o inventar pares distintos a los del emparejamiento global).
+   Invariante permanente (SC-007): `verdaderos_positivos` de mono +
+   `verdaderos_positivos` de poli MUST ser siempre exactamente igual al
+   `verdaderos_positivos` del global, para cualquier entrada -- nunca
+   solo aproximadamente igual.
 5. **Agregación por SUMA DE CONTEOS, nunca por pool de notas (FR-007/
    FR-013, research.md #16 -- corregido tras el hallazgo de OOM en
    `/speckit-implement`).** `agregar_conjunto` MUST llamar
