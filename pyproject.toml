@@ -177,6 +177,11 @@ layers = [
 # relativa que `separacion` (puede importar de `analytics`/`ingestion`,
 # ninguna de las dos importa de vuelta) -- mismo tratamiento que cuando se
 # agregó `separacion` (Feature 003).
+# `guitar_tabs_analysis.digitacion` (Feature 007, hito 3) tampoco aparece
+# en esta lista, mismo criterio exacto que `medicion`/`deteccion`: es el
+# orquestador que ata `ingestion` (posición real anotada) y `analytics`
+# (asignación de coste) a la vez (specs/007-digitacion-restriccion-mano/
+# tasks.md T002, plan.md Constitution Check).
 
 [[tool.importlinter.contracts]]
 name = "quality es transversal: no depende de analytics (EJEMPLO)"

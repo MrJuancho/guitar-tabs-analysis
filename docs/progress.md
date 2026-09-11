@@ -14,27 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-T025-T027 (Polish), cierra la Feature 006/hito 2. Mutación acotada a la
-capa nueva, alcance ampliado (research.md #20): `metrica_deteccion_notas`,
-`deteccion.orquestador`/`cli`, `ingestion.guitarset`, `transcripcion.transcriptor`.
-Hallazgo de config, corregido antes de mutar: `scripts/` faltaba en
-`also_copy` de mutmut (mismo defecto que `docs/`, Feature 003) --
-bloqueaba TODA corrida, no solo el módulo mutado. Resultado: 633/643
-killed; los 10 restantes son equivalentes ya documentados (T009). Triage
-completo en tasks.md: 8 aserciones débiles corregidas con evidencia real
-(rojo a mano antes de cada fix, incluido un `in`/`==` que el propio test
-nuevo escondía -- "2.5s" es substring de "202.5s"). T027: `modelo_real`
-corrió de verdad, 6/6 pasaron. `just gauntlet` verde: 268 tests, 99.07%.
+Feature 007 (hito 3), T001-T012: MVP completo (US1+US2).
+`analytics/metrica_digitacion.py` nuevo: `generar_candidatas`/
+`asignar_instante` (US1, tres motivos de exclusión distinguibles) y
+`agrupar_en_instantes`/`asignar_secuencia` (US2, DP sobre un enrejado
+por instantes, research.md #1) verificados contra fuerza bruta escrita
+en el propio test (FR-006). Dos decisiones de arquitectura resueltas al
+implementar, documentadas en el código: helper privado compartido
+`_generar_combinaciones_validas` (asignar_instante usa una asignación,
+la DP necesita el conjunto por instante); centroide de traste/cuerda
+como posición de mano, con la alternativa de traste-mínimo dejada
+escrita para T025. `just gauntlet` verde: 294 tests, 99.20% (`metrica_digitacion` 100%).
 
 ## Qué sigue
 
-Feature 006 cerrada. Decidir si el hito 2 necesita una compuerta
-automática sobre el presupuesto `0.70` (Principio VII), o si el reporte
-del artefacto alcanza -- mismo criterio que el hito 1 diferenció medir de
-aprobar.
+T013-T025 (US3, P3): posición real de GuitarSet, `evaluar_coincidencia`/
+`agregar_conjunto`, `digitacion.orquestador`/`cli`, medición real sobre
+las 288 medibles (Principio VII), T025 (calibración de pesos). Luego
+T026-T027 (Polish).
 
 ## Bloqueado / pendiente de decisión
 
-Ninguno nuevo. `.copier-answers.yml`/`AGENTS.md` tienen un `copier
-update` pendiente sin commitear, fuera de alcance. Licencia de pesos de
-Demucs: sin verificar.
+Ninguno nuevo. Mismos pendientes: compuerta automática del presupuesto
+`0.70` del hito 2; `copier update` de `.copier-answers.yml`/`AGENTS.md`
+sin commitear; licencia de pesos de Demucs sin verificar.
