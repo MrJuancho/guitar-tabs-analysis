@@ -339,6 +339,44 @@ def test_evaluar_grabacion_estimada_sin_ninguna_referencia_es_monofonica_y_resta
 
 
 # ---------------------------------------------------------------------
+# FR-014, research.md #17 -- corrección posterior a T035: la partición
+# mono/poli hereda del ÚNICO emparejamiento de la grabación, nunca
+# reclasifica ni reempareja cada lado por separado. Guarda permanente:
+# verdaderos_positivos(mono) + verdaderos_positivos(poli) ==
+# verdaderos_positivos(global), SIEMPRE (SC-007) -- el property test de
+# tests/property/test_metrica_deteccion_notas_property.py generaliza
+# esta misma afirmación sobre entradas arbitrarias.
+# ---------------------------------------------------------------------
+
+
+def test_evaluar_grabacion_par_hereda_clase_de_referencia_no_del_instante_de_estimada() -> None:
+    """`ref_a` y `ref_b` arrancan juntas (acorde: 2 referencias solapando
+    su propio inicio) -> ambas clasifican "polifonica". `est_b` empareja
+    con `ref_b` (mismo tono, inicio dentro de los 50ms de ventana), pero
+    el propio inicio de `est_b` (2.04) ya no solapa a `ref_a` (que
+    termina en 2.02) -- evaluado en soledad, el instante de `est_b`
+    clasificaria "monofonica" (afirmado explícitamente abajo, research.md
+    #17: esa discrepancia entre los dos lados del par era la causa real
+    del defecto). El par MUST contar como acierto polifónico, heredado de
+    `ref_b`, no perderse por la discrepancia."""
+    ref_a = NotaReferencia(tono_midi=60.0, inicio_s=2.00, fin_s=2.02)
+    ref_b = NotaReferencia(tono_midi=64.0, inicio_s=2.00, fin_s=3.00)
+    est_b = NotaEstimada(tono_midi=64.0, inicio_s=2.04, fin_s=3.00)
+
+    # El propio instante de `est_b`, evaluado en soledad contra las
+    # referencias, clasificaría monofónica -- la fuente exacta del
+    # defecto que este test fija.
+    assert clasificar_polifonia_en_instante(est_b.inicio_s, [ref_a, ref_b]) == "monofonica"
+
+    global_, mono, poli = evaluar_grabacion([ref_a, ref_b], [est_b])
+
+    assert global_.verdaderos_positivos == 1
+    assert poli.verdaderos_positivos == 1
+    assert mono.verdaderos_positivos == 0
+    assert mono.verdaderos_positivos + poli.verdaderos_positivos == global_.verdaderos_positivos
+
+
+# ---------------------------------------------------------------------
 # T022 -- agregar_conjunto: pool plano sobre todas las grabaciones no
 # excluidas, nunca promedio de resultados por grabación (contracts/
 # deteccion.md postcondición 5).
