@@ -213,6 +213,14 @@ compuerta modo:
 detectar modo root_dir:
     uv run python -m guitar_tabs_analysis.deteccion.cli --modo {{ modo }} --root-dir {{ root_dir }}
 
+# Corre la digitación con restricción de la mano del hito 3 (Feature 007)
+# contra la posición real de GuitarSet. `modo` es "medibles" (288
+# grabaciones, 80% de GuitarSet -- las únicas que se miden durante el
+# desarrollo) o "reservado" (las 72 restantes, solo para el cierre del
+# hito 3, Principio VI) -- sin valor por defecto, ver digitacion/cli.py.
+digitar modo root_dir:
+    uv run python -m guitar_tabs_analysis.digitacion.cli --modo {{ modo }} --root-dir {{ root_dir }}
+
 # ---------------------------------------------------------------
 # Entorno
 # ---------------------------------------------------------------

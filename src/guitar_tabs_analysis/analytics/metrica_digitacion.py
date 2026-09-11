@@ -543,3 +543,37 @@ def evaluar_coincidencia(
         num_notas_medidas=num_medidas,
         num_notas_coincidentes=num_coincidentes,
     )
+
+
+# ---------------------------------------------------------------------
+# agregar_conjunto (T021, contracts/digitacion.md postcondición 6,
+# mismo patrón que agregar_conjunto del hito 2, research.md #16 de esa
+# feature)
+# ---------------------------------------------------------------------
+
+
+def agregar_conjunto(resultados: list[ResultadoDigitacionGrabacion]) -> ResultadoCoincidencia:
+    """SUMA `num_notas_medidas`/`num_notas_coincidentes` de cada
+    grabación NO excluida -- nunca promedia las `fraccion_coincidencia`
+    calculadas por grabación (una grabación con muchas notas pesa más
+    que una con pocas, por diseño) ni poolea notas crudas de
+    grabaciones distintas (la asignación, vía `asignar_secuencia`, ya
+    corrió una vez por grabación -- misma disciplina que FR-013 del
+    hito 2, research.md #16 de esa feature)."""
+    num_medidas_total = 0
+    num_coincidentes_total = 0
+    for resultado in resultados:
+        if resultado.exclusion is not None:
+            continue
+        assert resultado.digitacion is not None
+        assert resultado.notas_con_posicion_real is not None
+        parcial = evaluar_coincidencia(resultado.digitacion, resultado.notas_con_posicion_real)
+        num_medidas_total += parcial.num_notas_medidas
+        num_coincidentes_total += parcial.num_notas_coincidentes
+
+    fraccion = (num_coincidentes_total / num_medidas_total) if num_medidas_total > 0 else None
+    return ResultadoCoincidencia(
+        fraccion_coincidencia=fraccion,
+        num_notas_medidas=num_medidas_total,
+        num_notas_coincidentes=num_coincidentes_total,
+    )

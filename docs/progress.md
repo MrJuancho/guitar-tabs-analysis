@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 007, T013/T014/T018/T019/T020 (mitad de US3). `leer_grabacion_con_posicion_real`
-(`ingestion/guitarset.py`, track.notes por cuerda, nunca notes_all) y
-`evaluar_coincidencia` (compara SIEMPRE contra la posición real anotada,
-nunca contra `coste_total` -- sería circular, FR-007). `ResultadoCoincidencia`
-documenta explícitamente que mide PARECIDO con el uso humano, no
-corrección -- una posición distinta puede ser igual de válida.
-T015-T017 (tests de `agregar_conjunto`/orquestador/CLI) quedaron
-DELIBERADAMENTE sin escribir -- sus implementaciones (T021-T023) caen
-fuera de este rango, y escribirlas ahora las dejaría en rojo entre
-sesiones (nota de alcance en tasks.md). `just gauntlet` verde: 302
-tests, 100% en `metrica_digitacion.py`.
+Feature 007, T015-T025: User Story 3 completa (segunda mitad).
+`agregar_conjunto`, `digitacion.orquestador`/`cli` (mismo patrón que
+`deteccion.cli`: modo sin default, escritura atómica, progreso por
+grabación). T024: primera corrida real sobre las 288 medibles -- 11.1s
+de reloj (lineal confirmado), 0 excluidas, `fraccion_coincidencia=0.6186`
+(research.md #14). T025: calibración medida, no aplicada -- hallazgo
+estructural (un desacuerdo nunca aísla cuerda o traste, mecánico) más
+una asimetría real (Δcuerda acotado ~1-2, Δtraste disperso hasta 19)
+documentada como hipótesis para recalibrar después (research.md #15) --
+pesos sin tocar. `just gauntlet` verde: 331 tests, 99.23%.
 
 ## Qué sigue
 
-T015-T017 (tests) + T021-T023 (agregar_conjunto, digitacion.orquestador,
-digitacion.cli) en la misma sesión. Después T024 (medición real sobre
-las 288 medibles, Principio VII) y T025 (calibración de pesos). Luego
-T026-T027 (Polish).
+T026-T027 (Polish): `just gauntlet` ya verde; falta mutation testing
+acotado a la capa nueva (`metrica_digitacion`, `digitacion.orquestador`/
+`cli`, extensión de `ingestion.guitarset`) con triage real. Después:
+cerrar Principio VII del hito 3 (`/speckit-constitution`) con la cifra
+de T024/T025 como evidencia.
 
 ## Bloqueado / pendiente de decisión
 

@@ -457,3 +457,112 @@ la relación real entre urgencia temporal y dificultad sea cuadrática en
 vez de lineal; se documenta como alternativa a revisar con la misma
 evidencia de User Story 3 mencionada arriba, no descartada para
 siempre.
+
+## 14. T024 -- primera medición real: la complejidad lineal proyectada se confirma con evidencia de reloj, no solo con el análisis de research.md #1
+
+**Corrida real** (`just digitar medibles /home/mrjuancho/datos/guitarset`,
+Basic Pitch/GPU no interviene aquí -- esta feature no tiene inferencia,
+solo lectura de anotaciones + programación dinámica): las 288
+grabaciones medibles reales, **0 excluidas** por completo (ninguna
+`GrabacionNoExisteError`) -- **11.1 segundos de reloj real, de punta a
+punta**, medido con `time`. Muy por debajo de cualquier riesgo de
+escala: plan.md (Performance Goals) ya anticipaba, con el análisis de
+complejidad de research.md #1, que esta feature NO enfrentaría el mismo
+problema que forzó acotar el alcance de la medición del hito 1
+(Feature 003, ~25 h proyectadas para el conjunto completo) -- **esta
+medición lo confirma con tiempo real, no solo con el argumento teórico
+de complejidad**, mismo criterio de esta feature para toda afirmación
+cuantitativa.
+
+**Resultado de `resultado_coincidencia` (FR-007, entrada real para el
+futuro cierre del Principio VII del hito 3 -- esta tarea NO cierra el
+presupuesto, solo lo produce)**:
+
+- `num_notas_medidas` = 49535
+- `num_notas_coincidentes` = 30644
+- `fraccion_coincidencia` = **0.6186**
+
+**Exclusiones de instante: solo 1 en las 288 grabaciones completas**
+(sobre 49536 instantes procesados, prácticamente cero) -- consistente
+con `LIMITE_ESTIRAMIENTO_TRASTES=5` (research.md #8) cubriendo el 99.8%
+de los ataques polifónicos reales medidos: la cola de casos que ese
+límite deja fuera es rara en la práctica real de punta a punta, tal
+como research.md #8 ya predijo con la medición aislada de estiramiento.
+
+**Recordatorio explícito (spec.md, "Dos verificaciones distintas" --
+mismo que `ResultadoCoincidencia` ya documenta en su docstring):**
+0.6186 es una fracción de COINCIDENCIA con la digitación real, no una
+tasa de acierto/corrección -- el 38% restante no son "errores": una
+posición distinta de la real puede reproducir el mismo tono y ser
+igual de válida para tocar. Esta cifra es la validación del modelo de
+coste contra comportamiento humano real, nunca "mi coste salió bajo"
+(sería circular, FR-007) ni un porcentaje que se lea como fallos.
+
+## 15. T025 -- calibración de pesos de movimiento: señal real medida, sin reponderar
+
+**Medido sobre la corrida real de T024** (research.md #14): de las 49535
+notas medidas, 18891 (38.1%) tienen una posición asignada que NO
+coincide con la real -- para cada una, `Δcuerda = |índice_cuerda_asignada
+- índice_cuerda_real|` (0=E grave a 5=e agudo) y `Δtraste =
+|traste_asignado - traste_real|`, calculados con un script aparte sobre
+el propio artefacto (`mediciones/digitacion_medibles.json`), nunca
+inventados ni estimados.
+
+**Primer hallazgo, estructural, ANTES de cualquier pregunta de
+calibración -- el criterio que la tarea proponía originalmente
+("¿discrepa solo en cuerda, o solo en traste?") resulta VACÍO para este
+dominio, verificado, no asumido**: de los 18891 desacuerdos, el 100%
+difiere en AMBAS dimensiones a la vez -- 0 casos de "solo cuerda"
+(`Δtraste==0`, `Δcuerda>=1`), 0 casos de "solo traste" (`Δcuerda==0`,
+`Δtraste>=1`). La razón es mecánica, no una propiedad del modelo de
+coste: para un tono fijo, `traste = tono_midi - MIDI_CUERDA_ABIERTA[cuerda]`
+es una función determinista de la cuerda -- dos posiciones con la misma
+cuerda tienen necesariamente el mismo traste (mismo tono), y dos
+posiciones con distinta cuerda tienen necesariamente distinto traste
+(las seis cuerdas nunca comparten afinación). Ningún desacuerdo puede
+aislar una sola dimensión -- documentado aquí para que una sesión
+futura no vuelva a proponer el mismo criterio esperando un resultado
+distinto.
+
+**Segundo hallazgo, la señal real de asimetría (la pregunta que sí
+tiene sentido: no "pura vs. mixta", sino la MAGNITUD relativa de cada
+dimensión sobre los mismos 18891 desacuerdos)**:
+
+- `Δcuerda`: media 1.15, mediana 1, percentiles [50,75,90,95,99,100] =
+  [1, 1, 2, 2, 3, 4] -- **acotado y concentrado cerca de 0**: en la
+  mitad de los desacuerdos, la cuerda asignada es la cuerda adyacente a
+  la real, y el 95% se queda dentro de 2 cuerdas de distancia.
+- `Δtraste`: media 5.39, mediana 5, percentiles [50,75,90,95,99,100] =
+  [5, 5, 9, 10, 14, 19] -- **mucho más disperso y con un rango mayor**:
+  la mitad de los desacuerdos ya está a 5 trastes o más de la posición
+  real, y la cola llega hasta el extremo físico del mástil (19).
+
+**Asimetría real, pero su interpretación como señal de recalibración
+tiene un matiz que también hay que declarar (Principio VII: no
+reponderar a ciegas, tampoco sobre-interpretar a ciegas)**: `Δtraste`
+tiende a ser mayor que `Δcuerda` en términos absolutos en parte porque
+la propia afinación estándar lo impone -- moverse una cuerda adyacente
+mientras se mantiene el mismo tono cambia el traste en ~5 (una cuarta
+justa) o ~4 (el par G-B) por construcción del instrumento, no por una
+decisión del modelo de coste. Aun así, la concentración de `Δcuerda` en
+valores bajos (rara vez más de 2-3 cuerdas de distancia) frente a la
+dispersión mucho mayor de `Δtraste` (hasta 19) es una asimetría
+observable en las UNIDADES de cada componente del coste, no solo un
+artefacto de la afinación -- es consistente con la hipótesis de que
+`peso_cruce_cuerdas` desalienta el cruce de cuerdas más de lo que
+`peso_desplazamiento` desalienta el desplazamiento en trastes (ambos en
+1.0 sin calibrar, research.md #13), aunque NO es una prueba concluyente
+por sí sola: haría falta repetir esta medición tras una recalibración
+real para confirmar que mover el balance de pesos hacia
+`peso_desplazamiento` (relativo a `peso_cruce_cuerdas`) efectivamente
+sube `fraccion_coincidencia`, no solo mueve la distribución de
+`Δcuerda`/`Δtraste` sin mejorar la cifra que importa.
+
+**Decisión de esta tarea: NO se reponderan `peso_desplazamiento`/
+`peso_cruce_cuerdas` aquí.** Ajustar los pesos mirando el resultado que
+se acaba de medir es la misma forma de sesgo que mover un umbral
+después de verlo (Principio VII) -- el hallazgo queda registrado, con
+su evidencia completa, como la entrada de una sesión posterior de
+recalibración, que debe tener su propia medición de que el cambio
+propuesto mejora `fraccion_coincidencia` de verdad, no solo mueve estas
+distribuciones.

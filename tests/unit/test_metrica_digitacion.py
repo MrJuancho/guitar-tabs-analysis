@@ -15,11 +15,14 @@ import pytest
 from guitar_tabs_analysis.analytics.metrica_digitacion import (
     MODELO_COSTE_POR_DEFECTO,
     Digitacion,
+    ExclusionDigitacion,
     Instante,
     InstanteExcluido,
     ModeloCoste,
     Posicion,
     PosicionAsignada,
+    ResultadoDigitacionGrabacion,
+    agregar_conjunto,
     evaluar_coincidencia,
     generar_candidatas,
 )
@@ -575,3 +578,119 @@ def test_evaluar_coincidencia_nota_asignada_sin_posicion_real_no_entra_al_denomi
     assert resultado.num_notas_medidas == 0
     assert resultado.num_notas_coincidentes == 0
     assert resultado.fraccion_coincidencia is None
+
+
+# ---------------------------------------------------------------------
+# agregar_conjunto (T015, contracts/digitacion.md postcondición 6,
+# mismo patrón que agregar_conjunto del hito 2, research.md #16 de esa
+# feature): SUMA conteos ya resueltos por grabación, nunca promedia
+# fracciones ni poolea notas crudas entre grabaciones.
+# ---------------------------------------------------------------------
+
+
+def _resultado_grabacion(
+    grabacion_id: str,
+    posiciones: list[PosicionAsignada],
+    reales: list[NotaConPosicionReal],
+) -> ResultadoDigitacionGrabacion:
+    return ResultadoDigitacionGrabacion(
+        grabacion_id=grabacion_id,
+        digitacion=Digitacion(posiciones=posiciones, exclusiones=[], coste_total=0.0),
+        notas_con_posicion_real=reales,
+        exclusion=None,
+    )
+
+
+def test_agregar_conjunto_ignora_grabaciones_excluidas() -> None:
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    g1 = _resultado_grabacion(
+        "g1",
+        [PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2))],
+        [
+            NotaConPosicionReal(
+                tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2
+            )
+        ],
+    )
+    g2_excluida = ResultadoDigitacionGrabacion(
+        grabacion_id="g2",
+        digitacion=None,
+        notas_con_posicion_real=None,
+        exclusion=ExclusionDigitacion(grabacion_id="g2", detalle="no existe"),
+    )
+    n2 = NotaReferencia(tono_midi=50.0, inicio_s=2.0, fin_s=2.5)
+    g3 = _resultado_grabacion(
+        "g3",
+        [PosicionAsignada(nota=n2, posicion=Posicion(cuerda="D", traste=0))],
+        [
+            NotaConPosicionReal(
+                tono_midi=50.0, inicio_s=2.0, fin_s=2.5, cuerda_real="D", traste_real=0
+            )
+        ],
+    )
+
+    resultado = agregar_conjunto([g1, g2_excluida, g3])
+
+    assert resultado.num_notas_medidas == 2
+    assert resultado.num_notas_coincidentes == 2
+    assert resultado.fraccion_coincidencia == 1.0
+
+
+def test_agregar_conjunto_suma_conteos_no_promedia_fracciones() -> None:
+    """Construido para que la suma y el promedio de fracciones por
+    grabación den cifras DISTINTAS -- fija que se pooleó por conteo, no
+    que se promedió (mismo patrón que la Feature 006, research.md #16
+    de esa feature: una grabación con más notas pesa más que una con
+    pocas)."""
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    g_una_nota_coincide = _resultado_grabacion(
+        "g1",
+        [PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2))],
+        [
+            NotaConPosicionReal(
+                tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2
+            )
+        ],
+    )
+    notas_b = [
+        NotaReferencia(tono_midi=50.0, inicio_s=2.0, fin_s=2.5),
+        NotaReferencia(tono_midi=55.0, inicio_s=3.0, fin_s=3.5),
+        NotaReferencia(tono_midi=59.0, inicio_s=4.0, fin_s=4.5),
+    ]
+    g_tres_notas_ninguna_coincide = _resultado_grabacion(
+        "g2",
+        [PosicionAsignada(nota=n, posicion=Posicion(cuerda="E", traste=19)) for n in notas_b],
+        [
+            NotaConPosicionReal(
+                tono_midi=n.tono_midi,
+                inicio_s=n.inicio_s,
+                fin_s=n.fin_s,
+                cuerda_real="D",
+                traste_real=0,
+            )
+            for n in notas_b
+        ],
+    )
+
+    resultado = agregar_conjunto([g_una_nota_coincide, g_tres_notas_ninguna_coincide])
+
+    assert resultado.num_notas_medidas == 4
+    assert resultado.num_notas_coincidentes == 1
+    assert resultado.fraccion_coincidencia == pytest.approx(0.25)
+    promedio_por_grabacion = (1.0 + 0.0) / 2
+    assert resultado.fraccion_coincidencia != pytest.approx(promedio_por_grabacion)
+
+
+def test_agregar_conjunto_sin_notas_medidas_da_fraccion_none() -> None:
+    todas_excluidas = [
+        ResultadoDigitacionGrabacion(
+            grabacion_id="g1",
+            digitacion=None,
+            notas_con_posicion_real=None,
+            exclusion=ExclusionDigitacion(grabacion_id="g1", detalle="no existe"),
+        )
+    ]
+    resultado = agregar_conjunto(todas_excluidas)
+    assert resultado.fraccion_coincidencia is None
+    assert resultado.num_notas_medidas == 0
+    assert resultado.num_notas_coincidentes == 0
