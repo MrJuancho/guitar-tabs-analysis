@@ -29,6 +29,12 @@ from guitar_tabs_analysis.deteccion.orquestador import (
     construir_lista_grabaciones,
     ejecutar_deteccion,
 )
+from guitar_tabs_analysis.ingestion.guitarset import (
+    IndiceMirdataAusenteError,
+    RaizGuitarSetInvalidaError,
+    validar_indice_mirdata,
+    validar_raiz_guitarset,
+)
 from guitar_tabs_analysis.transcripcion.basic_pitch_transcriptor import BasicPitchTranscriptor
 from guitar_tabs_analysis.transcripcion.transcriptor import Transcriptor
 
@@ -109,7 +115,22 @@ def _ejecutar_y_escribir(
     """Núcleo testeable de `main()`, sin `argparse` ni
     `BasicPitchTranscriptor` -- recibe el `Transcriptor` ya construido,
     así los tests lo ejercitan con `TranscriptorFalso` sin invocar ningún
-    subproceso."""
+    subproceso.
+
+    Precondiciones de arranque (FR-015/FR-016, research.md #19) MUST
+    verificarse ANTES de `construir_lista_grabaciones`/`ejecutar_deteccion`
+    -- nunca a mitad de una corrida (incidente real: `root_dir` apuntando
+    al repositorio en vez del dataset; reproducido en research.md #19
+    como un `FileNotFoundError` sin envolver en la primera grabación, no
+    exactamente como se reportó de entrada -- de cualquiera de las dos
+    formas, nada validaba `root_dir` antes de arrancar)."""
+    try:
+        validar_indice_mirdata()
+        validar_raiz_guitarset(root_dir)
+    except (IndiceMirdataAusenteError, RaizGuitarSetInvalidaError) as causa:
+        print(str(causa), file=sys.stderr)
+        return 1
+
     grabaciones = construir_lista_grabaciones(modo, root_dir)
     artefacto = ejecutar_deteccion(grabaciones, root_dir, transcriptor)
     try:

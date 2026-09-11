@@ -768,3 +768,109 @@ verificación automática de que coincidan. Bajar el chequeo de
 `envs/basic_pitch_py310/.venv` a "informativo" también para el
 directorio versionado -- descartado: ese directorio SÍ está en git, su
 ausencia es corrupción real de checkout, no un estado esperado.
+
+## 19. Precondiciones de arranque: `root_dir` y el índice de `mirdata` -- fallar una vez al empezar, no una vez por grabación (o nunca)
+
+**Contexto real**: dos incidentes reportados sobre `just detectar`, y una
+limitación de infraestructura que ninguno de los dos motivó pero que
+comparte causa raíz (una dependencia de datos que vive fuera de
+`root_dir`, sin verificación temprana).
+
+**Caso 1 -- `root_dir` sin validar.** Invocar la CLI con `--root-dir`
+apuntando al repositorio (en vez de a una distribución real de GuitarSet)
+reportó 288 exclusiones idénticas, una por grabación. **Verificado antes
+de tocar código, y el resultado no coincide exactamente con ese reporte**
+(AGENTS.md, "Una afirmación cuantitativa se verifica numéricamente"): al
+reproducir el escenario exacto (`leer_grabacion("00_BN1-129-Eb_comp",
+Path("<raíz del repo>"))`, con el índice real de `mirdata` -- 360
+`track_ids` reales, sin mockear) el fallo real es un `FileNotFoundError`
+SIN ENVOLVER en la primera grabación, propagado fuera de `leer_grabacion`
+-- no una `GrabacionNoExisteError` capturada 288 veces. La causa: el
+`try/except` de `leer_grabacion` envuelve únicamente `dataset.track(grabacion_id)`
+(`mirdata.core.Track.__init__` solo valida que `grabacion_id` esté en el
+índice -- verificado contra su código fuente real, no toca disco); el
+acceso a `track.notes_all` (que sí lee `annotation/<id>.jams` del disco,
+vía `@core.cached_property`) queda FUERA de ese `try/except`, así que un
+`root_dir` incorrecto lo deja sin envolver, y `ejecutar_deteccion` solo
+captura `GrabacionNoExisteError` específicamente -- el proceso completo
+se cae en la primera grabación, no reporta 288 fallos iguales. Sea cual
+sea la forma exacta en que se manifestó el incidente original, el defecto
+de fondo es el mismo y ya estaba confirmado sin necesidad de reproducir
+el número exacto: **nada valida `root_dir` antes de iterar sobre las
+grabaciones**, así que el primer fallo real (cualquiera que sea su forma)
+llega tarde, después de que la corrida ya arrancó.
+
+**Caso 2 -- el índice de `mirdata` sin verificar.** Es una descarga aparte
+del paquete (`mirdata.initialize("guitarset").track_ids` lee un archivo
+JSON local, `Dataset._index`, `mirdata/core.py`) que solo se manifiesta
+al usarse -- si falta, `mirdata` lanza un `FileNotFoundError` con un
+mensaje genérico ("This dataset's index must be downloaded. Did you run
+.download()?") en el primer punto que lo necesite (hoy,
+`construir_lista_grabaciones`, antes de la primera grabación pero sin
+mensaje propio del proyecto ni instrucción concreta).
+
+**Decision (casos 1 y 2)**: dos funciones nuevas en `ingestion.guitarset`
+-- `validar_raiz_guitarset(root_dir)` (FR-015) y `validar_indice_mirdata()`
+(FR-016) --, invocadas juntas al principio de
+`deteccion.cli._ejecutar_y_escribir`, ANTES de `construir_lista_grabaciones`/
+`ejecutar_deteccion`. `validar_raiz_guitarset` verifica que `root_dir/annotation`
+y `root_dir/audio_mono-mic` existen como DIRECTORIO (los dos que
+`leer_grabacion` consume -- `Track.jams_path`/`Track.audio_mic_path`,
+verificado contra una distribución real de GuitarSet en disco, no
+supuesto por el nombre del dataset) -- MUST NOT invocar `mirdata`, para
+no confundir "`root_dir` mal apuntado" con "`grabacion_id` inexistente en
+el índice" (ese caso ya lo cubre `GrabacionNoExisteError`). No lo
+combina en una sola comprobación: son fallos con causas y remedios
+distintos (una ruta de CLI mal pasada vs. una descarga de paquete
+faltante), y el mensaje de cada uno debe decir cuál es cuál.
+`validar_indice_mirdata` es independiente de `root_dir` (el índice vive
+en `site-packages`, ver caso 3) -- intenta `mirdata.initialize("guitarset").track_ids`
+y envuelve cualquier excepción en un mensaje propio con el comando exacto
+para resolverlo (`mirdata.initialize('guitarset').download(partial_download=['index'])`).
+Ambas devuelven código de salida `1` desde la CLI, antes de que
+`construir_lista_grabaciones` toque nada.
+
+**Caso 3 -- el índice vive dentro de `.venv`, y no hay forma de moverlo.**
+Verificado contra el código fuente real de `mirdata` 1.0.0 instalado en
+este proyecto (`mirdata/core.py::Index.__init__`): `indexes_dir` se
+calcula como `os.path.dirname(os.path.realpath(__file__))` + `datasets/indexes/`
+-- una ruta **derivada del archivo `core.py` de la propia instalación de
+`mirdata`**, sin ningún parámetro de constructor, variable de entorno, ni
+punto de configuración que la redirija. Confirmado en este proyecto:
+`mirdata.initialize('guitarset').index_path` resuelve a
+`.venv/lib/python3.12/site-packages/mirdata/datasets/indexes/guitarset_index_1.1.0.json`.
+Es una dependencia de datos real (un archivo necesario para que el
+pipeline funcione) viviendo en un directorio efímero por diseño (`.venv`,
+`.gitignore`, recreado por `uv sync`/`uv sync --reinstall` sin ningún
+aviso de que se perdió algo más que paquetes Python).
+
+**Alternativa evaluada y descartada: apuntar el índice a una ruta
+estable fuera de `.venv`.** No existe ningún mecanismo soportado por
+`mirdata` para hacerlo -- `Index.indexes_dir` es un atributo calculado en
+`__init__` sin parámetro que lo anule, y los objetos `Index` de
+`guitarset` (`REMOTES`/`INDEXES` a nivel de módulo en
+`mirdata/datasets/guitarset.py`) se construyen una sola vez al importar
+el módulo, antes de que este proyecto tenga ninguna oportunidad de
+intervenir. Reemplazar `Index.indexes_dir` con un monkeypatch en tiempo
+de import (`mirdata.core.Index.__init__` parcheado antes de
+`import mirdata.datasets.guitarset`) técnicamente movería el archivo,
+pero es frágil contra cualquier actualización de `mirdata` que cambie el
+orden de inicialización, y es exactamente el tipo de parche silencioso
+contra una biblioteca de terceros que este proyecto evita en el resto del
+código (nunca se reimplementa ni se parchea por dentro lo que `mirdata`/
+`mir_eval` ya resuelven, research.md #5 de esta misma feature). **No se
+adopta.**
+
+**Consecuencia, documentada para que nadie la descubra por accidente**:
+después de `uv sync --reinstall`, o de borrar y recrear `.venv` por
+cualquier motivo, el índice de GuitarSet desaparece junto con el resto
+del entorno -- `validar_indice_mirdata` (caso 2) lo detecta al arrancar
+la próxima corrida y dice cómo recuperarlo
+(`mirdata.initialize('guitarset').download(partial_download=['index'])`,
+sin red hacia ningún dato real de audio, solo el índice). Es un paso
+manual repetible, no automatizado -- no hay generador propio de este
+proyecto que lo dispare (a diferencia de `envs/basic_pitch_py310/.venv`,
+que `uv sync` dentro de ese directorio reconstruye completo): quien
+reconstruya el entorno principal debe correr ese comando una vez, y
+`validar_indice_mirdata` es la red que evita que el olvido se descubra a
+mitad de una corrida de 288 grabaciones en vez de al arrancarla.

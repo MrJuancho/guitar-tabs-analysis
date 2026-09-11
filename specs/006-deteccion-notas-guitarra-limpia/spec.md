@@ -365,6 +365,23 @@ subconjunto monofónico como en el polifónico.
   reclasificaba y volvía a emparejar cada lado por separado dentro de
   cada subconjunto, en vez de derivar la partición del emparejamiento
   ya resuelto.)
+- **FR-015**: Antes de procesar ninguna grabación de un conjunto, el
+  sistema MUST verificar que `root_dir` contiene la estructura mínima
+  que GuitarSet debe tener -- el directorio de anotaciones y el de audio
+  que FR-001 consume (`annotation/` y `audio_mono-mic/`, research.md
+  #19) -- y MUST fallar con un mensaje que diga explícitamente qué
+  directorio falta, ANTES de iterar sobre ninguna grabación. MUST NOT
+  descubrir un `root_dir` inválido a mitad de una corrida, repitiendo el
+  mismo fallo una vez por grabación. (Hallazgo posterior a T035, sesión
+  2026-09-10: `--root-dir` apuntando al repositorio en vez del dataset
+  no fallaba al arrancar -- research.md #19.)
+- **FR-016**: Antes de procesar ninguna grabación de un conjunto, el
+  sistema MUST verificar que el índice de `mirdata` para GuitarSet está
+  disponible, y MUST fallar con un mensaje que incluya cómo obtenerlo si
+  no lo está -- nunca dejar propagar la excepción cruda de `mirdata`
+  (research.md #19: el índice es una descarga aparte del paquete,
+  independiente de `root_dir`, cuya ausencia solo se manifestaba antes
+  al invocarlo, sin instrucción concreta de cómo resolverla).
 
 ### Key Entities
 
@@ -425,6 +442,12 @@ subconjunto monofónico como en el polifónico.
   (FR-014). Ninguna corrida reporta una cifra global que sea mayor (ni
   menor) que ambas cifras parciales a la vez, cuando ambos subconjuntos
   tienen datos.
+- **SC-008**: El 100% de las corridas sobre un `root_dir` inválido (sin
+  la estructura mínima de GuitarSet, FR-015) o sobre un índice de
+  `mirdata` ausente (FR-016) fallan ANTES de procesar la primera
+  grabación del conjunto, con un mensaje que dice explícitamente qué
+  falta -- el 0% de esas corridas llega a invocar el modelo de
+  transcripción ni a producir ninguna exclusión por grabación repetida.
 
 ## Assumptions
 

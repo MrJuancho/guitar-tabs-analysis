@@ -78,6 +78,94 @@ class GrabacionNoExisteError(Exception):
 
 
 # ---------------------------------------------------------------------
+# Precondiciones de arranque (FR-015/FR-016) -- verificadas UNA VEZ antes
+# de procesar ninguna grabación, nunca descubiertas a mitad de una
+# corrida (research.md #19). Mismo criterio que el hito 1: el pipeline
+# falla con mensaje claro si no encuentra el audio, nunca en silencio y
+# nunca a mitad -- acá se adelanta el mismo tipo de fallo al arranque en
+# vez de esperar a la primera (o a las 288) `leer_grabacion` que lo
+# habría descubierto de todos modos, una vez por grabación.
+# ---------------------------------------------------------------------
+
+
+class IndiceMirdataAusenteError(Exception):
+    """El índice de `mirdata` para GuitarSet no está disponible (FR-016)
+    -- vive en `site-packages/mirdata/datasets/indexes/`, research.md
+    #19: una descarga aparte del paquete, independiente de `root_dir`,
+    que `pip install`/`uv sync` no trae. Nunca se propaga la excepción
+    cruda de `mirdata` (un `FileNotFoundError` con un mensaje genérico) --
+    se envuelve con el comando exacto para resolverlo."""
+
+    def __init__(self, causa: Exception) -> None:
+        self.causa = causa
+        super().__init__(
+            "El índice de GuitarSet de mirdata no está disponible -- descargalo con: "
+            'python -c "import mirdata; '
+            "mirdata.initialize('guitarset').download(partial_download=['index'])\" "
+            f"(causa real: {causa})."
+        )
+
+
+def validar_indice_mirdata() -> None:
+    """Verifica, ANTES de procesar ninguna grabación (FR-016), que el
+    índice de GuitarSet de `mirdata` está disponible -- independiente de
+    `root_dir` (research.md #19: el índice vive en `site-packages`, no
+    bajo la raíz de datos). `dataset.track_ids` es la misma propiedad que
+    `construir_lista_grabaciones` ya necesita -- si el índice falta, MUST
+    fallar aquí, con un mensaje que diga cómo obtenerlo, no como una
+    excepción cruda de `mirdata` más adelante."""
+    try:
+        _ = mirdata.initialize("guitarset").track_ids
+    except Exception as causa:
+        raise IndiceMirdataAusenteError(causa) from causa
+
+
+DIRECTORIOS_REQUERIDOS_GUITARSET = ("annotation", "audio_mono-mic")
+"""Los dos directorios que `leer_grabacion` consume de `root_dir`:
+`annotation/` (JAMS, `Track.jams_path` -> `notes_all`, research.md #7) y
+`audio_mono-mic/` (audio real de micrófono, `Track.audio_mic_path`,
+research.md #6) -- verificado contra una distribución real de GuitarSet
+en disco, no supuesto por el nombre del dataset."""
+
+
+class RaizGuitarSetInvalidaError(Exception):
+    """`root_dir` no tiene la estructura mínima que GuitarSet debe tener
+    (FR-015) -- incidente real: apuntar `--root-dir` a la raíz del
+    repositorio en vez de al dataset. El fallo real reproducido
+    (research.md #19) es un `FileNotFoundError` SIN ENVOLVER en la
+    primera grabación (no 288 exclusiones repetidas, como se reportó de
+    entrada) -- en cualquiera de las dos formas, el defecto de fondo es
+    el mismo: nada valida `root_dir` antes de arrancar. Nunca una
+    excepción cruda de `mirdata`/`FileNotFoundError` -- MUST decir
+    explícitamente qué directorio falta."""
+
+    def __init__(self, root_dir: Path, faltantes: list[str]) -> None:
+        self.root_dir = root_dir
+        self.faltantes = faltantes
+        super().__init__(
+            f"'{root_dir}' no es una raíz de GuitarSet válida -- falta: "
+            f"{', '.join(faltantes)}. GuitarSet debe tener 'annotation/' (anotaciones "
+            "JAMS) y 'audio_mono-mic/' (audio de micrófono) bajo esta ruta."
+        )
+
+
+def validar_raiz_guitarset(root_dir: Path) -> None:
+    """Verifica, ANTES de procesar ninguna grabación (FR-015), que
+    `root_dir` contiene los directorios que `leer_grabacion` consume --
+    `annotation/` y `audio_mono-mic/`, ambos como DIRECTORIO (no un
+    archivo suelto con ese nombre, que pasaría este chequeo sin poder
+    servir ninguna grabación real). MUST NOT invocar `mirdata`: el
+    objetivo es fallar sobre `root_dir` en sí, independiente de si algún
+    `grabacion_id` particular existe en el índice (eso ya lo cubre
+    `GrabacionNoExisteError`, por grabación)."""
+    faltantes = [
+        nombre for nombre in DIRECTORIOS_REQUERIDOS_GUITARSET if not (root_dir / nombre).is_dir()
+    ]
+    if faltantes:
+        raise RaizGuitarSetInvalidaError(root_dir, faltantes)
+
+
+# ---------------------------------------------------------------------
 # leer_grabacion (T012) -- lectura real vía mirdata, contracts/deteccion.md.
 # ---------------------------------------------------------------------
 

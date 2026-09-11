@@ -15,9 +15,13 @@ import pytest
 from guitar_tabs_analysis.ingestion import guitarset
 from guitar_tabs_analysis.ingestion.guitarset import (
     GrabacionNoExisteError,
+    IndiceMirdataAusenteError,
     LecturaGrabacion,
     NotaReferencia,
+    RaizGuitarSetInvalidaError,
     leer_grabacion,
+    validar_indice_mirdata,
+    validar_raiz_guitarset,
 )
 
 
@@ -201,3 +205,89 @@ def test_leer_grabacion_intervals_y_pitches_de_distinta_longitud_falla(
 
     with pytest.raises(ValueError, match="zip"):
         leer_grabacion("grabacion", tmp_path)
+
+
+# ---------------------------------------------------------------------
+# validar_raiz_guitarset / validar_indice_mirdata (FR-015/FR-016,
+# research.md #19) -- precondiciones de arranque, verificadas ANTES de
+# procesar ninguna grabación. Incidente real: `root_dir` apuntando al
+# repositorio en vez del dataset produjo 288 exclusiones idénticas (una
+# por grabación) en vez de un solo fallo claro al arrancar.
+# ---------------------------------------------------------------------
+
+
+def test_validar_raiz_guitarset_con_ambos_directorios_no_falla(tmp_path: Path) -> None:
+    (tmp_path / "annotation").mkdir()
+    (tmp_path / "audio_mono-mic").mkdir()
+
+    validar_raiz_guitarset(tmp_path)  # no debe lanzar nada
+
+
+def test_validar_raiz_guitarset_sin_ningun_directorio_dice_ambos_faltantes(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(RaizGuitarSetInvalidaError) as excinfo:
+        validar_raiz_guitarset(tmp_path)
+
+    assert excinfo.value.faltantes == ["annotation", "audio_mono-mic"]
+    mensaje = str(excinfo.value)
+    assert str(tmp_path) in mensaje
+    assert "annotation" in mensaje
+    assert "audio_mono-mic" in mensaje
+
+
+def test_validar_raiz_guitarset_con_solo_annotation_dice_que_falta_solo_audio(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "annotation").mkdir()
+
+    with pytest.raises(RaizGuitarSetInvalidaError) as excinfo:
+        validar_raiz_guitarset(tmp_path)
+
+    assert excinfo.value.faltantes == ["audio_mono-mic"]
+
+
+def test_validar_raiz_guitarset_rechaza_un_archivo_con_el_mismo_nombre(
+    tmp_path: Path,
+) -> None:
+    """Un ARCHIVO llamado 'annotation' (no un directorio) no sirve para
+    leer ninguna anotación real -- debe seguir contando como faltante,
+    nunca colar por coincidencia de nombre."""
+    (tmp_path / "annotation").write_text("no soy un directorio")
+    (tmp_path / "audio_mono-mic").mkdir()
+
+    with pytest.raises(RaizGuitarSetInvalidaError) as excinfo:
+        validar_raiz_guitarset(tmp_path)
+
+    assert excinfo.value.faltantes == ["annotation"]
+
+
+def test_validar_indice_mirdata_disponible_no_falla(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _DatasetConIndice:
+        track_ids = ["a", "b"]
+
+    monkeypatch.setattr(guitarset.mirdata, "initialize", lambda nombre: _DatasetConIndice())
+
+    validar_indice_mirdata()  # no debe lanzar nada
+
+
+def test_validar_indice_mirdata_ausente_da_mensaje_con_como_descargarlo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nunca la excepción cruda de `mirdata` sin envolver -- el mensaje
+    debe decir el comando exacto para resolverlo (research.md #19)."""
+
+    def _initialize_sin_indice(nombre: str) -> None:
+        raise FileNotFoundError(
+            "Dataset index for guitarset was expected but not found. Did you run .download()?"
+        )
+
+    monkeypatch.setattr(guitarset.mirdata, "initialize", _initialize_sin_indice)
+
+    with pytest.raises(IndiceMirdataAusenteError) as excinfo:
+        validar_indice_mirdata()
+
+    mensaje = str(excinfo.value)
+    assert "download" in mensaje
+    assert "index" in mensaje
+    assert "no está disponible" in mensaje

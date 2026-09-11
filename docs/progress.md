@@ -14,26 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Constitución v1.9.0: cierra el Principio VII para el hito 2 con la
-primera medición real (Feature 006, `mediciones/deteccion_medibles.json`,
-288 grabaciones, Basic Pitch icassp_2022 firma `3db297d5`). Métrica F1
-(precisión/exhaustividad siempre por separado, desglosadas global/mono/
-poli); presupuesto `0.70` sobre F1 global (`0.7394` observado, margen
-`~5.3%`). Registrada la historia metodológica como evidencia sobre el
-método: dos defectos de la misma familia (agrupar antes de emparejar,
-FR-013; clasificar antes de emparejar, FR-014) corregidos antes de
-cerrar el número, ninguno detectado por spec/plan/clarify/analyze. No se
-tocó nada del hito 1 (pedido explícito). Con este cierre no queda ningún
-`ABIERTO` pendiente en la constitución -- los cinco originales (3 hito 1,
-2 hito 2) están cerrados. `just gauntlet` verde: 248 tests, 98.40% (doc
-puro, sin cambios de código).
+FR-015/FR-016 (research.md #19): precondiciones de arranque para
+`deteccion.cli`, en vez de fallar a mitad de una corrida. Verificado
+antes de tocar código: con `root_dir` apuntando al repositorio (el
+incidente reportado), el fallo real es un `FileNotFoundError` sin
+envolver en la primera grabación -- no 288 exclusiones idénticas como se
+reportó de entrada; documentado así en research.md. Nuevas
+`validar_raiz_guitarset`/`validar_indice_mirdata` en `ingestion.guitarset`,
+invocadas al principio de `_ejecutar_y_escribir`, antes de tocar ninguna
+grabación. Rojo primero confirmado con `git stash` sobre el código (rojo
+contra el viejo, verde tras el fix). Caso 3 (el índice vive en
+`site-packages/mirdata/`, `uv sync --reinstall` lo borra): verificado
+contra el código fuente real que NO hay forma de reubicarlo --
+documentado como limitación conocida. `just gauntlet` verde: 256 tests,
+98.44%.
 
 ## Qué sigue
 
-Mutation testing acotado (T026) antes de cerrar formalmente la Feature
-006. Después: decidir si el hito 2 necesita una compuerta automática
-sobre el presupuesto `0.70`, o si alcanza con el reporte del artefacto.
+Mutation testing acotado (T026) antes de cerrar la Feature 006.
 
 ## Bloqueado / pendiente de decisión
 
-Ninguno nuevo. Licencia de pesos de Demucs: sin verificar.
+Ninguno nuevo. `.copier-answers.yml`/`AGENTS.md` tienen un `copier
+update` pendiente sin commitear, fuera de alcance. Licencia de pesos de
+Demucs: sin verificar.

@@ -35,6 +35,40 @@ claro si no lo encuentra, nunca en silencio").
    `TemaNoExisteError`/`ArchivoAudioNoLegibleError` del hito 1), nunca
    una excepción cruda de `mirdata` sin envolver.
 
+## `ingestion.guitarset.validar_raiz_guitarset` / `validar_indice_mirdata`
+
+```python
+def validar_raiz_guitarset(root_dir: Path) -> None:
+    ...
+
+def validar_indice_mirdata() -> None:
+    ...
+```
+
+Mismo módulo (`ingestion/guitarset.py`). Precondiciones de arranque
+(FR-015/FR-016, research.md #19) -- MUST invocarse ANTES de
+`construir_lista_grabaciones`/`ejecutar_deteccion`, nunca a mitad de una
+corrida.
+
+### Postcondiciones
+
+1. **`validar_raiz_guitarset` -- éxito.** Si `root_dir/annotation` y
+   `root_dir/audio_mono-mic` existen ambos como directorio, MUST NOT
+   lanzar nada. MUST NOT invocar `mirdata` -- verifica `root_dir` en sí,
+   independiente de si algún `grabacion_id` existe en el índice.
+2. **`validar_raiz_guitarset` -- falla.** Si falta cualquiera de los dos
+   directorios (o existe como archivo, no como directorio), MUST
+   levantar `RaizGuitarSetInvalidaError` con un mensaje que nombre
+   explícitamente cuáles faltan y la ruta de `root_dir`.
+3. **`validar_indice_mirdata` -- éxito.** Si `mirdata.initialize("guitarset").track_ids`
+   resuelve sin lanzar, MUST NOT lanzar nada. Independiente de
+   `root_dir` (research.md #19: el índice vive en `site-packages`, no
+   bajo la raíz de datos).
+4. **`validar_indice_mirdata` -- falla.** Si esa llamada lanza cualquier
+   excepción, MUST envolverla en `IndiceMirdataAusenteError` con el
+   comando exacto para descargar el índice -- nunca dejar propagar la
+   excepción cruda de `mirdata`.
+
 ## `transcripcion.transcriptor.Transcriptor` (Protocol)
 
 ```python

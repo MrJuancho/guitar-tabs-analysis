@@ -199,7 +199,12 @@ def _monkeypatch_mirdata(monkeypatch: pytest.MonkeyPatch, dataset: _DatasetFalso
     parchear su atributo `initialize` una vez alcanza para las dos rutas
     de llamada (`construir_lista_grabaciones` y `leer_grabacion`)."""
 
-    def _initialize_falso(nombre: str, data_home: str) -> _DatasetFalso:
+    def _initialize_falso(nombre: str, data_home: str | None = None) -> _DatasetFalso:
+        # `data_home=None` por defecto, como la firma real de
+        # `mirdata.initialize` (`dataset_name, data_home=None, ...`) --
+        # `validar_indice_mirdata` (FR-016) invoca sin `data_home` en
+        # absoluto, antes de que `construir_lista_grabaciones`/
+        # `leer_grabacion` lo pasen explícito.
         assert nombre == "guitarset"
         return dataset
 
@@ -215,6 +220,8 @@ def test_ejecutar_y_escribir_produce_artefacto_en_disco(
     comparten el mismo `_TrackFalso` (sin notas de referencia), así que
     el resultado no depende de cuáles 28 exactas caen en `"medibles"`,
     solo de que sean 100 - 72 = 28."""
+    (tmp_path / "annotation").mkdir()
+    (tmp_path / "audio_mono-mic").mkdir()
     track = _TrackFalso(audio_mic_path="/datos/dummy_mic.wav", notes_all=None)
     dominio = sorted(f"grabacion_{i:03d}" for i in range(100))
     dataset = _DatasetFalso(dict.fromkeys(dominio, track))
@@ -229,3 +236,67 @@ def test_ejecutar_y_escribir_produce_artefacto_en_disco(
     assert len(contenido["grabaciones"]) == 28
     assert contenido["exclusiones"] == []
     assert contenido["modelo"]["nombre"] == "ModeloFalso"
+
+
+# ---------------------------------------------------------------------
+# Precondiciones de arranque (FR-015/FR-016, research.md #19) -- deben
+# fallar ANTES de procesar ninguna grabación, nunca a mitad de la
+# corrida. Incidente real: `--root-dir` apuntando al repositorio en vez
+# del dataset -- reproducido en research.md #19 como un
+# `FileNotFoundError` sin envolver en la primera grabación (no como 288
+# exclusiones idénticas, la forma en que se reportó de entrada); en
+# cualquiera de las dos formas, nada validaba `root_dir` antes de
+# arrancar.
+# ---------------------------------------------------------------------
+
+
+def test_root_dir_sin_estructura_de_guitarset_falla_antes_de_procesar_nada(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`tmp_path` no tiene ni 'annotation/' ni 'audio_mono-mic/' -- si la
+    validación no corriera ANTES de `construir_lista_grabaciones`, este
+    dataset falso de una sola grabación procesaría igual (mirdata está
+    mockeado, no hay ningún archivo real que lo detenga)."""
+    track = _TrackFalso(audio_mic_path="/datos/dummy_mic.wav", notes_all=None)
+    dataset = _DatasetFalso({"grabacion_000": track})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+    transcriptor = TranscriptorFalso(modelo_declarado=MODELO_FALSO)
+    ruta_artefacto = tmp_path / "salida" / "deteccion_medibles.json"
+
+    codigo = cli._ejecutar_y_escribir("medibles", tmp_path, transcriptor, ruta_artefacto)
+
+    assert codigo != 0
+    assert transcriptor.llamadas == 0  # nunca se llegó a transcribir nada
+    assert not ruta_artefacto.exists()
+    mensaje = capsys.readouterr().err
+    assert "annotation" in mensaje
+    assert "audio_mono-mic" in mensaje
+    assert str(tmp_path) in mensaje
+
+
+def test_indice_mirdata_ausente_falla_antes_de_procesar_nada(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`root_dir` tiene la estructura correcta (FR-015 no es el problema
+    aquí) pero el índice de `mirdata` no está disponible (FR-016) --
+    debe fallar antes de invocar `construir_lista_grabaciones`, con un
+    mensaje que diga cómo descargarlo."""
+    (tmp_path / "annotation").mkdir()
+    (tmp_path / "audio_mono-mic").mkdir()
+
+    def _initialize_sin_indice(nombre: str, data_home: str | None = None) -> None:
+        assert nombre == "guitarset"
+        raise FileNotFoundError("Dataset index for guitarset was expected but not found.")
+
+    monkeypatch.setattr(mirdata, "initialize", _initialize_sin_indice)
+    transcriptor = TranscriptorFalso(modelo_declarado=MODELO_FALSO)
+    ruta_artefacto = tmp_path / "salida" / "deteccion_medibles.json"
+
+    codigo = cli._ejecutar_y_escribir("medibles", tmp_path, transcriptor, ruta_artefacto)
+
+    assert codigo != 0
+    assert transcriptor.llamadas == 0
+    assert not ruta_artefacto.exists()
+    mensaje = capsys.readouterr().err
+    assert "download" in mensaje
+    assert "index" in mensaje
