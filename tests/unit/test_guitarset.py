@@ -230,10 +230,30 @@ def test_validar_raiz_guitarset_sin_ningun_directorio_dice_ambos_faltantes(
         validar_raiz_guitarset(tmp_path)
 
     assert excinfo.value.faltantes == ["annotation", "audio_mono-mic"]
+    assert excinfo.value.root_dir == tmp_path
     mensaje = str(excinfo.value)
     assert str(tmp_path) in mensaje
     assert "annotation" in mensaje
     assert "audio_mono-mic" in mensaje
+
+
+def test_raiz_guitarset_invalida_error_expone_root_dir_y_mensaje_completo(
+    tmp_path: Path,
+) -> None:
+    """Comparación EXACTA del mensaje completo -- no solo `in` sobre
+    palabras sueltas (mutation testing, T026: `self.root_dir = None`, el
+    separador `', '.join` mutado a `'XX, XX'`, y la segunda mitad del
+    mensaje ("GuitarSet debe tener...") alterada o mayusculizada
+    sobrevivían a los tests existentes, que solo comprobaban que
+    "annotation"/"audio_mono-mic" aparecieran en algún lado)."""
+    error = RaizGuitarSetInvalidaError(tmp_path, ["annotation", "audio_mono-mic"])
+
+    assert error.root_dir == tmp_path
+    assert str(error) == (
+        f"'{tmp_path}' no es una raíz de GuitarSet válida -- falta: "
+        "annotation, audio_mono-mic. GuitarSet debe tener 'annotation/' "
+        "(anotaciones JAMS) y 'audio_mono-mic/' (audio de micrófono) bajo esta ruta."
+    )
 
 
 def test_validar_raiz_guitarset_con_solo_annotation_dice_que_falta_solo_audio(
@@ -275,7 +295,12 @@ def test_validar_indice_mirdata_ausente_da_mensaje_con_como_descargarlo(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Nunca la excepción cruda de `mirdata` sin envolver -- el mensaje
-    debe decir el comando exacto para resolverlo (research.md #19)."""
+    debe decir el comando exacto para resolverlo (research.md #19).
+    Comparación EXACTA del mensaje completo (no solo `in` sobre palabras
+    sueltas, mutation testing T026: alterar el texto fijo del mensaje o
+    envolver con `IndiceMirdataAusenteError(None)` en vez de la causa
+    real sobrevivía a un chequeo por substrings -- ninguno de "download"/
+    "index"/"no está disponible" cambia con esas mutaciones)."""
 
     def _initialize_sin_indice(nombre: str) -> None:
         raise FileNotFoundError(
@@ -287,7 +312,24 @@ def test_validar_indice_mirdata_ausente_da_mensaje_con_como_descargarlo(
     with pytest.raises(IndiceMirdataAusenteError) as excinfo:
         validar_indice_mirdata()
 
-    mensaje = str(excinfo.value)
-    assert "download" in mensaje
-    assert "index" in mensaje
-    assert "no está disponible" in mensaje
+    assert str(excinfo.value) == (
+        "El índice de GuitarSet de mirdata no está disponible -- descargalo con: "
+        'python -c "import mirdata; '
+        "mirdata.initialize('guitarset').download(partial_download=['index'])\" "
+        "(causa real: Dataset index for guitarset was expected but not found. "
+        "Did you run .download()?)."
+    )
+
+
+def test_indice_mirdata_ausente_error_expone_causa_y_mensaje_completo() -> None:
+    causa = FileNotFoundError("boom")
+
+    error = IndiceMirdataAusenteError(causa)
+
+    assert error.causa is causa
+    assert str(error) == (
+        "El índice de GuitarSet de mirdata no está disponible -- descargalo con: "
+        'python -c "import mirdata; '
+        "mirdata.initialize('guitarset').download(partial_download=['index'])\" "
+        "(causa real: boom)."
+    )

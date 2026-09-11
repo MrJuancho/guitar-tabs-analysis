@@ -528,6 +528,43 @@ def test_agregar_conjunto_todas_monofonicas_da_polifonico_agregado_none() -> Non
     )
 
 
+def test_agregar_conjunto_combina_notas_monofonicas_de_varias_grabaciones() -> None:
+    # Dos grabaciones, cada una con notas monofónicas propias (distinta
+    # cantidad cada una) -- si `agregar_conjunto` asignara en vez de
+    # acumular (`tp_mono = ...`/`num_est_mono = ...` en vez de `+=`), el
+    # resultado final quedaría igual a la ÚLTIMA grabación sola, no a la
+    # suma de las dos (mutation testing, T026): precisión/exhaustividad
+    # de 1.0 solo son alcanzables sumando las tres referencias/estimadas
+    # y los tres aciertos entre ambas grabaciones.
+    resultados = [
+        ResultadoDeteccionGrabacion(
+            grabacion_id="rec1",
+            notas_referencia=[NotaReferencia(tono_midi=60.0, inicio_s=0.0, fin_s=0.5)],
+            notas_estimadas=[NotaEstimada(tono_midi=60.0, inicio_s=0.01, fin_s=0.5)],
+            exclusion=None,
+        ),
+        ResultadoDeteccionGrabacion(
+            grabacion_id="rec2",
+            notas_referencia=[
+                NotaReferencia(tono_midi=64.0, inicio_s=10.0, fin_s=10.5),
+                NotaReferencia(tono_midi=67.0, inicio_s=20.0, fin_s=20.5),
+            ],
+            notas_estimadas=[
+                NotaEstimada(tono_midi=64.0, inicio_s=10.01, fin_s=10.5),
+                NotaEstimada(tono_midi=67.0, inicio_s=20.01, fin_s=20.5),
+            ],
+            exclusion=None,
+        ),
+    ]
+
+    _global, mono, _poli = agregar_conjunto(resultados)
+
+    assert mono.num_notas_referencia == 3
+    assert mono.num_notas_estimadas == 3
+    assert mono.precision == 1.0
+    assert mono.exhaustividad == 1.0
+
+
 def test_agregar_conjunto_combina_notas_polifonicas_de_varias_grabaciones() -> None:
     # Dos grabaciones, cada una con su propio acorde de 2 notas --
     # el pool polifónico debe combinar las CUATRO referencias, no

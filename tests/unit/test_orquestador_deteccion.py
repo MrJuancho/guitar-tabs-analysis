@@ -104,6 +104,31 @@ def test_union_de_medibles_y_reservado_cubre_todos_sin_overlap(
     assert len(reservado) == 72
 
 
+def test_construir_lista_grabaciones_pasa_root_dir_como_data_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`root_dir` debe llegar tal cual a `mirdata.initialize` como
+    `data_home` (mismo criterio que `test_leer_grabacion_pasa_root_dir_como_data_home`,
+    `tests/unit/test_guitarset.py`) -- aunque `track_ids` no dependa hoy
+    de `data_home` (viene del índice, research.md #19), pasar el valor
+    correcto de forma consistente en cada llamada a `mirdata.initialize`
+    es responsabilidad de esta función, no un detalle sin consecuencia
+    (mutation testing, T026: `data_home=None`/`data_home=str(None)`
+    sobrevivían sin este chequeo)."""
+    llamadas: list[str] = []
+
+    def _initialize_falso(nombre: str, data_home: str) -> _DatasetFalsoTrackIds:
+        assert nombre == "guitarset"
+        llamadas.append(data_home)
+        return _DatasetFalsoTrackIds(_IDS_SINTETICOS_DESORDENADOS)
+
+    monkeypatch.setattr(orquestador.mirdata, "initialize", _initialize_falso)
+
+    construir_lista_grabaciones("medibles", Path("/una/ruta/real"))
+
+    assert llamadas == [str(Path("/una/ruta/real"))]
+
+
 def test_dos_invocaciones_con_los_mismos_parametros_dan_la_misma_lista(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -17,6 +17,7 @@ from guitar_tabs_analysis.analytics.metrica_deteccion_notas import (
     NotaEstimada,
     agregar_conjunto,
 )
+from guitar_tabs_analysis.deteccion import orquestador
 from guitar_tabs_analysis.deteccion.orquestador import ejecutar_deteccion
 from guitar_tabs_analysis.ingestion import guitarset
 from guitar_tabs_analysis.transcripcion.transcriptor import TranscripcionFallidaError
@@ -368,3 +369,70 @@ def test_ejecutar_deteccion_imprime_una_linea_por_grabacion_y_un_aviso_al_agrega
         "no existe en el índice de GuitarSet."
     )
     assert lineas[2] == "agregando 2 grabaciones"
+
+
+def test_ejecutar_deteccion_imprime_el_detalle_cuando_la_transcripcion_falla(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Mismo mecanismo que el test anterior, pero para la rama de
+    `TranscripcionFallidaError` (línea de impresión DISTINTA en el código
+    -- cada rama de exclusión tiene su propio `print`, mutation testing,
+    T026): ningún test existente capturaba `stdout` para esta rama en
+    particular, así que una mutación que vaciara su mensaje (`print(None)`
+    en vez de `print(f"...{exclusion.detalle}")`) sobrevivía sin que
+    ningún test lo notara -- ver AGENTS.md, "ramas de clasificación de
+    motivos de exclusión"."""
+    track_falla = _TrackFalso(
+        audio_mic_path="/datos/rec_falla_mic.wav",
+        notes_all=_NoteDataFalso(intervals=np.array([[0.0, 0.5]]), pitches=np.array([60.0])),
+    )
+    dataset = _DatasetFalso({"rec_falla": track_falla})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+    ruta_falla = Path("/datos/rec_falla_mic.wav")
+    transcriptor = _TranscriptorSelectivo(
+        fallos={"rec_falla_mic.wav": TranscripcionFallidaError(ruta_falla, RuntimeError("boom"))},
+        notas={},
+    )
+
+    ejecutar_deteccion(["rec_falla"], tmp_path, transcriptor)
+
+    lineas = capsys.readouterr().out.splitlines()
+    assert lineas[0] == (
+        "[1/1] rec_falla  excluido: La transcripción del archivo "
+        "'/datos/rec_falla_mic.wav' falló: boom. No es el caso legítimo de "
+        "'el modelo no detectó ninguna nota' (eso da una lista vacía, no una "
+        "excepción) -- es un fallo real del modelo o del framework de inferencia."
+    )
+
+
+def test_ejecutar_deteccion_imprime_la_duracion_resultado_de_restar_no_sumar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`duracion = time.perf_counter() - inicio` (mutation testing, T026:
+    sobrevivía mutado a `+ inicio`). Un timestamp de reloj real no es
+    determinista -- se controla `time.perf_counter` con una secuencia
+    fija en vez de afirmar sobre un rango de tiempo real, que sería
+    frágil (AGENTS.md, "Property tests: muestrea del dominio real" aplica
+    el mismo criterio de fondo: controlar la entrada, no adivinar la
+    salida)."""
+    track_ok = _TrackFalso(
+        audio_mic_path="/datos/rec_ok_mic.wav",
+        notes_all=_NoteDataFalso(intervals=np.array([[0.0, 0.5]]), pitches=np.array([60.0])),
+    )
+    dataset = _DatasetFalso({"rec_ok": track_ok})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+    transcriptor = _TranscriptorSelectivo(
+        fallos={},
+        notas={"rec_ok_mic.wav": [NotaEstimada(tono_midi=60.0, inicio_s=0.01, fin_s=0.5)]},
+    )
+    valores = iter([100.0, 102.5])
+    monkeypatch.setattr(orquestador.time, "perf_counter", lambda: next(valores))
+
+    ejecutar_deteccion(["rec_ok"], tmp_path, transcriptor)
+
+    linea = capsys.readouterr().out.splitlines()[0]
+    # Resta correcta: 102.5 - 100.0 = 2.5s. Con `+` en vez de `-` daría
+    # 202.5s -- comparación EXACTA de la línea completa, no `in`: "2.5s"
+    # es substring de "202.5s", así que un `in` no discriminaría entre
+    # ambos casos (encontrado corriendo la mutación a mano, T026).
+    assert linea == "[1/1] rec_ok  ok  2.5s  1 notas"

@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-FR-015/FR-016 (research.md #19): precondiciones de arranque para
-`deteccion.cli`, en vez de fallar a mitad de una corrida. Verificado
-antes de tocar código: con `root_dir` apuntando al repositorio (el
-incidente reportado), el fallo real es un `FileNotFoundError` sin
-envolver en la primera grabación -- no 288 exclusiones idénticas como se
-reportó de entrada; documentado así en research.md. Nuevas
-`validar_raiz_guitarset`/`validar_indice_mirdata` en `ingestion.guitarset`,
-invocadas al principio de `_ejecutar_y_escribir`, antes de tocar ninguna
-grabación. Rojo primero confirmado con `git stash` sobre el código (rojo
-contra el viejo, verde tras el fix). Caso 3 (el índice vive en
-`site-packages/mirdata/`, `uv sync --reinstall` lo borra): verificado
-contra el código fuente real que NO hay forma de reubicarlo --
-documentado como limitación conocida. `just gauntlet` verde: 256 tests,
-98.44%.
+T025-T027 (Polish), cierra la Feature 006/hito 2. Mutación acotada a la
+capa nueva, alcance ampliado (research.md #20): `metrica_deteccion_notas`,
+`deteccion.orquestador`/`cli`, `ingestion.guitarset`, `transcripcion.transcriptor`.
+Hallazgo de config, corregido antes de mutar: `scripts/` faltaba en
+`also_copy` de mutmut (mismo defecto que `docs/`, Feature 003) --
+bloqueaba TODA corrida, no solo el módulo mutado. Resultado: 633/643
+killed; los 10 restantes son equivalentes ya documentados (T009). Triage
+completo en tasks.md: 8 aserciones débiles corregidas con evidencia real
+(rojo a mano antes de cada fix, incluido un `in`/`==` que el propio test
+nuevo escondía -- "2.5s" es substring de "202.5s"). T027: `modelo_real`
+corrió de verdad, 6/6 pasaron. `just gauntlet` verde: 268 tests, 99.07%.
 
 ## Qué sigue
 
-Mutation testing acotado (T026) antes de cerrar la Feature 006.
+Feature 006 cerrada. Decidir si el hito 2 necesita una compuerta
+automática sobre el presupuesto `0.70` (Principio VII), o si el reporte
+del artefacto alcanza -- mismo criterio que el hito 1 diferenció medir de
+aprobar.
 
 ## Bloqueado / pendiente de decisión
 

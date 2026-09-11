@@ -105,8 +105,14 @@ source_paths = ["src/"]
 # `tests/`) a su sandbox `mutants/`, así que sin esto la corrida limpia
 # de mutmut falla con `FileNotFoundError` antes de mutar nada (hallazgo
 # de la Feature 003, T022 -- mismo patrón que AGENTS.md ya documenta
-# para "una compuerta que no puede verificar nada").
-also_copy = ["docs/"]
+# para "una compuerta que no puede verificar nada"). Mismo defecto,
+# segunda instancia (Feature 006, T026): `tests/integration/
+# test_verificar_entorno_basic_pitch.py` invoca `bash scripts/
+# verificar_entorno_basic_pitch.sh` por ruta relativa -- sin `scripts/`
+# acá, la corrida limpia de mutmut fallaba con "No such file or
+# directory" (código 127) antes de mutar nada, para CUALQUIER módulo,
+# no solo el que se estuviera mutando.
+also_copy = ["docs/", "scripts/"]
 # `-m "not modelo_real"`: excluye el único test que carga el modelo real
 # (research.md #7 de 003-separacion-modelo-preentrenado) -- sin esto, un
 # mutante que produce una entrada patológica (p. ej. un tamaño de

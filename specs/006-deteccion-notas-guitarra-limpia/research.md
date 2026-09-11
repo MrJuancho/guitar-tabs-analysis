@@ -874,3 +874,48 @@ que `uv sync` dentro de ese directorio reconstruye completo): quien
 reconstruya el entorno principal debe correr ese comando una vez, y
 `validar_indice_mirdata` es la red que evita que el olvido se descubra a
 mitad de una corrida de 288 grabaciones en vez de al arrancarla.
+
+## 20. `scripts/` faltaba en `also_copy` de mutmut -- misma clase de defecto que `docs/` (Feature 003, T022), segunda instancia
+
+**Contexto real**: al arrancar T026 (mutation testing acotado del cierre
+del hito 2), la corrida limpia de `just mutation analytics.metrica_deteccion_notas`
+falló ANTES de mutar nada -- `mutmut` reportó "failed to collect stats.
+runner returned 1", con `tests/integration/test_verificar_entorno_basic_pitch.py::test_venv_presente_pero_basic_pitch_no_importa_es_fallo_real`
+fallando con `FileNotFoundError`/código 127
+("mutants/scripts/verificar_entorno_basic_pitch.sh: No such file or directory").
+
+**La causa, verificada, no supuesta**: `mutmut` copia `source_paths`
+(`["src/"]`) más `tests/` a su sandbox `mutants/` antes de correr nada --
+`also_copy` (`pyproject.toml::[tool.mutmut]`) es la lista de directorios
+ADICIONALES que también se copian. Ese test invoca
+`subprocess.run(["bash", str(SCRIPT), ...])` con `SCRIPT` resuelto por
+ruta relativa al repositorio (`scripts/verificar_entorno_basic_pitch.sh`,
+research.md #18) -- `scripts/` nunca estuvo en `also_copy`, así que
+dentro de `mutants/` ese archivo simplemente no existe. Es la MISMA
+clase de defecto, exacta, que ya motivó agregar `"docs/"` a `also_copy`
+en la Feature 003 (T022, `tests/unit/test_atribuciones.py` lee
+`docs/ATRIBUCIONES.md` por ruta relativa) -- ese comentario ya
+documentaba el patrón general ("mutmut solo copia `source_paths` más
+`tests/`"), pero `scripts/` se agregó después (sesión de precondiciones
+de arranque, FR-015/FR-016) sin que nadie revisitara `also_copy`.
+
+**Por qué bloqueaba TODOS los módulos, no solo el que se estaba
+mutando**: la corrida limpia de la suite de tests (el primer paso de
+`mutmut run`, antes de generar ningún mutante) corre TODA `tests/` bajo
+`mutants/` para establecer la línea base -- un test roto ahí aborta la
+corrida completa, sin importar qué patrón de módulo se le haya pasado a
+`mutmut run`.
+
+**Decision**: agregar `"scripts/"` a `also_copy`, junto a `"docs/"`.
+Verificado: `just mutation analytics.metrica_deteccion_notas` corre
+limpio después del cambio.
+
+**Lección general, ya parcialmente capturada por el comentario existente
+de `docs/` pero no lo bastante explícita para que se generalizara sola**:
+cualquier test que lea un archivo por ruta relativa al repositorio, fuera
+de `src/`+`tests/`, necesita su directorio en `also_copy` -- no es
+específico de `docs/`. La próxima vez que un test nuevo lea algo de un
+directorio todavía no listado ahí, el síntoma será el mismo (`mutmut run`
+falla en la línea base, para cualquier módulo), y el diagnóstico es el
+mismo: revisar qué directorios tocan los tests que fallan, no asumir que
+es un problema del código bajo prueba.

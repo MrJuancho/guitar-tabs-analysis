@@ -29,6 +29,37 @@ def _fallar_si_se_construye() -> None:
     )
 
 
+def test_construir_parser_expone_prog_descripcion_y_los_dos_argumentos_completos() -> None:
+    """Fija la estructura real del parser -- no solo texto cosmético de
+    `--help` (mutation testing, T026: 36 mutantes sobrevivían en
+    `_construir_parser`, la mayoría cambios de texto sin ningún test que
+    los mirara). `--modo` sin `choices`/`required` correctos mediría el
+    conjunto reservado del hito 2 por accidente (FR-004) -- no es
+    decorativo."""
+    parser = cli._construir_parser()
+
+    assert parser.prog == "python -m guitar_tabs_analysis.deteccion.cli"
+    assert parser.description == (
+        "Detecta notas del hito 2: lee cada grabación de GuitarSet, transcribe "
+        "con Basic Pitch, calcula precisión/exhaustividad/balance."
+    )
+
+    accion_modo = next(a for a in parser._actions if a.dest == "modo")
+    assert accion_modo.choices == ["medibles", "reservado"]
+    assert accion_modo.required is True
+    assert accion_modo.help == (
+        "medibles: 288 grabaciones (80% de GuitarSet), las únicas que se miden "
+        "durante el desarrollo del hito 2. reservado: las 72 restantes (20%), "
+        "solo para el cierre del hito 2 -- Principio VI de la constitución. "
+        "Sin valor por defecto."
+    )
+
+    accion_root_dir = next(a for a in parser._actions if a.dest == "root_dir")
+    assert accion_root_dir.type is Path
+    assert accion_root_dir.required is True
+    assert accion_root_dir.help == "Raíz de una distribución de GuitarSet ya presente en disco."
+
+
 def test_sin_modo_falla_con_mensaje_claro_antes_de_construir_transcriptor(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -67,6 +98,41 @@ def test_sin_root_dir_falla_con_mensaje_claro(
     assert excinfo.value.code != 0
     mensaje = capsys.readouterr().err
     assert "--root-dir" in mensaje
+
+
+def test_main_construye_transcriptor_y_llama_ejecutar_y_escribir_con_los_argumentos_correctos(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ningún test anterior de este archivo llega a ejecutar el CUERPO
+    de `main()` -- los tres de arriba fallan en `argparse`, antes de
+    construir nada (mutation testing, T026: los 15 mutantes de `main`
+    sobrevivían porque nada lo ejercitaba de punta a punta). `BasicPitchTranscriptor`
+    se reemplaza (nunca invoca el subproceso real) y `_ejecutar_y_escribir`
+    también, para capturar con qué argumentos exactos `main` la invoca,
+    sin depender de mirdata ni de ningún dato real."""
+    transcriptor_falso = object()
+    monkeypatch.setattr(cli, "BasicPitchTranscriptor", lambda: transcriptor_falso)
+    llamadas: list[tuple[object, object, object, object]] = []
+
+    def _ejecutar_y_escribir_falso(
+        modo: object, root_dir: object, transcriptor: object, ruta_artefacto: object
+    ) -> int:
+        llamadas.append((modo, root_dir, transcriptor, ruta_artefacto))
+        return 0
+
+    monkeypatch.setattr(cli, "_ejecutar_y_escribir", _ejecutar_y_escribir_falso)
+
+    codigo = cli.main(["--modo", "medibles", "--root-dir", "/una/ruta"])
+
+    assert codigo == 0
+    assert llamadas == [
+        (
+            "medibles",
+            Path("/una/ruta"),
+            transcriptor_falso,
+            Path("mediciones") / "deteccion_medibles.json",
+        )
+    ]
 
 
 # ---------------------------------------------------------------------
@@ -115,6 +181,44 @@ def test_escribir_artefacto_produce_json_valido_y_legible(tmp_path: Path) -> Non
     assert contenido["grabaciones"] == ["00_BN1-129-Eb_comp"]
 
 
+def test_escribir_artefacto_crea_varios_niveles_de_directorio_ausentes(tmp_path: Path) -> None:
+    """`mkdir(parents=True, ...)` (mutation testing, T026: sobrevivía
+    mutado a `parents=False`/`parents=None`/omitido) -- un solo nivel de
+    anidamiento (`tmp_path/mediciones/...`, el resto de los tests de este
+    archivo) no lo distingue de `parents=False`, porque `tmp_path` mismo
+    ya existe. Con DOS niveles ausentes (`a/b/`), `parents=False` fallaría
+    con `FileNotFoundError` -- este test exige que no falle."""
+    ruta = tmp_path / "a" / "b" / "deteccion_medibles.json"
+    artefacto = _artefacto_de_prueba()
+
+    cli.escribir_artefacto(ruta, artefacto)
+
+    assert json.loads(ruta.read_text())["grabaciones"] == ["00_BN1-129-Eb_comp"]
+
+
+def test_escribir_artefacto_usa_sufijo_tmp_para_el_archivo_temporal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """El nombre del archivo temporal termina en `.tmp` (mutation
+    testing, T026: sobrevivía mutado a `.TMP`/vacío -- el sufijo exacto
+    no afecta la atomicidad en sí, pero sí es lo que un humano vería
+    listando el directorio a mitad de una escritura)."""
+    ruta = tmp_path / "mediciones" / "deteccion_medibles.json"
+    artefacto = _artefacto_de_prueba()
+    origenes: list[Path] = []
+
+    def _os_replace_que_registra(origen: Path, destino: Path) -> None:
+        origenes.append(origen)
+        os_replace_real(origen, destino)
+
+    os_replace_real = cli.os.replace
+    monkeypatch.setattr(cli.os, "replace", _os_replace_que_registra)
+
+    cli.escribir_artefacto(ruta, artefacto)
+
+    assert origenes == [ruta.with_name(ruta.name + ".tmp")]
+
+
 def test_escribir_artefacto_es_atomico_no_deja_archivo_final_truncado(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -140,10 +244,16 @@ def test_escribir_artefacto_falla_cerrado_si_os_replace_no_mueve_nada(
 
     monkeypatch.setattr(cli.os, "replace", lambda origen, destino: None)
 
-    with pytest.raises(cli.EscrituraIncompletaError):
+    with pytest.raises(cli.EscrituraIncompletaError) as excinfo:
         cli.escribir_artefacto(ruta, artefacto)
 
     assert not ruta.exists()
+    # Mensaje EXACTO, no solo el tipo de excepción (mutation testing,
+    # T026: `raise EscrituraIncompletaError(None)` sobrevivía sin esto).
+    assert str(excinfo.value) == (
+        f"'{ruta}' no quedó legible después de escribirlo -- "
+        f"[Errno 2] No such file or directory: '{ruta}'."
+    )
 
 
 def test_escribir_artefacto_falla_cerrado_si_deja_un_artefacto_viejo_a_medias(
@@ -156,8 +266,16 @@ def test_escribir_artefacto_falla_cerrado_si_deja_un_artefacto_viejo_a_medias(
 
     monkeypatch.setattr(cli.os, "replace", lambda origen, destino: None)
 
-    with pytest.raises(cli.EscrituraIncompletaError):
+    with pytest.raises(cli.EscrituraIncompletaError) as excinfo:
         cli.escribir_artefacto(ruta, artefacto)
+
+    # Mensaje EXACTO -- los dos conteos que discrepan, no solo el tipo de
+    # excepción (mutation testing, T026: `raise EscrituraIncompletaError(None)`
+    # sobrevivía sin esto).
+    assert str(excinfo.value) == (
+        f"'{ruta}' no coincide con el artefacto recién calculado: "
+        "0 grabaciones persistidas, 1 esperadas."
+    )
 
 
 # ---------------------------------------------------------------------
@@ -238,6 +356,68 @@ def test_ejecutar_y_escribir_produce_artefacto_en_disco(
     assert contenido["modelo"]["nombre"] == "ModeloFalso"
 
 
+def test_ejecutar_y_escribir_pasa_el_mismo_root_dir_a_ambas_llamadas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`root_dir` (el parámetro de `_ejecutar_y_escribir`) MUST llegar
+    igual a `construir_lista_grabaciones` y a `ejecutar_deteccion` --
+    mutation testing, T026: `construir_lista_grabaciones(modo, None)` y
+    `ejecutar_deteccion(grabaciones, None, transcriptor)` sobrevivían sin
+    ningún test que mirara qué `root_dir` recibía cada llamada."""
+    (tmp_path / "annotation").mkdir()
+    (tmp_path / "audio_mono-mic").mkdir()
+    track = _TrackFalso(audio_mic_path="/datos/dummy_mic.wav", notes_all=None)
+    dominio = sorted(f"grabacion_{i:03d}" for i in range(100))
+    dataset = _DatasetFalso(dict.fromkeys(dominio, track))
+    llamadas_data_home: list[str | None] = []
+
+    def _initialize_falso(nombre: str, data_home: str | None = None) -> _DatasetFalso:
+        assert nombre == "guitarset"
+        llamadas_data_home.append(data_home)
+        return dataset
+
+    monkeypatch.setattr(mirdata, "initialize", _initialize_falso)
+    transcriptor = TranscriptorFalso(modelo_declarado=MODELO_FALSO)
+    ruta_artefacto = tmp_path / "salida" / "deteccion_medibles.json"
+
+    cli._ejecutar_y_escribir("medibles", tmp_path, transcriptor, ruta_artefacto)
+
+    # `validar_indice_mirdata` (FR-016) invoca sin `data_home` a propósito
+    # (research.md #19) -- se descarta esa llamada; todas las demás
+    # (`construir_lista_grabaciones`, una por `leer_grabacion`) deben
+    # llevar exactamente `root_dir`, nunca `None` ni otra ruta.
+    llamadas_con_root_dir = [v for v in llamadas_data_home if v is not None]
+    assert len(llamadas_con_root_dir) >= 2
+    assert all(v == str(tmp_path) for v in llamadas_con_root_dir)
+
+
+def test_ejecutar_y_escribir_devuelve_dos_y_el_mensaje_si_la_escritura_falla(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Camino de `EscrituraIncompletaError` a través de
+    `_ejecutar_y_escribir` (no `escribir_artefacto` llamado directo,
+    como el resto de sus tests) -- mutation testing, T026: el código de
+    salida `2`, y el mensaje impreso en `stderr`, no tenían ningún test
+    que pasara por ESTE camino en particular."""
+    (tmp_path / "annotation").mkdir()
+    (tmp_path / "audio_mono-mic").mkdir()
+    track = _TrackFalso(audio_mic_path="/datos/dummy_mic.wav", notes_all=None)
+    dominio = sorted(f"grabacion_{i:03d}" for i in range(100))
+    dataset = _DatasetFalso(dict.fromkeys(dominio, track))
+    _monkeypatch_mirdata(monkeypatch, dataset)
+    transcriptor = TranscriptorFalso(modelo_declarado=MODELO_FALSO)
+    ruta_artefacto = tmp_path / "salida" / "deteccion_medibles.json"
+    monkeypatch.setattr(cli.os, "replace", lambda origen, destino: None)
+
+    codigo = cli._ejecutar_y_escribir("medibles", tmp_path, transcriptor, ruta_artefacto)
+
+    assert codigo == 2
+    assert capsys.readouterr().err.strip() == (
+        f"'{ruta_artefacto}' no quedó legible después de escribirlo -- "
+        f"[Errno 2] No such file or directory: '{ruta_artefacto}'."
+    )
+
+
 # ---------------------------------------------------------------------
 # Precondiciones de arranque (FR-015/FR-016, research.md #19) -- deben
 # fallar ANTES de procesar ninguna grabación, nunca a mitad de la
@@ -265,7 +445,7 @@ def test_root_dir_sin_estructura_de_guitarset_falla_antes_de_procesar_nada(
 
     codigo = cli._ejecutar_y_escribir("medibles", tmp_path, transcriptor, ruta_artefacto)
 
-    assert codigo != 0
+    assert codigo == 1
     assert transcriptor.llamadas == 0  # nunca se llegó a transcribir nada
     assert not ruta_artefacto.exists()
     mensaje = capsys.readouterr().err
@@ -294,7 +474,7 @@ def test_indice_mirdata_ausente_falla_antes_de_procesar_nada(
 
     codigo = cli._ejecutar_y_escribir("medibles", tmp_path, transcriptor, ruta_artefacto)
 
-    assert codigo != 0
+    assert codigo == 1
     assert transcriptor.llamadas == 0
     assert not ruta_artefacto.exists()
     mensaje = capsys.readouterr().err
