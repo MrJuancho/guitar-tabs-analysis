@@ -1,5 +1,51 @@
 <!--
 Sync Impact Report
+- Version change: 1.8.1 → 1.9.0
+- Fuente: primera medición real del hito 2 (Feature 006, detección de
+  notas sobre guitarra limpia -- `mediciones/deteccion_medibles.json`,
+  288 grabaciones medibles de GuitarSet, Basic Pitch icassp_2022 firma
+  `3db297d5`). Cierra el último `ABIERTO` que quedaba en el documento.
+- Bump MINOR: cierra un `ABIERTO` con contenido real y verificado -- no
+  elimina ni contradice ninguna decisión ya tomada (la reserva de VI,
+  cerrada en v1.8.0, no cambia; nada del hito 1 se toca, pedido explícito
+  de esta sesión), así que no aplica MAJOR; no es solo una aclaración de
+  redacción -- agrega la métrica principal (F1 con precisión/
+  exhaustividad obligatorias por separado, desglosadas global/mono/poli)
+  y el presupuesto numérico (`0.70`) que no existían -- así que no es
+  PATCH.
+
+- Principios modificados en v1.9.0 (contenido, no título ni posición):
+  VII.  "La métrica y su presupuesto" -- el bloque "Hito 2 -- detección
+        de notas. ABIERTO." se reemplaza por contenido cerrado: métrica
+        principal (F1, `mir_eval.transcription`, convención MIREX Note
+        Tracking, ya fijada en `spec.md`/`plan.md` de la Feature 006),
+        alcance de la medición (288/360 grabaciones medibles, Basic
+        Pitch icassp_2022 firma `3db297d5`, backend `tflite`, Apache-2.0,
+        tolerancias 50 cents/50 ms, cero exclusiones), evidencia completa
+        (TP/referencia/estimadas global + monofónico + polifónico, con
+        el invariante `TP(mono) + TP(poli) = TP(global)` verificado), la
+        asimetría precisión/exhaustividad reportada por partición como
+        parte obligatoria del resultado (no un adorno), el presupuesto
+        (`0.70` sobre el F1 global, con su margen argumentado), y una
+        subsección nueva de historia metodológica: dos defectos del
+        mismo tipo (agrupar/clasificar antes de emparejar) encontrados y
+        corregidos antes de fijar el presupuesto (FR-013, FR-014 de la
+        Feature 006), registrados como evidencia sobre el método, no
+        solo sobre el modelo.
+
+- Secciones añadidas: ninguna a nivel de encabezado (todo el contenido
+  nuevo vive dentro de Principio VII, ya existente, como la instancia del
+  hito 2). Secciones eliminadas: ninguna. Ningún contenido del hito 1
+  (Principios I-VII sección "Hito 1", VIII) se modifica -- pedido
+  explícito de esta sesión.
+
+- Governance: el checkbox "VII -- Hito 2: métrica principal y
+  presupuesto numérico" pasa de `[ ]` a `[x]`, con la cifra resumida en
+  la propia línea. Con este cierre, **no queda ningún `ABIERTO`
+  pendiente en el documento** -- los cinco originales (tres del hito 1,
+  dos del hito 2) están cerrados.
+
+- Sesión anterior (v1.8.0 → v1.8.1), preservada por referencia histórica:
 - Version change: 1.8.0 → 1.8.1
 - Fuente: `/speckit-implement` de la Feature 006 (T028-T035, Fase 7 --
   CLI y filtro de la reserva) decidió el mecanismo real de la reserva de
@@ -659,12 +705,107 @@ este modo no muestrea; artefacto versionado en
   con margen de `1.05 dB`, el conjunto completo con `2.45 dB`. El número
   sigue siendo `−8.0 dB`.
 
-**Hito 2 -- detección de notas. ABIERTO.** Métrica principal y presupuesto
-todavía no declarados en este documento. Cierran tras la primera medición
-real de la Feature 006 (detección de notas sobre guitarra limpia) -- mismo
-criterio que el hito 1: rellenar esto por adelantado, sin la evidencia de
-una corrida real, sería exactamente el vicio que esta sección prohíbe
-arriba.
+**Hito 2 -- detección de notas sobre guitarra limpia.**
+
+**Métrica principal: F1** (medida F armónica de precisión y
+exhaustividad sobre el criterio de acierto tono+inicio, FR-003/FR-004 --
+`mir_eval.transcription`, convención MIREX Note Tracking). Ya fijada en
+`spec.md`/`plan.md` de la Feature 006; se cierra aquí con la primera
+medición real. **Precisión y exhaustividad se reportan siempre por
+separado, nunca solo el balance** -- son asimétricas (una nota inventada
+estorba más que una faltante al tocar una tablatura), y esa asimetría es
+parte del resultado, no un adorno (ver evidencia abajo). Toda cifra se
+reporta además desglosada global/monofónico/polifónico (FR-006/FR-007),
+nunca solo la global.
+
+**Alcance de la medición, cerrado con la primera corrida real** (Feature
+006, `mediciones/deteccion_medibles.json`).
+
+- 288 de las 360 grabaciones de GuitarSet (las medibles -- el
+  complemento de las 72 reservadas del Principio VI, semilla `20260908`).
+  0 exclusiones.
+- Modelo: Basic Pitch, variante `icassp_2022`, firma `3db297d5`, backend
+  `tflite`, Apache-2.0 en código y pesos (Principio IV).
+- Tolerancias: 50 cents de tono, ventana de inicio de 50 ms -- los
+  defaults reales de `mir_eval.transcription.precision_recall_f1_overlap`
+  (convención MIREX), citados, no inventados. La duración se ignora a
+  propósito (FR-004): acertar tono e inicio ya produce algo tocable.
+- Emparejamiento siempre dentro de una grabación (FR-013), agregación
+  por SUMA de conteos entre grabaciones -- nunca por pool de notas crudas
+  ni por promedio de resultados por grabación.
+
+**Presupuesto: 0.70 sobre el F1 GLOBAL**, con margen por debajo del
+`0.7394` observado.
+
+- **Evidencia.** Global: precisión `0.7322`, exhaustividad `0.7468`, F1
+  `0.7394` -- 49538 notas de referencia, 50524 estimadas, 36995
+  verdaderos positivos. Monofónico: precisión `0.7267`, exhaustividad
+  `0.8212`, F1 `0.7710` -- 15280 referencias, 17268 estimadas, 12548 TP.
+  Polifónico: precisión `0.7351`, exhaustividad `0.7136`, F1 `0.7242` --
+  34258 referencias, 33256 estimadas, 24447 TP. Invariante verificado:
+  `TP(mono) + TP(poli) = TP(global)` = 36995 exacto
+  (`12548 + 24447 = 36995`, FR-014).
+- **La asimetría precisión/exhaustividad es distinta entre particiones,
+  y esa diferencia es el resultado, no ruido.** En monofónico el modelo
+  sobreestima: 17268 notas estimadas contra 15280 de referencia (+13.0%)
+  -- encuentra casi todo (exhaustividad `0.8212`) pero inventa de más
+  (precisión `0.7267`, la más baja de las tres particiones). En
+  polifónico se invierte: 33256 estimadas contra 34258 de referencia
+  (−2.9%) -- precisión (`0.7351`) por encima de exhaustividad (`0.7136`):
+  el modelo deja más acordes sin cubrir de lo que inventa. Publicar solo
+  el F1 ocultaría que el tipo de error que más estorba al tocar una
+  tablatura (una nota inventada) es más frecuente justamente en el caso
+  monofónico, no en el polifónico, donde se esperaría más ambigüedad.
+- **Por qué 0.70.** Margen de `~0.04` (F1), `~5.3%` relativo, por debajo
+  de lo observado -- ni ajustado al mínimo que hoy mismo aprobaría (esta
+  sección lo prohíbe arriba) ni tan amplio que pierda su función de
+  compuerta. Mismo criterio general que el hito 1 aplicó sobre su propia
+  cifra observada (margen documentado por escrito, nunca cero) -- la
+  proporción exacta no se traslada mecánicamente entre una escala
+  logarítmica (dB) y una razón acotada en `[0, 1]`, pero el criterio sí:
+  suficiente margen para que una remedición futura sobre este mismo
+  conjunto no repruebe por casualidad de redondeo, sin ser tan laxo que
+  una regresión real del método de detección pase inadvertida.
+- **El umbral no se recalibra para forzar un pase** (regla general de
+  esta sección, ya vigente): si una corrida futura sobre este conjunto
+  cae por debajo de `0.70`, el resultado es un FALLA documentado, no una
+  ocasión para mover el número.
+
+**Historia metodológica: dos defectos del mismo tipo, encontrados y
+corregidos antes de fijar el presupuesto -- evidencia sobre el método, no
+solo sobre el modelo.**
+
+La primera versión de este cálculo producía cifras inválidas por dos
+defectos de la misma familia, ninguno detectado por `spec`, `plan`,
+`clarify` ni `analyze` -- ambos encontrados con evidencia medida y
+corregidos con test rojo primero, antes de que esta sección se cerrara:
+
+- **Agrupar antes de emparejar (FR-013).** La primera versión de
+  `agregar_conjunto` pooleaba las notas de las 288 grabaciones en dos
+  listas únicas antes de emparejar -- permitía que una nota de una
+  grabación se acreditara contra la de otra grabación sin relación
+  temporal alguna, si sus instantes de inicio relativos coincidían por
+  azar dentro de la ventana de 50 ms. Dos grabaciones sin ningún acierto
+  propio podían dar precisión `0.5` por esta vía -- además de un fallo
+  real de memoria (matrices densas N×M sobre el pool completo). Corregido:
+  el emparejamiento ocurre siempre dentro de una única grabación, la
+  agregación suma conteos ya resueltos entre grabaciones.
+- **Clasificar antes de emparejar (FR-014).** La partición monofónico/
+  polifónico reclasificaba cada nota estimada por su propio instante y
+  volvía a emparejar de forma independiente dentro de cada subconjunto
+  ya partido. Esto destruyó `7313` aciertos legítimos de `36995`
+  (`19.8%` del total) -- y no de forma uniforme entre particiones: la
+  polifónica era la más castigada. Corregido: un único emparejamiento
+  por grabación, cada par hereda la clasificación de su nota de
+  referencia.
+- **El principio general detrás de ambos.** Agrupar o clasificar
+  entidades ANTES de resolver el emparejamiento que las relaciona
+  destruye pares legítimos que cruzan la frontera de la agrupación o
+  clasificación elegida -- sin importar si esa frontera es "grabación" o
+  "clase de polifonía". Cualquier partición futura de esta métrica (o de
+  cualquier otra que emparejamiento resuelva primero y clasifique
+  después) debe heredar la clasificación del par ya resuelto, nunca
+  reclasificar ni reemparejar cada lado por separado.
 
 ### VIII. Determinismo
 
@@ -806,9 +947,10 @@ tras la primera medición real sobre la submuestra declarada (Feature 004,
 `mediciones/submuestra_hito1.json`). La generalización de los Principios
 VI/VII a cualquier hito (v1.7.0) abrió dos `ABIERTO` nuevos, específicos
 del hito 2 -- no una reapertura de los tres ya cerrados del hito 1. El de
-VI (tamaño y semilla de la porción reservada de GuitarSet) ya cerró en
-v1.8.0; el de VII (métrica y presupuesto del hito 2) sigue abierto a
-propósito, con su propio criterio de cierre.
+VI (tamaño y semilla de la porción reservada de GuitarSet) cerró en
+v1.8.0; el de VII (métrica y presupuesto del hito 2) cerró en v1.9.0, con
+la primera medición real de la Feature 006. **No queda ningún `ABIERTO`
+pendiente en este documento.**
 
 - [x] VII -- Métrica principal: SI-SDR (Le Roux et al., 2019). Hito 1.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
@@ -827,7 +969,13 @@ propósito, con su propio criterio de cierre.
       semilla de muestreo. 72 grabaciones (20% de 360), semilla
       `20260908`. Cerrado con la Feature 006 (detección de notas sobre
       guitarra limpia) -- ver Principio VI para la evidencia completa.
-- [ ] VII -- Hito 2: métrica principal y presupuesto numérico. Cierra
-      tras la primera medición real de la Feature 006, nunca antes.
+- [x] VII -- Hito 2: métrica principal y presupuesto numérico. F1
+      (precisión/exhaustividad siempre por separado, desglosadas
+      global/mono/poli); presupuesto `0.70` sobre el F1 global, sobre
+      `0.7394` observado. Cerrado con la primera medición real de la
+      Feature 006 (288 grabaciones medibles,
+      `mediciones/deteccion_medibles.json`) -- ver Principio VII para la
+      evidencia completa, incluida la historia metodológica de los dos
+      defectos corregidos antes del cierre (FR-013, FR-014).
 
-**Version**: 1.8.1 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-08
+**Version**: 1.9.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-10

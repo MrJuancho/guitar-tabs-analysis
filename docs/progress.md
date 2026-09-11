@@ -14,25 +14,25 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Incidente real: 7 corridas de CI (`Guantelete`, `main`) en rojo en el
-job `doctor` -- `FALTA: envs/basic_pitch_py310/.venv no existe`. Feature
-006 se mergeó sin que CI pasara una vez (`gh run list`/`--log-failed`).
-Causa: `doctor` trataba la ausencia de `.venv` (build local, nunca
-versionado, JAMÁS existe en CI a propósito) igual que la ausencia del
-directorio versionado (`envs/basic_pitch_py310/`, sí en git). Arreglo
-(research.md #18): condición sobre el ESTADO de `.venv`, no CI-vs-local
--- ausente se reporta visible (criterio `modelo_real`) y `doctor` sigue
-sin fallar; presente se verifica completo (intérprete, import, lock).
-Directorio versionado ausente sigue siendo fallo duro. Chequeo extraído
-a `scripts/verificar_entorno_basic_pitch.sh <ruta>` (códigos 0/1/2) para
-probarlo con `uv venv`/`uv lock` reales sin tocar el `.venv` real. `just
-gauntlet` verde: 248 tests, 98.40%.
+Constitución v1.9.0: cierra el Principio VII para el hito 2 con la
+primera medición real (Feature 006, `mediciones/deteccion_medibles.json`,
+288 grabaciones, Basic Pitch icassp_2022 firma `3db297d5`). Métrica F1
+(precisión/exhaustividad siempre por separado, desglosadas global/mono/
+poli); presupuesto `0.70` sobre F1 global (`0.7394` observado, margen
+`~5.3%`). Registrada la historia metodológica como evidencia sobre el
+método: dos defectos de la misma familia (agrupar antes de emparejar,
+FR-013; clasificar antes de emparejar, FR-014) corregidos antes de
+cerrar el número, ninguno detectado por spec/plan/clarify/analyze. No se
+tocó nada del hito 1 (pedido explícito). Con este cierre no queda ningún
+`ABIERTO` pendiente en la constitución -- los cinco originales (3 hito 1,
+2 hito 2) están cerrados. `just gauntlet` verde: 248 tests, 98.40% (doc
+puro, sin cambios de código).
 
 ## Qué sigue
 
-Confirmar que el próximo push deja CI en verde (push de esta sesión
-pendiente al momento de escribir esto). Después: mutation testing
-acotado (T026) antes de cerrar la Feature 006.
+Mutation testing acotado (T026) antes de cerrar formalmente la Feature
+006. Después: decidir si el hito 2 necesita una compuerta automática
+sobre el presupuesto `0.70`, o si alcanza con el reporte del artefacto.
 
 ## Bloqueado / pendiente de decisión
 
