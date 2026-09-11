@@ -17,9 +17,11 @@ from guitar_tabs_analysis.ingestion.guitarset import (
     GrabacionNoExisteError,
     IndiceMirdataAusenteError,
     LecturaGrabacion,
+    NotaConPosicionReal,
     NotaReferencia,
     RaizGuitarSetInvalidaError,
     leer_grabacion,
+    leer_grabacion_con_posicion_real,
     validar_indice_mirdata,
     validar_raiz_guitarset,
 )
@@ -77,13 +79,19 @@ class _NoteDataFalso:
 
 
 class _TrackFalso:
-    """Sustituto mínimo de `mirdata.datasets.guitarset.Track` -- solo los
-    dos atributos que `leer_grabacion` lee (`audio_mic_path`,
-    `notes_all`)."""
+    """Sustituto mínimo de `mirdata.datasets.guitarset.Track` -- los
+    atributos que `leer_grabacion`/`leer_grabacion_con_posicion_real`
+    leen (`audio_mic_path`, `notes_all`, `notes`)."""
 
-    def __init__(self, audio_mic_path: str, notes_all: _NoteDataFalso | None) -> None:
+    def __init__(
+        self,
+        audio_mic_path: str,
+        notes_all: _NoteDataFalso | None,
+        notes: dict[str, _NoteDataFalso | None] | None = None,
+    ) -> None:
         self.audio_mic_path = audio_mic_path
         self.notes_all = notes_all
+        self.notes = notes if notes is not None else {}
 
 
 class _DatasetFalso:
@@ -333,3 +341,79 @@ def test_indice_mirdata_ausente_error_expone_causa_y_mensaje_completo() -> None:
         "mirdata.initialize('guitarset').download(partial_download=['index'])\" "
         "(causa real: boom)."
     )
+
+
+# ---------------------------------------------------------------------
+# leer_grabacion_con_posicion_real (Feature 007, T013) -- posición REAL
+# anotada por cuerda (track.notes, research.md #5 de esa feature), no la
+# lectura pooleada (notes_all) que leer_grabacion ya usa. NUNCA GuitarSet
+# real descargado en un test (Principio IV).
+# ---------------------------------------------------------------------
+
+
+def test_leer_grabacion_con_posicion_real_fusiona_las_seis_cuerdas(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Una entrada por cada nota anotada, en CUALQUIERA de las seis
+    cuerdas de `track.notes` -- `cuerda_real` es la clave del
+    diccionario, `traste_real = round(tono_midi - MIDI_CUERDA_ABIERTA[cuerda])`
+    (research.md #5/#3 de la Feature 007, contracts/digitacion.md
+    postcondición 1)."""
+    notes = {
+        "A": _NoteDataFalso(intervals=np.array([[1.0, 1.5]]), pitches=np.array([47.0])),
+        "e": _NoteDataFalso(intervals=np.array([[0.5, 0.9]]), pitches=np.array([64.0])),
+        "E": None,
+        "D": None,
+        "G": None,
+        "B": None,
+    }
+    track = _TrackFalso(audio_mic_path="/x_mic.wav", notes_all=None, notes=notes)
+    dataset = _DatasetFalso({"grabacion": track})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    notas = leer_grabacion_con_posicion_real("grabacion", tmp_path)
+
+    assert notas == [
+        NotaConPosicionReal(
+            tono_midi=64.0, inicio_s=0.5, fin_s=0.9, cuerda_real="e", traste_real=0
+        ),
+        NotaConPosicionReal(
+            tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2
+        ),
+    ]
+
+
+def test_leer_grabacion_con_posicion_real_ordena_por_inicio_aunque_las_cuerdas_no_lo_esten(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Las seis listas por cuerda no vienen ordenadas ENTRE SÍ -- la
+    lista final se ordena explícitamente por `inicio_s`, no se asume ya
+    ordenada por venir de un diccionario en orden E/A/D/G/B/e."""
+    notes = {
+        "E": _NoteDataFalso(intervals=np.array([[5.0, 5.4]]), pitches=np.array([41.0])),
+        "B": _NoteDataFalso(intervals=np.array([[0.1, 0.4]]), pitches=np.array([60.0])),
+        "A": None,
+        "D": None,
+        "G": None,
+        "e": None,
+    }
+    track = _TrackFalso(audio_mic_path="/x_mic.wav", notes_all=None, notes=notes)
+    dataset = _DatasetFalso({"grabacion": track})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    notas = leer_grabacion_con_posicion_real("grabacion", tmp_path)
+
+    assert [n.cuerda_real for n in notas] == ["B", "E"]
+    assert [n.inicio_s for n in notas] == [0.1, 5.0]
+
+
+def test_leer_grabacion_con_posicion_real_inexistente_levanta_grabacion_no_existe_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    dataset = _DatasetFalso({})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    with pytest.raises(GrabacionNoExisteError) as excinfo:
+        leer_grabacion_con_posicion_real("99_inexistente", tmp_path)
+
+    assert excinfo.value.grabacion_id == "99_inexistente"

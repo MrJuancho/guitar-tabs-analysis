@@ -15,7 +15,7 @@ from __future__ import annotations
 import itertools
 from dataclasses import dataclass
 
-from guitar_tabs_analysis.ingestion.guitarset import NotaReferencia
+from guitar_tabs_analysis.ingestion.guitarset import NotaConPosicionReal, NotaReferencia
 
 # ---------------------------------------------------------------------
 # Tipos de dominio (T003) -- todos inmutables: son el resultado de una
@@ -421,3 +421,125 @@ def asignar_secuencia(notas: list[NotaEntrada], modelo: ModeloCoste) -> Digitaci
         posiciones.extend(combos_por_instante[i][j])
 
     return Digitacion(posiciones=posiciones, exclusiones=exclusiones, coste_total=coste_total)
+
+
+# ---------------------------------------------------------------------
+# PosicionReal / ResultadoCoincidencia / ExclusionDigitacion /
+# ResultadoDigitacionGrabacion / ArtefactoDigitacion (User Story 3,
+# T019, data-model.md) -- tipos de la medición contra la anotación real
+# de GuitarSet.
+# ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PosicionReal:
+    """La posición que GuitarSet anota que el guitarrista realmente usó
+    -- fuente de verdad exclusiva de la medición de User Story 3, nunca
+    usada para decidir qué posición asignar en User Story 1/2
+    (data-model.md). Estructuralmente idéntico a `Posicion`, pero un
+    tipo aparte a propósito: mezclar "lo que el algoritmo elige" con
+    "lo que el guitarrista realmente usó" en un solo tipo invitaría a
+    pasar una donde corresponde la otra sin que el tipo lo marque."""
+
+    cuerda: str
+    traste: int
+
+
+@dataclass(frozen=True)
+class ResultadoCoincidencia:
+    """Fracción de notas cuya posición asignada coincide exactamente
+    con la posición real anotada (FR-007) -- **coincidencia, no
+    corrección**: una posición distinta de la real puede producir el
+    mismo tono y ser igual de válida (spec.md, "Dos verificaciones
+    distintas"). Esta cifra mide PARECIDO con el uso humano real -- la
+    validación del modelo de coste -- nunca un porcentaje de aciertos
+    ni de errores; quien lea `1 - fraccion_coincidencia` como una tasa
+    de fallo está leyendo mal la métrica."""
+
+    fraccion_coincidencia: float | None
+    num_notas_medidas: int
+    num_notas_coincidentes: int
+
+
+@dataclass(frozen=True)
+class ExclusionDigitacion:
+    """Una grabación completa apartada de la medición por fallo de
+    lectura -- mismo patrón que `ExclusionDeteccion` del hito 2, a nivel
+    de grabación (data-model.md)."""
+
+    grabacion_id: str
+    detalle: str
+
+
+@dataclass(frozen=True)
+class ResultadoDigitacionGrabacion:
+    """El resultado de digitar y medir una única grabación -- unión
+    etiquetada, mismo patrón que `ResultadoDeteccionGrabacion` del hito
+    2 (data-model.md)."""
+
+    grabacion_id: str
+    digitacion: Digitacion | None
+    notas_con_posicion_real: list[NotaConPosicionReal] | None
+    exclusion: ExclusionDigitacion | None
+
+
+@dataclass(frozen=True)
+class ArtefactoDigitacion:
+    """El artefacto final de una corrida completa sobre un conjunto de
+    grabaciones -- mismo rol que `ArtefactoDeteccion` del hito 2
+    (data-model.md)."""
+
+    modelo_coste: ModeloCoste
+    grabaciones: list[str]
+    exclusiones_grabacion: list[ExclusionDigitacion]
+    resultados_por_grabacion: list[ResultadoDigitacionGrabacion]
+    resultado_coincidencia: ResultadoCoincidencia
+
+
+# ---------------------------------------------------------------------
+# evaluar_coincidencia (T020, contracts/digitacion.md postcondición 5,
+# FR-007)
+# ---------------------------------------------------------------------
+
+
+def evaluar_coincidencia(
+    digitacion: Digitacion, notas_con_posicion_real: list[NotaConPosicionReal]
+) -> ResultadoCoincidencia:
+    """Compara, nota por nota, cada `PosicionAsignada.posicion` de
+    `digitacion.posiciones` contra la `PosicionReal` derivada de la
+    `NotaConPosicionReal` correspondiente (misma nota, identificada por
+    `NotaEntrada` -- comparación por valor: mismo `tono_midi`,
+    `inicio_s`, `fin_s`).
+
+    **Nunca lee `digitacion.coste_total`** -- derivar la fracción del
+    propio coste que el algoritmo minimiza sería circular (FR-007): el
+    algoritmo lo minimiza por construcción, eso no es evidencia de que
+    se parezca al uso real. Solo lee `notas_con_posicion_real`.
+
+    Las notas de instantes excluidos no participan del denominador --
+    automático por construcción: no aparecen en `digitacion.posiciones`
+    (nunca recibieron ninguna posición que comparar), así que ni
+    siquiera hace falta consultar `digitacion.exclusiones` aquí."""
+    reales_por_nota: dict[NotaEntrada, PosicionReal] = {
+        NotaEntrada(tono_midi=n.tono_midi, inicio_s=n.inicio_s, fin_s=n.fin_s): PosicionReal(
+            cuerda=n.cuerda_real, traste=n.traste_real
+        )
+        for n in notas_con_posicion_real
+    }
+
+    num_medidas = 0
+    num_coincidentes = 0
+    for asignada in digitacion.posiciones:
+        real = reales_por_nota.get(asignada.nota)
+        if real is None:
+            continue
+        num_medidas += 1
+        if asignada.posicion.cuerda == real.cuerda and asignada.posicion.traste == real.traste:
+            num_coincidentes += 1
+
+    fraccion = (num_coincidentes / num_medidas) if num_medidas > 0 else None
+    return ResultadoCoincidencia(
+        fraccion_coincidencia=fraccion,
+        num_notas_medidas=num_medidas,
+        num_notas_coincidentes=num_coincidentes,
+    )

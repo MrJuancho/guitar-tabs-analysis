@@ -202,3 +202,77 @@ def leer_grabacion(grabacion_id: str, root_dir: Path) -> LecturaGrabacion:
         ruta_audio=Path(track.audio_mic_path),
         notas_referencia=notas_referencia,
     )
+
+
+# ---------------------------------------------------------------------
+# leer_grabacion_con_posicion_real (Feature 007, T018) -- posición REAL
+# anotada por cuerda (`track.notes`, research.md #5 de esa feature),
+# NUNCA `notes_all` (pooleada, sin cuerda -- lo que `leer_grabacion`
+# usa arriba). `leer_grabacion()` no se toca.
+# ---------------------------------------------------------------------
+
+MIDI_CUERDA_ABIERTA: dict[str, int] = {"E": 40, "A": 45, "D": 50, "G": 55, "B": 59, "e": 64}
+"""Mismo valor que `analytics.metrica_digitacion.ModeloCoste.midi_cuerda_abierta`
+por defecto (research.md #3 de la Feature 007) -- declarado aparte, no
+importado de ahí: `ingestion` no puede importar `analytics` sin invertir
+las capas (research.md #11 del hito 2). La coincidencia de valor es
+intencional, misma fuente real de afinación de GuitarSet -- no una copia
+sin mirar."""
+
+
+@dataclass(frozen=True)
+class NotaConPosicionReal:
+    """Una nota anotada por GuitarSet junto con la posición REAL que el
+    guitarrista usó (`cuerda_real`, `traste_real`) -- fuente de verdad
+    exclusiva de User Story 3 de la Feature 007, NUNCA usada para decidir
+    qué posición asignar (`analytics.metrica_digitacion.asignar_secuencia`
+    no la recibe: sería circular, FR-007)."""
+
+    tono_midi: float
+    inicio_s: float
+    fin_s: float
+    cuerda_real: str
+    traste_real: int
+
+
+def leer_grabacion_con_posicion_real(
+    grabacion_id: str, root_dir: Path
+) -> list[NotaConPosicionReal]:
+    """Lee la posición real (cuerda, traste) que GuitarSet anota para
+    cada nota de `grabacion_id`, vía `track.notes` (`dict[str, NoteData]`,
+    una entrada por cuerda -- research.md #5 de la Feature 007,
+    contracts/digitacion.md postcondición 1 de
+    `leer_grabacion_con_posicion_real`).
+
+    `traste_real` se DERIVA (`round(tono_midi - MIDI_CUERDA_ABIERTA[cuerda])`)
+    -- GuitarSet no anota traste directamente. La lista final queda
+    ordenada por `inicio_s`, aunque las seis listas por cuerda no vengan
+    ordenadas entre sí.
+
+    Lanza `GrabacionNoExisteError` en las mismas condiciones que
+    `leer_grabacion` -- el mismo tipo, nunca una excepción cruda de
+    `mirdata` sin envolver.
+    """
+    dataset = mirdata.initialize("guitarset", data_home=str(root_dir))
+    try:
+        track: Any = dataset.track(grabacion_id)
+    except Exception as causa:
+        raise GrabacionNoExisteError(grabacion_id) from causa
+
+    notas: list[NotaConPosicionReal] = []
+    for cuerda, note_data in track.notes.items():
+        if note_data is None:
+            continue
+        abierta = MIDI_CUERDA_ABIERTA[cuerda]
+        for (inicio, fin), tono in zip(note_data.intervals, note_data.pitches, strict=True):
+            notas.append(
+                NotaConPosicionReal(
+                    tono_midi=float(tono),
+                    inicio_s=float(inicio),
+                    fin_s=float(fin),
+                    cuerda_real=cuerda,
+                    traste_real=round(float(tono) - abierta),
+                )
+            )
+    notas.sort(key=lambda n: n.inicio_s)
+    return notas

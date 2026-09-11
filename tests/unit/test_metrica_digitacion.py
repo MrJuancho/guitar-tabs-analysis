@@ -14,13 +14,16 @@ import pytest
 
 from guitar_tabs_analysis.analytics.metrica_digitacion import (
     MODELO_COSTE_POR_DEFECTO,
+    Digitacion,
     Instante,
     InstanteExcluido,
     ModeloCoste,
     Posicion,
+    PosicionAsignada,
+    evaluar_coincidencia,
     generar_candidatas,
 )
-from guitar_tabs_analysis.ingestion.guitarset import NotaReferencia
+from guitar_tabs_analysis.ingestion.guitarset import NotaConPosicionReal, NotaReferencia
 
 
 def _modelo(**overrides: object) -> ModeloCoste:
@@ -467,3 +470,108 @@ def test_asignar_secuencia_sin_notas_da_digitacion_vacia() -> None:
     assert digitacion.posiciones == []
     assert digitacion.exclusiones == []
     assert digitacion.coste_total == 0.0
+
+
+# ---------------------------------------------------------------------
+# evaluar_coincidencia (T014, contracts/digitacion.md postcondición 5)
+#
+# La comparación es SIEMPRE contra la posición REAL anotada por
+# GuitarSet (NotaConPosicionReal), nunca contra el coste de la propia
+# Digitacion -- medir "mi coste salió bajo" sería circular (FR-007): el
+# algoritmo lo minimiza por construcción, eso no dice nada sobre si se
+# parece al uso humano real.
+# ---------------------------------------------------------------------
+
+
+def test_evaluar_coincidencia_todo_coincide_exactamente() -> None:
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    digitacion = Digitacion(
+        posiciones=[PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2))],
+        exclusiones=[],
+        coste_total=0.0,
+    )
+    reales = [
+        NotaConPosicionReal(tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2)
+    ]
+    resultado = evaluar_coincidencia(digitacion, reales)
+    assert resultado.fraccion_coincidencia == 1.0
+    assert resultado.num_notas_medidas == 1
+    assert resultado.num_notas_coincidentes == 1
+
+
+def test_evaluar_coincidencia_distinta_cuerda_o_traste_no_cuenta() -> None:
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    n2 = NotaReferencia(tono_midi=50.0, inicio_s=2.0, fin_s=2.5)
+    digitacion = Digitacion(
+        posiciones=[
+            # n1: la real es cuerda "A" -- el algoritmo eligió "E" (mismo
+            # tono, distinta cuerda, NO cuenta).
+            PosicionAsignada(nota=n1, posicion=Posicion(cuerda="E", traste=7)),
+            # n2: la real es traste 0 -- el algoritmo eligió traste 5 en
+            # la misma cuerda (NO cuenta, ninguna tolerancia numérica).
+            PosicionAsignada(nota=n2, posicion=Posicion(cuerda="D", traste=5)),
+        ],
+        exclusiones=[],
+        coste_total=0.0,
+    )
+    reales = [
+        NotaConPosicionReal(
+            tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2
+        ),
+        NotaConPosicionReal(
+            tono_midi=50.0, inicio_s=2.0, fin_s=2.5, cuerda_real="D", traste_real=0
+        ),
+    ]
+    resultado = evaluar_coincidencia(digitacion, reales)
+    assert resultado.num_notas_medidas == 2
+    assert resultado.num_notas_coincidentes == 0
+    assert resultado.fraccion_coincidencia == 0.0
+
+
+def test_evaluar_coincidencia_notas_de_instantes_excluidos_no_entran_al_denominador() -> None:
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    # La segunda nota (tono inalcanzable) fue excluida por
+    # asignar_secuencia -- nunca aparece en digitacion.posiciones, pese
+    # a tener posición real anotada en `reales`.
+    digitacion = Digitacion(
+        posiciones=[PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2))],
+        exclusiones=[InstanteExcluido(inicio_representativo_s=2.0, motivo="cualquiera")],
+        coste_total=0.0,
+    )
+    reales = [
+        NotaConPosicionReal(
+            tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2
+        ),
+        NotaConPosicionReal(
+            tono_midi=20.0, inicio_s=2.0, fin_s=2.5, cuerda_real="E", traste_real=0
+        ),
+    ]
+    resultado = evaluar_coincidencia(digitacion, reales)
+    assert resultado.num_notas_medidas == 1
+    assert resultado.num_notas_coincidentes == 1
+    assert resultado.fraccion_coincidencia == 1.0
+
+
+def test_evaluar_coincidencia_sin_notas_medidas_da_fraccion_none() -> None:
+    digitacion = Digitacion(posiciones=[], exclusiones=[], coste_total=0.0)
+    resultado = evaluar_coincidencia(digitacion, [])
+    assert resultado.fraccion_coincidencia is None
+    assert resultado.num_notas_medidas == 0
+    assert resultado.num_notas_coincidentes == 0
+
+
+def test_evaluar_coincidencia_nota_asignada_sin_posicion_real_no_entra_al_denominador() -> None:
+    """Caso defensivo: una `PosicionAsignada` cuya `nota` no tiene
+    ninguna `NotaConPosicionReal` correspondiente (no debería ocurrir
+    con datos bien formados -- la lista de posiciones reales viene de
+    la misma grabación -- pero el código no lo asume garantizado)."""
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    digitacion = Digitacion(
+        posiciones=[PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2))],
+        exclusiones=[],
+        coste_total=0.0,
+    )
+    resultado = evaluar_coincidencia(digitacion, [])
+    assert resultado.num_notas_medidas == 0
+    assert resultado.num_notas_coincidentes == 0
+    assert resultado.fraccion_coincidencia is None
