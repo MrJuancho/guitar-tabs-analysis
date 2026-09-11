@@ -692,3 +692,79 @@ ej. lotes de N grabaciones) -- descartado porque no resuelve el defecto
 de corrección (dos grabaciones del mismo lote seguirían pudiendo
 emparejarse entre sí), solo lo reduce en magnitud; el rediseño por
 conteos lo elimina por completo, no lo mitiga.
+
+## 18. `just doctor` en CI: la condición correcta es sobre el estado de `.venv`, no sobre CI-vs-local
+
+**Contexto real**: desde el commit que agregó `envs/basic_pitch_py310/`
+(T010-T015, sesión de User Story 2), las siete corridas de CI de
+`Guantelete` sobre `main` fallaron en el job `doctor`, todas en el mismo
+punto (`gh run view --log-failed`, confirmado antes de tocar código):
+`FALTA: envs/basic_pitch_py310/.venv no existe -- correr 'uv sync' dentro
+de ese directorio.` -- toda la Feature 006 se mergeó sin que CI pasara
+una sola vez. `doctor` trataba la ausencia de `.venv` como el mismo tipo
+de fallo que la ausencia del propio directorio versionado
+(`envs/basic_pitch_py310/`, que SÍ contiene `pyproject.toml`/`uv.lock`/
+`transcribir_subproceso.py` en git) -- pero son dos cosas distintas:
+`.venv` es un artefacto de build local, nunca versionado (`.gitignore`),
+que en CI JAMÁS existe a propósito -- crearlo instalaría
+`basic-pitch`/`tflite-runtime` en cada corrida para que ningún test los
+use (el único test que los ejercita, `modelo_real`, ya está excluido de
+CI por marcador, `pyproject.toml`).
+
+**Decision**: la condición de `doctor` sobre este entorno pasa a ser
+sobre el estado real de `.venv` (existe / no existe), NO sobre si el
+proceso corre en CI o localmente -- no hay una variable `$CI` ni un modo
+"estricto" aparte para desarrollo local. Si `.venv` no existe, `doctor`
+lo reporta de forma visible (mismo criterio que el marcador `modelo_real`
+en `tests/conftest.py`: un salto real nunca debe pasar desapercibido) y
+CONTINÚA -- no es `fallo`. Si existe, se verifica completo: intérprete
+ejecutable, `import basic_pitch`, y `uv lock --check`, en ese orden, sin
+ningún `uv run` antes de ningún chequeo (mismo criterio ya establecido
+para el resto de `doctor`: un chequeo de estado va antes de cualquier
+comando que pueda repararlo en silencio). Si el directorio versionado
+(`envs/basic_pitch_py310/` en sí) no existe, eso SIGUE siendo `fallo`
+duro -- un repositorio incompleto es un problema real, distinto de "el
+build local todavía no se hizo".
+
+**Rationale de por qué la condición es sobre el estado, no sobre
+CI-vs-local**: un desarrollador que acaba de clonar el repo y no corrió
+todavía `uv sync` dentro de `envs/basic_pitch_py310/` está exactamente en
+el mismo estado que CI -- "no configurado, y está bien mientras no
+intente `just detectar` ni los tests `modelo_real`", no "en un entorno
+degradado que amerita un chequeo más permisivo". Distinguir CI de local
+no puede, además, resolver el caso que más importa: si alguien BORRA
+`.venv` por accidente en su propia máquina, el estado resultante es
+indistinguible -- por diseño -- de "nunca se sincronizó". `doctor` no
+puede inferir intención a partir de un directorio ausente; lo único que
+puede hacer, y lo que hace, es reportar el estado de forma que nadie lo
+pase por alto (el aviso nombra el comando exacto para resolverlo,
+`cd envs/basic_pitch_py310 && uv sync`) -- exactamente el mismo criterio
+que ya aplica el marcador `modelo_real`, que tampoco distingue "sin red
+en CI" de "sin red en la laptop de alguien": ambos casos se saltan igual,
+ambos se reportan igual. Este chequeo (research.md #15) es de
+conveniencia/completitud, no de seguridad (AGENTS.md, "componentes de
+seguridad fallan CERRADOS; los de conveniencia fallan ABIERTOS") -- el
+propio `just detectar`/los tests `modelo_real` ya fallan con un mensaje
+específico si de verdad se invocan sin el entorno listo; `doctor` no
+necesita duplicar esa protección con un fallo duro.
+
+**Implementación**: el chequeo se extrajo de `justfile` a
+`scripts/verificar_entorno_basic_pitch.sh <ruta_entorno>`, parametrizado
+por ruta, para poder probarlo con un directorio sintético
+(`tests/integration/test_verificar_entorno_basic_pitch.py`, `uv venv`/
+`uv lock` reales sobre un proyecto de cero dependencias, sin red) sin
+fabricar ni tocar el `.venv` real en cada corrida de tests. Tres códigos
+de salida, no dos: `0` sano, `1` problema real (directorio ausente,
+import roto, lock desincronizado), `2` `.venv` ausente (se reporta, no
+cuenta como `fallo`) -- `1` y `2` deben ser distinguibles porque son
+decisiones distintas para quien invoca el script.
+
+**Alternatives considered**: una variable de entorno (`CI=true`) que
+relaje el chequeo solo en el runner -- descartada por la razón de arriba:
+el estado que hay que reportar (`.venv` ausente) es el mismo en ambos
+lados, y una bandera de "modo CI" habría necesitado mantenerse
+sincronizada con el `.github/workflows/guantelete.yml` real sin ninguna
+verificación automática de que coincidan. Bajar el chequeo de
+`envs/basic_pitch_py310/.venv` a "informativo" también para el
+directorio versionado -- descartado: ese directorio SÍ está en git, su
+ausencia es corrupción real de checkout, no un estado esperado.

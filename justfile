@@ -240,28 +240,35 @@ doctor:
     for m in ruff mypy pytest mutmut importlinter hypothesis; do
         uv run python -c "import ${m//-/_}" 2>/dev/null || { echo "FALTA (paquete Python): $m"; fallo=1; }
     done
-    # Entorno secundario de Basic Pitch (Feature 006, research.md #15):
-    # mismo orden que arriba -- chequeo de estado (uv lock --check) ANTES
-    # de cualquier comando que pueda sincronizar en silencio. Solo si el
-    # lock está al día se invoca el intérprete del venv ya materializado
-    # directamente (nunca `uv run`, que sincronizaría el entorno -- y con
-    # él, su uv.lock -- implícitamente antes de importar nada, curando un
-    # desincronizado real antes de que este chequeo llegara a verlo).
-    if [ -d envs/basic_pitch_py310 ]; then
-        (cd envs/basic_pitch_py310 && uv lock --check) >/dev/null 2>&1 \
-            || { echo "FALTA: envs/basic_pitch_py310/uv.lock desincronizado con su pyproject.toml -- correr 'uv lock' dentro de ese directorio."; fallo=1; }
-        if [ -x envs/basic_pitch_py310/.venv/bin/python ]; then
-            envs/basic_pitch_py310/.venv/bin/python -c "import basic_pitch" >/dev/null 2>&1 \
-                || { echo "FALTA: basic_pitch no importa en envs/basic_pitch_py310/.venv -- correr 'uv sync' dentro de ese directorio."; fallo=1; }
-        else
-            echo "FALTA: envs/basic_pitch_py310/.venv no existe -- correr 'uv sync' dentro de ese directorio."
-            fallo=1
-        fi
-    else
-        echo "FALTA: envs/basic_pitch_py310/ no existe -- ver research.md #15 de specs/006-deteccion-notas-guitarra-limpia/."
+    # Entorno secundario de Basic Pitch (Feature 006, research.md #15/#18):
+    # extraído a un script parametrizado (scripts/verificar_entorno_basic_pitch.sh)
+    # para poder probarlo con un directorio sintético, sin fabricar el
+    # `.venv` real en cada corrida de tests. Código 2 == `.venv` ausente
+    # todavía -- estado ESPERADO en CI (ese entorno solo hace falta para
+    # `just detectar`/tests `modelo_real`, que CI ya excluye; instalarlo
+    # ahí sería agregar basic-pitch/tflite-runtime sin que nada los use) --
+    # se reporta de forma visible (el script imprime el aviso) pero NO
+    # cuenta como `fallo`, ni aquí ni corriendo localmente sin ese entorno
+    # sincronizado todavía (research.md #18: la condición es sobre el
+    # estado del `.venv`, la misma localmente que en CI -- no hay un modo
+    # "estricto" aparte para desarrollo local). Código 1 == problema real
+    # (directorio ausente, import roto, o lock desincronizado) -- eso SÍ
+    # es `fallo`, entorno presente o no.
+    bash scripts/verificar_entorno_basic_pitch.sh envs/basic_pitch_py310
+    codigo_entorno=$?
+    entorno_omitido=0
+    if [ $codigo_entorno -eq 1 ]; then
         fallo=1
+    elif [ $codigo_entorno -eq 2 ]; then
+        entorno_omitido=1
     fi
-    [ $fallo -eq 0 ] && echo "Guantelete completo." || exit 1
+    if [ $fallo -ne 0 ]; then
+        exit 1
+    elif [ $entorno_omitido -eq 1 ]; then
+        echo "Guantelete completo (entorno de inferencia real OMITIDO -- ver arriba)."
+    else
+        echo "Guantelete completo."
+    fi
 
 clean:
     rm -rf mutants/ .hypothesis/ .mutmut-cache .coverage htmlcov/

@@ -14,27 +14,26 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Incidente real: el F1 global medido (0.7394) era mayor que AMBAS
-particiones (mono 0.6094, poli 0.5835) -- imposible si mono+poli cubren
-el global sin resto (ref/est ya sumaban exacto). Diagnóstico medido: de
-36995 pares del match global, 7329 clasificaban distinto entre su lado
-de referencia y su lado estimado (research.md #17) --
-`evaluar_grabacion` reclasificaba y reemparejaba cada lado por separado
-dentro de cada subconjunto (research.md #9, superado), en vez de
-heredar del emparejamiento único. Mismo defecto de forma que FR-013,
-fijado ahora como FR-014. Arreglo: un solo emparejamiento por
-grabación, cada par hereda la clase de su referencia; una estimada sin
-pareja se clasifica por su propio instante. Invariante permanente
-agregado (SC-007). Recalculado sobre el artefacto existente: global sin
-cambio (0.7394), mono sube a 0.7710, poli sube a 0.7242 -- ya
-consistente. `just gauntlet` verde: 244 tests, 98.40%.
+Incidente real: 7 corridas de CI (`Guantelete`, `main`) en rojo en el
+job `doctor` -- `FALTA: envs/basic_pitch_py310/.venv no existe`. Feature
+006 se mergeó sin que CI pasara una vez (`gh run list`/`--log-failed`).
+Causa: `doctor` trataba la ausencia de `.venv` (build local, nunca
+versionado, JAMÁS existe en CI a propósito) igual que la ausencia del
+directorio versionado (`envs/basic_pitch_py310/`, sí en git). Arreglo
+(research.md #18): condición sobre el ESTADO de `.venv`, no CI-vs-local
+-- ausente se reporta visible (criterio `modelo_real`) y `doctor` sigue
+sin fallar; presente se verifica completo (intérprete, import, lock).
+Directorio versionado ausente sigue siendo fallo duro. Chequeo extraído
+a `scripts/verificar_entorno_basic_pitch.sh <ruta>` (códigos 0/1/2) para
+probarlo con `uv venv`/`uv lock` reales sin tocar el `.venv` real. `just
+gauntlet` verde: 248 tests, 98.40%.
 
 ## Qué sigue
 
-Mutation testing acotado (T026) antes de cerrar la Feature 006. Después:
-fijar el presupuesto de aprobación del hito 2 (Principio VII).
+Confirmar que el próximo push deja CI en verde (push de esta sesión
+pendiente al momento de escribir esto). Después: mutation testing
+acotado (T026) antes de cerrar la Feature 006.
 
 ## Bloqueado / pendiente de decisión
 
-Ninguno nuevo. `mediciones/deteccion_medibles.json` corregido y
-commiteado esta sesión. Licencia de pesos de Demucs: sin verificar.
+Ninguno nuevo. Licencia de pesos de Demucs: sin verificar.
