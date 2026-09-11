@@ -16,6 +16,7 @@ import pytest
 from guitar_tabs_analysis.analytics.metrica_digitacion import MODELO_COSTE_POR_DEFECTO
 from guitar_tabs_analysis.deteccion import orquestador as deteccion_orquestador
 from guitar_tabs_analysis.deteccion.orquestador import construir_lista_grabaciones
+from guitar_tabs_analysis.digitacion import orquestador as digitacion_orquestador
 from guitar_tabs_analysis.digitacion.orquestador import ejecutar_digitacion
 from guitar_tabs_analysis.ingestion import guitarset
 
@@ -80,6 +81,32 @@ def test_ejecutar_digitacion_grabacion_inexistente_se_excluye_y_sigue(
     resultado_g1 = next(r for r in artefacto.resultados_por_grabacion if r.grabacion_id == "g1")
     assert resultado_g1.exclusion is None
     assert resultado_g1.digitacion is not None
+    # El propio ResultadoDigitacionGrabacion excluido conserva su
+    # grabacion_id real, no None (mutation testing T027).
+    resultado_excluido = next(
+        r for r in artefacto.resultados_por_grabacion if r.exclusion is not None
+    )
+    assert resultado_excluido.grabacion_id == "99_inexistente"
+
+
+def test_ejecutar_digitacion_continua_tras_una_exclusion_no_se_detiene(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`continue`, no `break`, tras registrar una exclusión -- una
+    grabación excluida al PRINCIPIO de la lista no debe detener el
+    procesamiento de las siguientes (mutation testing T027: los tests
+    existentes solo probaban la exclusión al FINAL de la lista, donde
+    `break` y `continue` son indistinguibles -- no queda nada después
+    de la última posición en ningún caso)."""
+    dataset = _DatasetFalso({"g_ok": _track_una_nota("A", 47.0, 1.0, 1.5)})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    artefacto = ejecutar_digitacion(["g_no_existe", "g_ok"], tmp_path)
+
+    resultado_ok = next(r for r in artefacto.resultados_por_grabacion if r.grabacion_id == "g_ok")
+    assert resultado_ok.exclusion is None
+    assert resultado_ok.digitacion is not None
+    assert artefacto.resultado_coincidencia.num_notas_medidas == 1
 
 
 def test_ejecutar_digitacion_agrega_resultado_coincidencia_sobre_varias_grabaciones(
@@ -160,3 +187,65 @@ def test_ejecutar_digitacion_usa_el_modelo_de_coste_declarado_por_defecto(
     artefacto = ejecutar_digitacion(["g1"], tmp_path)
 
     assert artefacto.modelo_coste == MODELO_COSTE_POR_DEFECTO
+
+
+# ---------------------------------------------------------------------
+# Salida de progreso -- mismo patrón que
+# test_deteccion_orquestador_integracion.py del hito 2 (mutation
+# testing, T027: cada rama de impresión tiene su propio print, ninguna
+# cubierta por defecto por otros tests que no capturan stdout).
+# ---------------------------------------------------------------------
+
+
+def test_ejecutar_digitacion_imprime_una_linea_por_grabacion_y_un_aviso_al_agregar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    dataset = _DatasetFalso(
+        {"g_ok": _track_una_nota("A", 47.0, 1.0, 1.5)},
+    )
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    ejecutar_digitacion(["g_ok", "g_no_existe"], tmp_path)
+
+    lineas = capsys.readouterr().out.splitlines()
+    assert "[1/2] g_ok  ok  " in lineas[0]
+    assert lineas[0].rstrip().endswith("1 posiciones")
+    assert lineas[1] == (
+        "[2/2] g_no_existe  excluido: La grabación 'g_no_existe' "
+        "no existe en el índice de GuitarSet."
+    )
+    assert lineas[2] == "agregando 2 grabaciones"
+
+
+def test_ejecutar_digitacion_imprime_la_duracion_resultado_de_restar_no_sumar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`duracion = time.perf_counter() - inicio`, no `+` (mutation
+    testing T027, mismo patrón que la Feature 006: comparación EXACTA
+    de la línea completa, no `in` -- "2.5s" es substring de "202.5s")."""
+    dataset = _DatasetFalso({"g_ok": _track_una_nota("A", 47.0, 1.0, 1.5)})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+    valores = iter([100.0, 102.5])
+    monkeypatch.setattr(digitacion_orquestador.time, "perf_counter", lambda: next(valores))
+
+    ejecutar_digitacion(["g_ok"], tmp_path)
+
+    linea = capsys.readouterr().out.splitlines()[0]
+    assert linea == "[1/1] g_ok  ok  2.5s  1 posiciones"
+
+
+def test_ejecutar_digitacion_exclusion_conserva_el_grabacion_id_y_el_detalle_reales(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`ExclusionDigitacion(grabacion_id, str(causa))` -- ni el
+    `grabacion_id` ni el detalle deben perderse a `None` (mutation
+    testing T027)."""
+    dataset = _DatasetFalso({})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    artefacto = ejecutar_digitacion(["g_no_existe"], tmp_path)
+
+    assert artefacto.exclusiones_grabacion[0].grabacion_id == "g_no_existe"
+    assert artefacto.exclusiones_grabacion[0].detalle == (
+        "La grabación 'g_no_existe' no existe en el índice de GuitarSet."
+    )

@@ -14,24 +14,24 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 007, T015-T025: User Story 3 completa (segunda mitad).
-`agregar_conjunto`, `digitacion.orquestador`/`cli` (mismo patrón que
-`deteccion.cli`: modo sin default, escritura atómica, progreso por
-grabación). T024: primera corrida real sobre las 288 medibles -- 11.1s
-de reloj (lineal confirmado), 0 excluidas, `fraccion_coincidencia=0.6186`
-(research.md #14). T025: calibración medida, no aplicada -- hallazgo
-estructural (un desacuerdo nunca aísla cuerda o traste, mecánico) más
-una asimetría real (Δcuerda acotado ~1-2, Δtraste disperso hasta 19)
-documentada como hipótesis para recalibrar después (research.md #15) --
-pesos sin tocar. `just gauntlet` verde: 331 tests, 99.23%.
+Feature 007 (T026-T027), CERRADA -- hito 3 completo. Mutation testing
+acotado a la capa nueva: 8 sobrevivientes en `metrica_digitacion` (335
+mutantes), todos equivalentes verificados (zip estructuralmente
+garantizado, valores iniciales nunca leídos); 0 en
+`digitacion.orquestador`/`cli` e `ingestion.guitarset`. Supervivientes
+reales NO aparecieron donde se predijo (motivos de exclusión, guard de
+Δt, ya cubiertos) sino en el backtracking de la DP (6 mutantes del
+rango del bucle, indetectables mirando solo `coste_total`) y el
+desempate de costos iguales (Principio VIII). ~20 tests nuevos, todos
+por hallazgo real. `just gauntlet` verde: 361 tests, 99.23%. tasks.md
+27/27.
 
 ## Qué sigue
 
-T026-T027 (Polish): `just gauntlet` ya verde; falta mutation testing
-acotado a la capa nueva (`metrica_digitacion`, `digitacion.orquestador`/
-`cli`, extensión de `ingestion.guitarset`) con triage real. Después:
-cerrar Principio VII del hito 3 (`/speckit-constitution`) con la cifra
-de T024/T025 como evidencia.
+Cerrar el Principio VII del hito 3 (`/speckit-constitution`) con la
+evidencia de T024/T025: `fraccion_coincidencia=0.6186` sobre las 288
+medibles, y la asimetría Δcuerda/Δtraste como entrada para una futura
+recalibración de pesos (research.md #15, sin aplicar todavía).
 
 ## Bloqueado / pendiente de decisión
 

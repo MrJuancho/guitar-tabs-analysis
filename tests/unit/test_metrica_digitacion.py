@@ -106,6 +106,40 @@ def test_generar_candidatas_tono_fuera_de_rango_fisico_devuelve_lista_vacia() ->
     assert generar_candidatas(120.0, MODELO_COSTE_POR_DEFECTO) == []
 
 
+def test_generar_candidatas_respeta_traste_minimo_no_solo_traste_maximo() -> None:
+    """`range(modelo.traste_minimo, modelo.traste_maximo + 1)` -- un
+    traste_minimo > 0 excluye trastes por debajo, no solo los que
+    exceden traste_maximo (mutation testing T027: `traste_minimo`
+    omitido del `range()` sobrevivía sin ningún test con
+    `traste_minimo != 0`)."""
+    modelo = _modelo(traste_minimo=2, traste_maximo=5)
+    # A46.0 = A(45) + traste 1 -- por debajo de traste_minimo=2.
+    assert Posicion(cuerda="A", traste=1) not in generar_candidatas(46.0, modelo)
+    # A47.0 = A(45) + traste 2 -- dentro del rango.
+    assert Posicion(cuerda="A", traste=2) in generar_candidatas(47.0, modelo)
+
+
+def test_generar_candidatas_tolerancia_es_limite_inclusivo() -> None:
+    """`desvio_cents <= tolerancia_tono_cents`, no `<` -- un desvío
+    EXACTAMENTE igual a la tolerancia declarada MUST incluirse
+    (mutation testing T027: `<=` mutado a `<` sobrevivía sin un caso
+    justo en el borde exacto)."""
+    # A(45) + 50 cents exactos (0.5 semitonos) = 45.5 -- tolerancia por
+    # defecto es 50.0 cents, exactamente en el borde.
+    candidatas = generar_candidatas(45.5, MODELO_COSTE_POR_DEFECTO)
+    assert Posicion(cuerda="A", traste=0) in candidatas
+
+
+def test_generar_candidatas_conversion_a_cents_es_por_100_no_101() -> None:
+    """`desvio_cents = ... * 100.0` -- un desvío de 0.499 semitonos da
+    49.9 cents (dentro de una tolerancia de 50) con el multiplicador
+    correcto, pero 50.399 (fuera) con `* 101.0` (mutation testing T027:
+    ese mutante sobrevivía porque ningún test anterior caía justo en la
+    banda [50/101, 50/100] semitonos que los distingue)."""
+    candidatas = generar_candidatas(45.499, MODELO_COSTE_POR_DEFECTO)
+    assert Posicion(cuerda="A", traste=0) in candidatas
+
+
 # ---------------------------------------------------------------------
 # asignar_instante (T005, spec.md US1 Acceptance Scenarios,
 # contracts/digitacion.md postcondición 3)
@@ -157,6 +191,9 @@ def test_asignar_instante_acorde_que_excede_estiramiento_en_toda_combinacion() -
     resultado = asignar_instante(_instante([48.0, 80.0]), modelo)
     assert isinstance(resultado, InstanteExcluido)
     assert resultado.motivo == "excede el límite de estiramiento"
+    # inicio_representativo_s se propaga desde el instante, nunca None
+    # (mutation testing T027).
+    assert resultado.inicio_representativo_s == 0.0
 
 
 def test_asignar_instante_dos_notas_mismo_tono_reciben_cuerdas_distintas() -> None:
@@ -181,6 +218,24 @@ def test_asignar_instante_mas_notas_que_cuerdas_disponibles() -> None:
     resultado = asignar_instante(_instante(tonos), MODELO_COSTE_POR_DEFECTO)
     assert isinstance(resultado, InstanteExcluido)
     assert resultado.motivo == "más notas simultáneas que cuerdas disponibles"
+    # inicio_representativo_s se propaga desde el instante, nunca None
+    # (mutation testing T027).
+    assert resultado.inicio_representativo_s == 0.0
+
+
+def test_asignar_instante_exactamente_seis_notas_no_se_excluye_por_conteo() -> None:
+    """`len(instante.notas) > len(cuerdas)` -- el límite es estrictamente
+    MAYOR que 6, no `>=` (mutation testing T027: con `>=`, un acorde de
+    exactamente 6 notas -- una por cuerda, el máximo físico real -- se
+    excluiría por conteo aunque sea perfectamente tocable)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_instante
+
+    # Las seis cuerdas al aire -- 6 notas, cero estiramiento, cuerdas
+    # todas distintas por construcción (una nota por cuerda abierta).
+    tonos = [40.0, 45.0, 50.0, 55.0, 59.0, 64.0]
+    resultado = asignar_instante(_instante(tonos), MODELO_COSTE_POR_DEFECTO)
+    assert isinstance(resultado, list)
+    assert len(resultado) == 6
 
 
 def test_asignar_instante_nota_inalcanzable_incluso_con_tolerancia_completa() -> None:
@@ -191,6 +246,127 @@ def test_asignar_instante_nota_inalcanzable_incluso_con_tolerancia_completa() ->
     resultado = asignar_instante(_instante([20.0]), MODELO_COSTE_POR_DEFECTO)
     assert isinstance(resultado, InstanteExcluido)
     assert resultado.motivo == "nota inalcanzable dentro de tolerancia y rango"
+    assert resultado.inicio_representativo_s == 0.0
+
+
+def test_asignar_instante_acorde_que_excede_estiramiento_propaga_inicio_representativo() -> None:
+    """Mismo chequeo que arriba, para la última rama de exclusión
+    (`InstanteExcluido` cuando `not validas` -- mutation testing T027:
+    `inicio_representativo_s=None` sobrevivía específicamente en ESTA
+    construcción, distinta de las otras dos)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_instante
+
+    modelo = _modelo(limite_estiramiento_trastes=1)
+    instante = Instante(
+        notas=[
+            NotaReferencia(tono_midi=48.0, inicio_s=3.5, fin_s=4.0),
+            NotaReferencia(tono_midi=80.0, inicio_s=3.5, fin_s=4.0),
+        ],
+        inicio_representativo_s=3.5,
+    )
+    resultado = asignar_instante(instante, modelo)
+    assert isinstance(resultado, InstanteExcluido)
+    assert resultado.inicio_representativo_s == 3.5
+
+
+def test_generar_combinaciones_validas_traste_uno_cuenta_como_pisada() -> None:
+    """`p.traste >= 1` (no `> 1` ni `>= 2`) -- traste 1 SÍ cuenta como
+    pisada para el estiramiento (research.md #7: solo el traste 0, al
+    aire, no exige dedo). Mutation testing T027: con `> 1`/`>= 2`, el
+    traste 1 se descarta de `pisadas`, y una combinación que debería
+    excluirse por estiramiento real (5, sobre el límite de 4) queda dentro
+    del límite aparente (al quedar un solo elemento pisado, o ninguno)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import (
+        _generar_combinaciones_validas,
+    )
+
+    modelo = _modelo(traste_maximo=6, limite_estiramiento_trastes=4)
+    # 41.0 -- única candidata en todo el rango: E traste 1 (ninguna otra
+    # cuerda alcanza 41 con traste >= 0). 56.0 -- única candidata con
+    # traste_maximo=6: D traste 6 (G exigiría traste 1, pero G+1=56
+    # también compite -- se filtra abajo por cuerda exacta).
+    instante = Instante(
+        notas=[
+            NotaReferencia(tono_midi=41.0, inicio_s=0.0, fin_s=0.5),
+            NotaReferencia(tono_midi=56.0, inicio_s=0.0, fin_s=0.5),
+        ],
+        inicio_representativo_s=0.0,
+    )
+    resultado = _generar_combinaciones_validas(instante, modelo)
+    assert isinstance(resultado, list)
+    combos = [{(pa.posicion.cuerda, pa.posicion.traste) for pa in combo} for combo in resultado]
+    # (E,1)+(D,6): estiramiento real = 6-1 = 5 > 4 -- MUST NOT ser válida.
+    assert {("E", 1), ("D", 6)} not in combos
+
+
+def test_generar_combinaciones_validas_estiramiento_es_resta_no_suma() -> None:
+    """`max(pisadas) - min(pisadas)`, no `+` (mutation testing T027):
+    con `+`, dos pisadas cercanas (estiramiento real bajo) se calculan
+    como una suma mucho mayor, que puede exceder el límite en falso."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import (
+        _generar_combinaciones_validas,
+    )
+
+    modelo = _modelo(traste_maximo=4, limite_estiramiento_trastes=4)
+    # 42.0 -- única candidata: E traste 2. 53.0 -- única candidata: D
+    # traste 3 (A exigiría traste 8, fuera de traste_maximo=4).
+    instante = Instante(
+        notas=[
+            NotaReferencia(tono_midi=42.0, inicio_s=0.0, fin_s=0.5),
+            NotaReferencia(tono_midi=53.0, inicio_s=0.0, fin_s=0.5),
+        ],
+        inicio_representativo_s=0.0,
+    )
+    resultado = _generar_combinaciones_validas(instante, modelo)
+    assert isinstance(resultado, list)
+    combos = [{(pa.posicion.cuerda, pa.posicion.traste) for pa in combo} for combo in resultado]
+    # (E,2)+(D,3): estiramiento real = 3-2 = 1 <= 4 -- MUST ser válida
+    # (la suma, 5, excedería el límite -- por eso discrimina la resta).
+    assert {("E", 2), ("D", 3)} in combos
+
+
+def test_asignar_instante_nota_sola_con_pisada_nunca_excede_estiramiento_cero() -> None:
+    """El caso base `else 0` (no `else 1`) cuando hay menos de dos
+    pisadas -- una sola nota fretteada nunca "estira" nada, sin importar
+    cuán bajo sea el límite declarado (mutation testing T027)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_instante
+
+    modelo = _modelo(limite_estiramiento_trastes=0)
+    resultado = asignar_instante(_instante([41.0]), modelo)
+    assert isinstance(resultado, list)
+    assert resultado[0].posicion == Posicion(cuerda="E", traste=1)
+
+
+def test_asignar_instante_estiramiento_igual_al_limite_es_valido_no_excede() -> None:
+    """`estiramiento > limite`, no `>=` -- un estiramiento EXACTAMENTE
+    igual al límite declarado MUST seguir siendo válido (mutation
+    testing T027)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_instante
+
+    modelo = _modelo(traste_maximo=6, limite_estiramiento_trastes=5)
+    # 41.0 -> única candidata E1; 70.0 -> única candidata e6 (con
+    # traste_maximo=6, ninguna otra cuerda alcanza 70). Estiramiento
+    # real = 6-1 = 5, exactamente el límite.
+    resultado = asignar_instante(_instante([41.0, 70.0]), modelo)
+    assert isinstance(resultado, list)
+
+
+def test_asignar_instante_sigue_evaluando_tras_una_combinacion_invalida_por_estiramiento() -> None:
+    """`continue`, no `break`, cuando una combinación excede el límite
+    -- las combinaciones siguientes en la iteración (candidatas de la
+    misma nota en otra cuerda) MUST seguir evaluándose (mutation testing
+    T027: `break` corta la búsqueda entera en la primera combinación
+    inválida, aunque combinaciones válidas existan más adelante)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_instante
+
+    modelo = _modelo(traste_maximo=6, limite_estiramiento_trastes=4)
+    # 41.0 -> única candidata E1. 56.0 -> dos candidatas con
+    # traste_maximo=6: D6 (primera, por orden de cuerdas E/A/D/G/B/e) y
+    # G1 (segunda). La combinación (E1,D6) excede el límite (5 > 4) y
+    # aparece PRIMERO en el orden de itertools.product -- (E1,G1),
+    # válida (estiramiento 0), aparece después y MUST evaluarse igual.
+    resultado = asignar_instante(_instante([41.0, 56.0]), modelo)
+    assert isinstance(resultado, list)
 
 
 def test_asignar_instante_los_tres_motivos_de_exclusion_son_distinguibles() -> None:
@@ -252,6 +428,86 @@ def test_agrupar_en_instantes_una_nota_sola_no_es_caso_especial() -> None:
     assert len(instantes) == 1
     assert instantes[0].notas == [n1]
     assert instantes[0].inicio_representativo_s == 0.0
+
+
+def test_agrupar_en_instantes_compara_diferencia_no_suma_de_inicios() -> None:
+    """`nota.inicio_s - inicio_grupo`, no `+` (mutation testing T027):
+    con inicio_grupo en 0.0 (el caso de la mayoría de los tests, primer
+    instante de una secuencia empezando en el origen), resta y suma dan
+    el mismo resultado -- este test usa un `inicio_grupo` NO nulo para
+    que discriminen."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import agrupar_en_instantes
+
+    modelo = _modelo(ventana_instante_s=0.03)
+    n1 = NotaReferencia(tono_midi=40.0, inicio_s=10.0, fin_s=10.5)
+    n2 = NotaReferencia(tono_midi=45.0, inicio_s=10.02, fin_s=10.5)
+    instantes = agrupar_en_instantes([n1, n2], modelo)
+    assert len(instantes) == 1
+    assert instantes[0].notas == [n1, n2]
+
+
+def test_agrupar_en_instantes_ventana_exacta_sigue_en_el_mismo_grupo() -> None:
+    """`> modelo.ventana_instante_s`, no `>=` -- una diferencia de inicio
+    EXACTAMENTE igual a la ventana MUST seguir agrupada (mutation testing
+    T027)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import agrupar_en_instantes
+
+    modelo = _modelo(ventana_instante_s=0.03)
+    n1 = NotaReferencia(tono_midi=40.0, inicio_s=0.0, fin_s=0.5)
+    n2 = NotaReferencia(tono_midi=45.0, inicio_s=0.03, fin_s=0.5)
+    instantes = agrupar_en_instantes([n1, n2], modelo)
+    assert len(instantes) == 1
+    assert instantes[0].notas == [n1, n2]
+
+
+# ---------------------------------------------------------------------
+# _estiramiento / _centroide (helpers internos de asignar_secuencia,
+# T012) -- probados directamente, no solo a través de asignar_secuencia,
+# porque son el cálculo de coste de nodo/arista de la DP: un error ahí
+# se propagaría a costes agregados de muchos instantes, difícil de
+# aislar desde afuera.
+# ---------------------------------------------------------------------
+
+
+def test_estiramiento_traste_uno_cuenta_como_pisada() -> None:
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _estiramiento
+
+    assert _estiramiento([Posicion(cuerda="E", traste=1), Posicion(cuerda="D", traste=6)]) == 5
+
+
+def test_estiramiento_es_resta_no_suma() -> None:
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _estiramiento
+
+    assert _estiramiento([Posicion(cuerda="E", traste=2), Posicion(cuerda="D", traste=3)]) == 1
+
+
+def test_estiramiento_con_exactamente_dos_pisadas_usa_la_resta() -> None:
+    """`len(pisadas) >= 2`, no `> 2` ni `>= 3` -- EXACTAMENTE dos
+    pisadas ya activa el cálculo real, no el caso base (mutation
+    testing T027)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _estiramiento
+
+    assert _estiramiento([Posicion(cuerda="E", traste=3), Posicion(cuerda="D", traste=7)]) == 4
+
+
+def test_centroide_promedia_trastes_no_multiplica() -> None:
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _centroide
+
+    t, _c = _centroide(
+        [Posicion(cuerda="E", traste=2), Posicion(cuerda="A", traste=4)],
+        ["E", "A", "D", "G", "B", "e"],
+    )
+    assert t == 3.0
+
+
+def test_centroide_promedia_indices_de_cuerda_no_multiplica() -> None:
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _centroide
+
+    _t, c = _centroide(
+        [Posicion(cuerda="E", traste=2), Posicion(cuerda="D", traste=2)],
+        ["E", "A", "D", "G", "B", "e"],
+    )
+    assert c == 1.0  # (0 + 2) / 2
 
 
 # ---------------------------------------------------------------------
@@ -453,6 +709,100 @@ def test_asignar_secuencia_instante_excluido_salta_su_dt_al_anterior_no_excluido
     assert digitacion.coste_total == pytest.approx(esperado)
 
 
+def test_asignar_secuencia_desempate_de_costo_igual_conserva_el_primero() -> None:
+    """`costo < mejor_costo`, no `<=` -- ante un empate exacto de coste
+    entre dos candidatas del instante anterior, MUST conservar la
+    PRIMERA encontrada (orden determinista de `generar_candidatas`,
+    Principio VIII), nunca la última que empate (mutation testing T027).
+    """
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_secuencia
+
+    modelo = _modelo(traste_maximo=5)
+    # 45.0 -> candidatas [(E,5), (A,0)], en ese orden. 48.0 -> única
+    # candidata (A,3). Ambos caminos hacia (A,3) cuestan exactamente lo
+    # mismo: (E,5)->(A,3) = |3-5|+|1-0| = 3; (A,0)->(A,3) = |3-0|+0 = 3.
+    notas = [
+        NotaReferencia(tono_midi=45.0, inicio_s=0.0, fin_s=0.4),
+        NotaReferencia(tono_midi=48.0, inicio_s=1.0, fin_s=1.4),
+    ]
+    digitacion = asignar_secuencia(notas, modelo)
+    assert digitacion.posiciones[0].posicion == Posicion(cuerda="E", traste=5)
+
+
+def test_asignar_secuencia_costo_de_nodo_se_suma_no_se_resta() -> None:
+    """`costeNodo(p) + mín(...)`, no `-` -- el coste de estiramiento de
+    un acorde en un instante que NO es el primero MUST sumarse al
+    coste acumulado (mutation testing T027: `coincide_con_fuerza_bruta`
+    no lo detectaba porque sus secuencias no tenían ningún acorde con
+    estiramiento distinto de cero después del primer instante)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import (
+        agrupar_en_instantes,
+        asignar_secuencia,
+    )
+
+    modelo = _modelo(traste_maximo=4)
+    notas = [
+        NotaReferencia(tono_midi=45.0, inicio_s=0.0, fin_s=0.4),  # A0, único
+        NotaReferencia(tono_midi=42.0, inicio_s=1.0, fin_s=1.4),  # acorde: E2
+        NotaReferencia(tono_midi=53.0, inicio_s=1.0, fin_s=1.4),  # acorde: D3 (estiramiento 1)
+    ]
+    digitacion = asignar_secuencia(notas, modelo)
+    instantes = agrupar_en_instantes(notas, modelo)
+    esperado = _fuerza_bruta_coste_minimo(instantes, modelo)
+    assert digitacion.coste_total == pytest.approx(esperado)
+
+
+def test_asignar_secuencia_reconstruye_el_camino_optimo_no_el_indice_inicial() -> None:
+    """El backtracking de backpointers MUST producir el índice óptimo
+    real en cada posición de `camino`, nunca quedarse en su valor
+    inicial (mutation testing T027: varios mutantes del rango del
+    bucle -- `range(0,-1)`, `range(len-1,-1)`, `range(len-2,0,-1)`,
+    paso `-2`, etc. -- dejan el bucle sin ejecutar ninguna iteración
+    real para algún índice, indistinguible mirando solo `coste_total`,
+    que se calcula ANTES de este bucle)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_secuencia
+
+    modelo = _modelo(traste_maximo=5)
+    # 45.0 -> candidatas [(E,5), (A,0)]. La óptima real es (A,0):
+    # estrictamente más barata hacia la siguiente candidata (A,2) que
+    # (E,5) -- el backtracking MUST elegirla, no el índice 0 (E,5) que
+    # `generar_candidatas` produce primero.
+    notas = [
+        NotaReferencia(tono_midi=45.0, inicio_s=0.0, fin_s=0.4),
+        NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.4),  # única: (A,2)
+        NotaReferencia(tono_midi=54.0, inicio_s=2.0, fin_s=2.4),  # única: (D,4)
+    ]
+    digitacion = asignar_secuencia(notas, modelo)
+    assert digitacion.posiciones[0].posicion == Posicion(cuerda="A", traste=0)
+    assert digitacion.posiciones[1].posicion == Posicion(cuerda="A", traste=2)
+    assert digitacion.posiciones[2].posicion == Posicion(cuerda="D", traste=4)
+
+
+def test_asignar_secuencia_reconstruye_camino_optimo_en_un_instante_intermedio() -> None:
+    """Mismo criterio que arriba, pero con la candidata ambigua en el
+    instante DEL MEDIO -- distingue mutantes del rango del bucle de
+    backtracking que se truncan un paso demasiado pronto, dejando ese
+    índice intermedio en su valor por defecto en vez del correctamente
+    retropropagado (mutation testing T027: `range(len(activos) - 2, 0,
+    -1)` sobrevivía al test anterior porque ahí la candidata ambigua
+    estaba en el primer instante, cuyo índice coincide con el valor por
+    defecto sin importar si el bucle lo visita o no)."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_secuencia
+
+    modelo = _modelo(traste_maximo=5)
+    notas = [
+        NotaReferencia(tono_midi=41.0, inicio_s=0.0, fin_s=0.4),  # única: (E,1)
+        # candidatas [(E,5), (A,0)] -- la óptima real es (A,0), no la
+        # primera generada.
+        NotaReferencia(tono_midi=45.0, inicio_s=1.0, fin_s=1.4),
+        NotaReferencia(tono_midi=47.0, inicio_s=2.0, fin_s=2.4),  # única: (A,2)
+    ]
+    digitacion = asignar_secuencia(notas, modelo)
+    assert digitacion.posiciones[0].posicion == Posicion(cuerda="E", traste=1)
+    assert digitacion.posiciones[1].posicion == Posicion(cuerda="A", traste=0)
+    assert digitacion.posiciones[2].posicion == Posicion(cuerda="A", traste=2)
+
+
 def test_asignar_secuencia_todos_los_instantes_excluidos_da_digitacion_vacia() -> None:
     from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_secuencia
 
@@ -580,6 +930,82 @@ def test_evaluar_coincidencia_nota_asignada_sin_posicion_real_no_entra_al_denomi
     assert resultado.fraccion_coincidencia is None
 
 
+def test_evaluar_coincidencia_nota_sin_real_no_detiene_la_evaluacion_de_las_siguientes() -> None:
+    """`continue`, no `break`, cuando una nota no tiene posición real
+    correspondiente -- las notas SIGUIENTES en `digitacion.posiciones`
+    MUST seguir evaluándose (mutation testing T027: con `break`, una
+    sola nota "huérfana" al principio de la lista haría que ninguna
+    nota posterior, aunque coincida, se contara)."""
+    n1 = NotaReferencia(tono_midi=99.0, inicio_s=9.0, fin_s=9.5)  # sin real correspondiente
+    n2 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    digitacion = Digitacion(
+        posiciones=[
+            PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2)),
+            PosicionAsignada(nota=n2, posicion=Posicion(cuerda="A", traste=2)),
+        ],
+        exclusiones=[],
+        coste_total=0.0,
+    )
+    reales = [
+        NotaConPosicionReal(tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2)
+    ]
+    resultado = evaluar_coincidencia(digitacion, reales)
+    assert resultado.num_notas_medidas == 1
+    assert resultado.num_notas_coincidentes == 1
+
+
+def test_evaluar_coincidencia_cuenta_incrementa_no_se_fija_en_uno() -> None:
+    """`num_coincidentes += 1`, no `= 1` -- con DOS notas coincidentes,
+    el conteo MUST ser 2, no quedarse fijo en 1 (mutation testing T027).
+    """
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    n2 = NotaReferencia(tono_midi=50.0, inicio_s=2.0, fin_s=2.5)
+    digitacion = Digitacion(
+        posiciones=[
+            PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2)),
+            PosicionAsignada(nota=n2, posicion=Posicion(cuerda="D", traste=0)),
+        ],
+        exclusiones=[],
+        coste_total=0.0,
+    )
+    reales = [
+        NotaConPosicionReal(
+            tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2
+        ),
+        NotaConPosicionReal(
+            tono_midi=50.0, inicio_s=2.0, fin_s=2.5, cuerda_real="D", traste_real=0
+        ),
+    ]
+    resultado = evaluar_coincidencia(digitacion, reales)
+    assert resultado.num_notas_coincidentes == 2
+
+
+def test_evaluar_coincidencia_fraccion_es_division_no_multiplicacion() -> None:
+    """`num_coincidentes / num_medidas`, no `*` -- con 1 de 2 notas
+    coincidentes, la fracción MUST ser 0.5 (mutation testing T027: con
+    `*`, daría 2, un número que ni siquiera es una fracción válida)."""
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    n2 = NotaReferencia(tono_midi=50.0, inicio_s=2.0, fin_s=2.5)
+    digitacion = Digitacion(
+        posiciones=[
+            PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2)),
+            PosicionAsignada(nota=n2, posicion=Posicion(cuerda="E", traste=10)),  # no coincide
+        ],
+        exclusiones=[],
+        coste_total=0.0,
+    )
+    reales = [
+        NotaConPosicionReal(
+            tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2
+        ),
+        NotaConPosicionReal(
+            tono_midi=50.0, inicio_s=2.0, fin_s=2.5, cuerda_real="D", traste_real=0
+        ),
+    ]
+    resultado = evaluar_coincidencia(digitacion, reales)
+    assert resultado.fraccion_coincidencia == 0.5
+
+
 # ---------------------------------------------------------------------
 # agregar_conjunto (T015, contracts/digitacion.md postcondición 6,
 # mismo patrón que agregar_conjunto del hito 2, research.md #16 de esa
@@ -694,3 +1120,22 @@ def test_agregar_conjunto_sin_notas_medidas_da_fraccion_none() -> None:
     assert resultado.fraccion_coincidencia is None
     assert resultado.num_notas_medidas == 0
     assert resultado.num_notas_coincidentes == 0
+
+
+def test_agregar_conjunto_con_exactamente_una_nota_medida_calcula_fraccion() -> None:
+    """`num_medidas_total > 0`, no `> 1` -- con exactamente UNA nota
+    medida en todo el conjunto, la fracción MUST calcularse igual, no
+    quedar en `None` (mutation testing T027)."""
+    n1 = NotaReferencia(tono_midi=47.0, inicio_s=1.0, fin_s=1.5)
+    g1 = _resultado_grabacion(
+        "g1",
+        [PosicionAsignada(nota=n1, posicion=Posicion(cuerda="A", traste=2))],
+        [
+            NotaConPosicionReal(
+                tono_midi=47.0, inicio_s=1.0, fin_s=1.5, cuerda_real="A", traste_real=2
+            )
+        ],
+    )
+    resultado = agregar_conjunto([g1])
+    assert resultado.num_notas_medidas == 1
+    assert resultado.fraccion_coincidencia == 1.0

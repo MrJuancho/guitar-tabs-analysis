@@ -417,3 +417,31 @@ def test_leer_grabacion_con_posicion_real_inexistente_levanta_grabacion_no_exist
         leer_grabacion_con_posicion_real("99_inexistente", tmp_path)
 
     assert excinfo.value.grabacion_id == "99_inexistente"
+
+
+def test_leer_grabacion_con_posicion_real_intervals_y_pitches_de_distinta_longitud_falla(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Mismo invariante que `leer_grabacion` (`zip(..., strict=True)`)
+    -- a diferencia de las combinaciones de `itertools.product` en
+    `analytics.metrica_digitacion` (donde la igualdad de longitud está
+    garantizada por construcción), `intervals`/`pitches` de una cuerda
+    son dos arrays independientes leídos de `mirdata`, sin esa garantía
+    estructural: un `strict=True` real aquí (mutation testing T027)."""
+    notes = {
+        "A": _NoteDataFalso(
+            intervals=np.array([[1.0, 1.5], [2.0, 2.25]]),
+            pitches=np.array([47.0]),
+        ),
+        "E": None,
+        "D": None,
+        "G": None,
+        "B": None,
+        "e": None,
+    }
+    track = _TrackFalso(audio_mic_path="/x_mic.wav", notes_all=None, notes=notes)
+    dataset = _DatasetFalso({"grabacion": track})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    with pytest.raises(ValueError, match="zip"):
+        leer_grabacion_con_posicion_real("grabacion", tmp_path)
