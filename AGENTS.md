@@ -410,6 +410,55 @@ REPL, o con el test que la ejercita -- antes de escribir el código que la
 asume. Un contraejemplo de cinco números vale más que tres revisores de
 acuerdo.
 
+## Agrupar o clasificar antes de emparejar destruye pares legítimos
+
+Agrupar o clasificar entidades ANTES de resolver el emparejamiento que las
+relaciona destruye pares legítimos que cruzan la frontera de la agrupación o
+clasificación elegida. La partición se deriva del emparejamiento ya resuelto,
+nunca al revés -- si el orden se invierte, un acierto real puede quedar
+repartido entre dos lados de la frontera y desaparecer de ambos sin que
+ninguna cifra parcial se vea "rota" por sí sola.
+
+Dos casos reales, de la misma feature (006, guitar-tabs-analysis), ambos con
+evidencia numérica y ninguno detectado por `/speckit-specify`,
+`/speckit-plan`, `/speckit-clarify` ni `/speckit-analyze` -- las cuatro fases
+comprueban coherencia entre documentos, no la corrección de un algoritmo de
+agregación:
+
+1. **Agrupar antes de emparejar (FR-013).** La agregación juntaba las notas
+   de 288 grabaciones en un único cálculo. Como el emparejamiento tolera
+   50 ms de diferencia y cada clip usa reloj relativo, una nota de una
+   grabación se acreditaba contra otra de un clip sin relación alguna. Dos
+   grabaciones sin ningún acierto propio daban precisión 0.5. Corregido:
+   emparejar dentro de cada grabación y agregar sumando conteos.
+2. **Clasificar antes de emparejar (FR-014).** El desglose por polifonía
+   clasificaba cada lado por separado y volvía a emparejar dentro de cada
+   partición. Si una referencia en instante polifónico se emparejaba con una
+   estimada cuyo instante propio caía en zona monofónica, el par se partía y
+   el acierto desaparecía de ambas particiones. 7313 verdaderos positivos
+   perdidos, el 19.8% del total, y el sesgo no era uniforme: castigaba más
+   justo la partición que más interesaba medir. Corregido: un solo
+   emparejamiento y la clase heredada del par ganador.
+
+**La guarda que lo atrapa, y que vale más que el principio en prosa: un
+invariante de conservación entre el agregado y sus partes.** En este caso,
+`TP(mono) + TP(poli) == TP(global)`. Cuando existe un desglose de un cálculo
+agregado, la suma de las partes debe reconstruir el todo exactamente -- no
+"aproximadamente", no "salvo redondeo": son conteos discretos, la misma
+igualdad exacta que Principio VIII de la constitución de guitar-tabs-analysis
+ya exige para resultados combinatorios. Un test que afirme esta igualdad
+como propiedad permanente (no un caso de ejemplo suelto) detecta el defecto
+apenas alguien reintroduzca un emparejamiento por partición, sin depender de
+que alguien note a mano que una cifra global es mayor que ambas parciales a
+la vez.
+
+Regla: si un cálculo produce un total y también un desglose de ese total (por
+categoría, por grupo, por cualquier partición), agrega un test de invariante
+de conservación (`suma(partes) == total`, con igualdad exacta si son conteos
+discretos) y trátalo como guarda permanente, no como aserción de un solo
+test dirigido -- es la señal más barata de que alguien clasificó o agrupó
+antes de emparejar en vez de después.
+
 ## Un componente no verificado en el entorno real es un componente que no existe
 
 Un hook que "debería" funcionar según su código, pero nunca se disparó de
