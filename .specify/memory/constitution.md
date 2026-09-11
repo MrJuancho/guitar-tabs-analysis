@@ -1,5 +1,62 @@
 <!--
 Sync Impact Report
+- Version change: 1.9.0 → 1.10.0
+- Fuente: primera medición real del hito 3 (Feature 007, digitación con
+  restricción de la mano -- `mediciones/digitacion_medibles.json`, 288
+  grabaciones medibles de GuitarSet, DP propia sobre programación
+  dinámica, sin modelo externo). Cierra Principio VII para el hito 3 --
+  pedido explícito de esta sesión: NO se toca ningún contenido de los
+  hitos 1 ni 2.
+- Bump MINOR: agrega contenido cerrado y verificado a un principio ya
+  existente (VII), en la misma forma que ya se generalizó en v1.7.0 --
+  no elimina ni contradice ninguna decisión ya tomada (hito 1 y 2
+  intactos, verificado línea por línea antes de escribir este reporte),
+  así que no aplica MAJOR; no es solo una aclaración de redacción --
+  agrega la métrica principal, su alcance medido, el presupuesto
+  numérico y una limitación declarada que no existían -- así que no es
+  PATCH.
+
+- Principios modificados en v1.10.0 (contenido, no título ni posición):
+  VII.  "La métrica y su presupuesto" -- se agrega el bloque "Hito 3 --
+        digitación con restricción de la mano": métrica principal
+        (`fraccion_coincidencia`, ya fijada en `spec.md`/
+        `contracts/digitacion.md` de la Feature 007), una aclaración
+        explícita de qué mide la cifra y qué NO mide (parecido con el
+        uso humano, nunca corrección -- la corrección tonal es
+        precondición del sistema, la optimalidad del algoritmo se
+        verifica aparte contra fuerza bruta), el alcance de la medición
+        (288 grabaciones medibles, 0 exclusiones, 11.1 s de reloj real
+        que confirma la complejidad lineal proyectada, los parámetros
+        del modelo de coste con su evidencia, y el hallazgo real sobre
+        el criterio de "instante" -- agrupación por proximidad de
+        ataque en vez del solape de intervalo heredado del hito 2, que
+        rompía el límite físico de 6 cuerdas sobre estos mismos datos),
+        el presupuesto (`0.55` sobre `fraccion_coincidencia`, con su
+        margen argumentado), una limitación declarada con evidencia
+        real (pesos de movimiento sin calibrar, asimetría Δcuerda/
+        Δtraste medida, hipótesis registrada, no aplicada), y un
+        hallazgo estructural (un desglose "solo cuerda"/"solo traste"
+        es vacío por construcción, documentado para que no se
+        rederive).
+
+- Secciones añadidas: ninguna a nivel de encabezado (todo el contenido
+  nuevo vive dentro de Principio VII, ya existente, como una tercera
+  instancia junto a las de los hitos 1 y 2). Secciones eliminadas:
+  ninguna. Ningún contenido de los hitos 1 y 2 (Principios I-VII
+  secciones "Hito 1"/"Hito 2", VIII-X) se modifica -- pedido explícito
+  de esta sesión.
+
+- Governance: se agrega un checkbox `[x]` nuevo -- "VII -- Hito 3:
+  métrica principal y presupuesto numérico" -- con la cifra resumida en
+  la propia línea, mismo patrón que el checkbox análogo del hito 2. A
+  diferencia de VI/VII del hito 2, este checkbox no proviene de cerrar
+  un `ABIERTO` previamente declarado (el hito 3 nunca abrió uno para
+  Principio VII de forma explícita) -- es la aplicación directa de la
+  regla general que v1.7.0 ya generalizó para "cualquier hito", cerrada
+  con contenido real en la primera oportunidad en que existió una
+  medición que cerrarla.
+
+- Sesión anterior (v1.8.1 → v1.9.0), preservada por referencia histórica:
 - Version change: 1.8.1 → 1.9.0
 - Fuente: primera medición real del hito 2 (Feature 006, detección de
   notas sobre guitarra limpia -- `mediciones/deteccion_medibles.json`,
@@ -807,6 +864,111 @@ corregidos con test rojo primero, antes de que esta sección se cerrara:
   después) debe heredar la clasificación del par ya resuelto, nunca
   reclasificar ni reemparejar cada lado por separado.
 
+**Hito 3 -- digitación con restricción de la mano.**
+
+**Métrica principal: `fraccion_coincidencia`** (fracción de notas cuya
+posición asignada -- cuerda y traste -- coincide exactamente con la
+posición que el guitarrista real usó, según la anotación por cuerda de
+GuitarSet, FR-007). Ya fijada en `spec.md`/`contracts/digitacion.md` de
+la Feature 007; se cierra aquí con la primera medición real.
+
+**Qué mide esta cifra, y qué NO mide -- se escribe explícitamente
+porque invita a mala lectura.** Mide PARECIDO con el uso humano real,
+nunca corrección: una posición distinta de la real puede reproducir el
+mismo tono exacto y ser igual de válida para tocar. `1 -
+fraccion_coincidencia` **no** es una tasa de error. La corrección
+tonal de toda posición asignada es una PRECONDICIÓN del sistema
+(FR-001/FR-002), no algo que esta métrica evalúe -- y la optimalidad
+del algoritmo de asignación (que la digitación producida sea, de
+verdad, la de coste mínimo) se verifica aparte, contra fuerza bruta
+sobre secuencias sintéticas cortas (FR-006) -- nunca con esta métrica,
+que compararía el algoritmo contra el coste que él mismo minimiza por
+construcción (circular).
+
+**Alcance de la medición, cerrado con la primera corrida real** (Feature
+007, `mediciones/digitacion_medibles.json`).
+
+- 288 de las 360 grabaciones de GuitarSet (las medibles -- el
+  complemento de las 72 reservadas del Principio VI, semilla `20260908`,
+  reutilizada tal cual, sin una segunda partición). **0 exclusiones.**
+- **11.1 segundos de reloj real para las 288 grabaciones** -- confirma
+  con medición, no solo con el argumento de complejidad de `plan.md`,
+  que esta feature no enfrenta el mismo riesgo de escala que forzó
+  acotar la medición del hito 1 a una submuestra (Principio VII, más
+  arriba): la programación dinámica de esta feature es lineal en el
+  número de instantes de la secuencia, verificado con evidencia de
+  reloj, no solo proyectado.
+- Parámetros del modelo de coste, todos con evidencia real detrás salvo
+  los pesos de movimiento (ver limitación declarada, abajo), nunca
+  constantes sin nombre (FR-014): afinación MIDI `40/45/50/55/59/64`;
+  rango de trastes `[0, 19]`; tolerancia de tono `50` cents (misma
+  fuente real de desafinación fraccionaria que el hito 2, verificada de
+  forma independiente); límite de estiramiento `5` trastes, por encima
+  del percentil 99 observado (`4`) sobre los ataques polifónicos reales.
+- **Instante definido por proximidad de ataque (ventana 30 ms, sin
+  arrastre) -- hallazgo real, no el primer intento.** El criterio
+  heredado por reflejo del hito 2 (solape de intervalo sostenido)
+  produce, sobre estos mismos datos, una polifonía de **7** -- más
+  cuerdas de las que el instrumento tiene -- y estiramientos de hasta
+  **16 trastes**, físicamente imposibles para una sola mano; quedó
+  descartado con esa evidencia. Con el criterio de proximidad de
+  ataque, la polifonía real nunca excede **6** en el **100%** de los
+  casos medidos: reproduce la restricción física de las seis cuerdas
+  en vez de romperla.
+
+**Presupuesto: `0.55` sobre `fraccion_coincidencia`, con margen por
+debajo del `0.6186` observado.**
+
+- **Evidencia.** `30644` de `49535` notas medidas coinciden exactamente
+  (cuerda Y traste) con la posición real anotada --
+  `fraccion_coincidencia = 0.6186`.
+- **Por qué `0.55`, un margen más ancho que el del hito 2 (`~5.3%`
+  relativo sobre su propia cifra).** Margen de `~0.069` (`~11.1%`
+  relativo) por debajo de lo observado. Más ancho a propósito: el hito
+  2 no tenía ningún parámetro del modelo declarado explícitamente sin
+  calibrar; esta feature sí (los pesos de movimiento, ver la limitación
+  declarada abajo) -- una recalibración futura con evidencia real
+  podría desplazar `fraccion_coincidencia` en cualquier dirección, y un
+  margen tan angosto como el del hito 2 arriesgaría que esa
+  recalibración, por sí sola, hiciera fallar (o aprobar de más) una
+  compuerta que no debería reaccionar a un cambio de parámetro todavía
+  sin decidir. Ni ajustado al mínimo que hoy mismo aprobaría (esta
+  sección lo prohíbe), ni tan amplio que pierda su función de compuerta.
+- **El umbral no se recalibra para forzar un pase** (regla general de
+  esta sección, ya vigente): si una corrida futura sobre este conjunto
+  cae por debajo de `0.55`, el resultado es un FALLA documentado, no
+  una ocasión para mover el número.
+
+**Limitación declarada (hito 3), con evidencia real medida (Feature
+007).** Los pesos de desplazamiento y cruce de cuerdas del modelo de
+coste están en `1.0` cada uno, **sin calibrar contra la anotación real
+todavía**. Sobre los `18891` desacuerdos de la corrida (notas cuyo tono
+es correcto -- precondición del sistema -- pero cuya posición no
+coincide con la real), la distribución medida muestra una asimetría
+real: `Δcuerda` (diferencia de índice de cuerda) se mantiene chico y
+acotado (mediana `1`, rara vez más de `2`-`3`), mientras `Δtraste` está
+mucho más disperso (mediana `5`, hasta `19`) -- consistente con que el
+modelo evita cruzar cuerdas más de lo que lo hace un guitarrista real,
+y se desplaza por el mástil más de lo que lo hace un guitarrista real.
+**Es una hipótesis registrada con evidencia, no una recalibración
+aplicada:** ajustar los pesos mirando el resultado que se acaba de
+medir sería la misma forma de sesgo que mover un umbral después de
+verlo (regla general de esta sección) -- cualquier recalibración
+futura es una decisión posterior, con su propia medición de que el
+cambio mejora `fraccion_coincidencia` de verdad, no solo mueve esta
+distribución.
+
+**Hallazgo estructural, documentado para que no se rederive el mismo
+cero.** Un desglose de los desacuerdos en "discrepancia solo de
+cuerda" o "solo de traste" es **vacío por construcción**, no una
+limitación de los datos disponibles: para un tono fijo, `traste =
+tono_midi - MIDI_CUERDA_ABIERTA[cuerda]` es una función determinista
+de la cuerda -- dos posiciones que coinciden en cuerda coinciden
+necesariamente en traste (mismo tono), y dos que difieren en cuerda
+difieren necesariamente en traste (las seis cuerdas nunca comparten
+afinación). Verificado, no asumido: el `100%` de los desacuerdos
+medidos difiere en ambas dimensiones a la vez.
+
 ### VIII. Determinismo
 
 **Cerrado: opción (b), tolerancia numérica declarada -- aplicada de forma
@@ -950,7 +1112,12 @@ del hito 2 -- no una reapertura de los tres ya cerrados del hito 1. El de
 VI (tamaño y semilla de la porción reservada de GuitarSet) cerró en
 v1.8.0; el de VII (métrica y presupuesto del hito 2) cerró en v1.9.0, con
 la primera medición real de la Feature 006. **No queda ningún `ABIERTO`
-pendiente en este documento.**
+pendiente en este documento.** El hito 3 (Feature 007, digitación con
+restricción de la mano) nunca abrió su propio `ABIERTO` explícito para
+Principio VII -- se cerró directamente con contenido real en v1.10.0, en
+la primera oportunidad en que existió una medición, aplicando la regla
+general que v1.7.0 ya generalizó para "cualquier hito" sin necesidad de
+declarar un `ABIERTO` intermedio.
 
 - [x] VII -- Métrica principal: SI-SDR (Le Roux et al., 2019). Hito 1.
       Cerrado en `/plan` de 002-metrica-separacion-guitarra.
@@ -977,5 +1144,15 @@ pendiente en este documento.**
       `mediciones/deteccion_medibles.json`) -- ver Principio VII para la
       evidencia completa, incluida la historia metodológica de los dos
       defectos corregidos antes del cierre (FR-013, FR-014).
+- [x] VII -- Hito 3: métrica principal y presupuesto numérico.
+      `fraccion_coincidencia` (mide parecido con el uso humano real,
+      nunca corrección -- la corrección tonal es precondición del
+      sistema, no parte de esta métrica); presupuesto `0.55` sobre
+      `fraccion_coincidencia`, sobre `0.6186` observado. Cerrado con la
+      primera medición real de la Feature 007 (288 grabaciones medibles,
+      `mediciones/digitacion_medibles.json`) -- ver Principio VII para
+      la evidencia completa, incluida la limitación declarada sobre los
+      pesos de movimiento sin calibrar y el hallazgo estructural sobre
+      por qué un desglose cuerda/traste por separado es vacío.
 
-**Version**: 1.9.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-10
+**Version**: 1.10.0 | **Ratified**: 2026-08-30 | **Last Amended**: 2026-09-11
