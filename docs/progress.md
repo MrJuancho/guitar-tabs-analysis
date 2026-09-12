@@ -14,27 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Feature 007 (T026-T027), CERRADA -- hito 3 completo. Mutation testing
-acotado a la capa nueva: 8 sobrevivientes en `metrica_digitacion` (335
-mutantes), todos equivalentes verificados (zip estructuralmente
-garantizado, valores iniciales nunca leídos); 0 en
-`digitacion.orquestador`/`cli` e `ingestion.guitarset`. Supervivientes
-reales NO aparecieron donde se predijo (motivos de exclusión, guard de
-Δt, ya cubiertos) sino en el backtracking de la DP (6 mutantes del
-rango del bucle, indetectables mirando solo `coste_total`) y el
-desempate de costos iguales (Principio VIII). ~20 tests nuevos, todos
-por hallazgo real. `just gauntlet` verde: 361 tests, 99.23%. tasks.md
-27/27.
+Constitución v1.10.0: Principio VII cerrado para el hito 3
+(`fraccion_coincidencia=0.6186`, presupuesto `0.55`, hitos 1/2 sin
+tocar). Después, ADR-0002 (`docs/adr/`): primera prueba manual de
+extremo a extremo con una canción real (no Slakh2100 ni GuitarSet) --
+cinco hallazgos, ninguno detectable por las métricas de los tres hitos:
+(1) separación mejor de lo esperado; (2) conversión a mono descarta
+panorama estéreo real (heredado de Slakh); (3) `separar_guitarra` sin
+validar forma de entrada -- intento de reservar ~26 TB; (4) el modelo
+de coste de digitación no penaliza altura -- mismo signo que la
+asimetría de T025 (research.md #15), el más accionable; (5) el
+detector confunde octava/armónico y no ve hammer-ons, invisibles con
+GuitarSet. Solo documentación, sin corrección -- pedido explícito.
+`just gauntlet` verde (sin cambios de código).
 
 ## Qué sigue
 
-Cerrar el Principio VII del hito 3 (`/speckit-constitution`) con la
-evidencia de T024/T025: `fraccion_coincidencia=0.6186` sobre las 288
-medibles, y la asimetría Δcuerda/Δtraste como entrada para una futura
-recalibración de pesos (research.md #15, sin aplicar todavía).
+Decidir qué hacer con cada hallazgo de ADR-0002 es sesión aparte, cada
+uno con su propia medición. El más accionable (4, altura ausente en el
+modelo de coste) es el candidato más claro, junto con T025.
 
 ## Bloqueado / pendiente de decisión
 
-Ninguno nuevo. Mismos pendientes: compuerta automática del presupuesto
-`0.70` del hito 2; `copier update` de `.copier-answers.yml`/`AGENTS.md`
-sin commitear; licencia de pesos de Demucs sin verificar.
+Los cinco hallazgos de ADR-0002. Antes: compuerta automática del `0.70`
+del hito 2; `copier update` sin commitear; licencia de Demucs sin verificar.
