@@ -249,3 +249,186 @@ def test_ejecutar_digitacion_exclusion_conserva_el_grabacion_id_y_el_detalle_rea
     assert artefacto.exclusiones_grabacion[0].detalle == (
         "La grabación 'g_no_existe' no existe en el índice de GuitarSet."
     )
+
+
+# ---------------------------------------------------------------------
+# Feature 008, T005 (US3): tests de
+# `digitacion.orquestador.ejecutar_barrida_peso_altura`
+# (contracts/digitacion.md postcondiciones 1-5, research.md #4 de esa
+# feature). Mismos sustitutos de `mirdata` de arriba -- ningún dataset
+# real.
+# ---------------------------------------------------------------------
+
+
+def test_ejecutar_barrida_lee_cada_grabacion_exactamente_una_vez(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Postcondición 1: sin importar cuántos valores tenga
+    `valores_candidatos`, cada grabación se lee UNA SOLA VEZ -- la
+    lectura (I/O + `mirdata`) es el costo dominante y no depende del
+    peso (research.md #4), así que repetirla por candidato desperdicia
+    exactamente ese costo."""
+    from guitar_tabs_analysis.digitacion.orquestador import ejecutar_barrida_peso_altura
+
+    dataset = _DatasetFalso(
+        {
+            "g1": _track_una_nota("A", 47.0, 1.0, 1.5),
+            "g2": _track_una_nota("D", 50.0, 1.0, 1.5),
+        }
+    )
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    llamadas: list[tuple[str, Path]] = []
+    original = digitacion_orquestador.leer_grabacion_con_posicion_real
+
+    def _contador(grabacion_id: str, root_dir: Path) -> list[object]:
+        llamadas.append((grabacion_id, root_dir))
+        return original(grabacion_id, root_dir)  # type: ignore[return-value]
+
+    monkeypatch.setattr(digitacion_orquestador, "leer_grabacion_con_posicion_real", _contador)
+
+    ejecutar_barrida_peso_altura([0.0, 1.0, 5.0, 10.0], ["g1", "g2"], tmp_path)
+
+    assert sorted(llamadas) == [("g1", tmp_path), ("g2", tmp_path)]
+
+
+def test_ejecutar_barrida_un_punto_por_valor_candidato_en_el_mismo_orden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Postcondiciones 2/3: un `PuntoBarrida` por cada valor de
+    `valores_candidatos`, en el mismo orden -- incluido el de menor
+    `fraccion_coincidencia`, nunca solo el máximo."""
+    from guitar_tabs_analysis.digitacion.orquestador import ejecutar_barrida_peso_altura
+
+    dataset = _DatasetFalso({"g1": _track_una_nota("A", 47.0, 1.0, 1.5)})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    candidatos = [0.0, 3.0, 7.0, 50.0]
+    resultado = ejecutar_barrida_peso_altura(candidatos, ["g1"], tmp_path)
+
+    assert resultado.valores_candidatos == candidatos
+    assert [p.peso_altura_traste for p in resultado.puntos] == candidatos
+    assert len(resultado.puntos) == len(candidatos)
+
+
+def test_ejecutar_barrida_grabacion_que_falla_queda_excluida_de_todos_los_puntos_por_igual(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Postcondición 1: una grabación cuya lectura falla queda excluida
+    de TODOS los puntos por igual -- nunca solo de algunos, porque la
+    lectura ocurre una única vez, antes de la barrida sobre los pesos."""
+    from guitar_tabs_analysis.digitacion.orquestador import ejecutar_barrida_peso_altura
+
+    dataset = _DatasetFalso({"g_ok": _track_una_nota("A", 47.0, 1.0, 1.5)})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    resultado = ejecutar_barrida_peso_altura([0.0, 1.0, 2.0], ["g_ok", "g_no_existe"], tmp_path)
+
+    for punto in resultado.puntos:
+        assert punto.resultado_coincidencia.num_notas_medidas == 1
+
+
+def test_ejecutar_barrida_continua_tras_una_lectura_fallida_al_principio_de_la_lista(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`continue`, no `break`, tras una lectura fallida -- una grabación
+    que falla al PRINCIPIO de la lista no debe detener la lectura de las
+    siguientes (mismo mutante ya cazado en `ejecutar_digitacion`, T027 de
+    la Feature 007: un `break` aquí sería indistinguible de `continue`
+    si la grabación que falla siempre estuviera al final de la lista)."""
+    from guitar_tabs_analysis.digitacion.orquestador import ejecutar_barrida_peso_altura
+
+    dataset = _DatasetFalso({"g_ok": _track_una_nota("A", 47.0, 1.0, 1.5)})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    resultado = ejecutar_barrida_peso_altura([0.0], ["g_no_existe", "g_ok"], tmp_path)
+
+    assert resultado.puntos[0].resultado_coincidencia.num_notas_medidas == 1
+
+
+def test_ejecutar_barrida_aplica_el_peso_declarado_a_cada_valor_candidato(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """El peso realmente usado dentro de `asignar_secuencia` para cada
+    punto debe ser el valor candidato correspondiente -- no basta con
+    que `PuntoBarrida.peso_altura_traste` (la etiqueta) coincida con
+    `valores_candidatos`; el `ModeloCoste` construido internamente debe
+    llevar ese mismo valor, o la barrida mediría siempre el mismo peso
+    (mutation testing: `dataclasses.replace(modelo_base, )` sin el
+    argumento sobrevivía porque ningún test anterior observaba el
+    `modelo` con el que `asignar_secuencia` corre de verdad)."""
+    from guitar_tabs_analysis.digitacion import orquestador as digitacion_orquestador_mod
+    from guitar_tabs_analysis.digitacion.orquestador import ejecutar_barrida_peso_altura
+
+    dataset = _DatasetFalso({"g1": _track_una_nota("A", 47.0, 1.0, 1.5)})
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    pesos_usados: list[float] = []
+    original_asignar_secuencia = digitacion_orquestador_mod.asignar_secuencia
+
+    def _asignar_secuencia_espia(notas: object, modelo: object) -> object:
+        pesos_usados.append(modelo.peso_altura_traste)  # type: ignore[attr-defined]
+        return original_asignar_secuencia(notas, modelo)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(digitacion_orquestador_mod, "asignar_secuencia", _asignar_secuencia_espia)
+
+    candidatos = [0.0, 2.5, 10.0]
+    ejecutar_barrida_peso_altura(candidatos, ["g1"], tmp_path)
+
+    assert pesos_usados == candidatos
+
+
+def test_ejecutar_barrida_peso_cero_coincide_con_ejecutar_digitacion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Postcondición 5 (punto de control, research.md #6 de la Feature
+    008): el punto con `peso_altura_traste == 0.0` produce una
+    `fraccion_coincidencia` idéntica a la de `ejecutar_digitacion` con
+    `MODELO_COSTE_POR_DEFECTO` sobre las mismas grabaciones -- si no
+    coincide, es un defecto de integración, no una variación esperable."""
+    from guitar_tabs_analysis.digitacion.orquestador import ejecutar_barrida_peso_altura
+
+    dataset = _DatasetFalso(
+        {
+            "g1": _track_una_nota("A", 47.0, 1.0, 1.5),
+            "g2": _track_una_nota("D", 50.0, 1.0, 1.5),
+        }
+    )
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    artefacto = ejecutar_digitacion(["g1", "g2"], tmp_path)
+    resultado_barrida = ejecutar_barrida_peso_altura([0.0, 5.0], ["g1", "g2"], tmp_path)
+
+    punto_control = next(p for p in resultado_barrida.puntos if p.peso_altura_traste == 0.0)
+    assert punto_control.resultado_coincidencia == artefacto.resultado_coincidencia
+
+
+def test_ejecutar_barrida_reutiliza_construir_lista_grabaciones_ninguna_reservada_participa(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """FR-011 de la Feature 008, mismo criterio que
+    `ejecutar_digitacion`: la barrida no decide por sí misma qué
+    grabaciones recibe -- si se le pasa la lista de medibles
+    (`construir_lista_grabaciones("medibles", ...)`), ninguna reservada
+    participa en ningún punto de la curva."""
+    from guitar_tabs_analysis.digitacion.orquestador import ejecutar_barrida_peso_altura
+
+    ids_sinteticos = [f"grabacion_{i:02d}" for i in range(10)]
+    tracks = {gid: _track_una_nota("A", 47.0, 1.0, 1.5) for gid in ids_sinteticos}
+    dataset = _DatasetFalso(tracks)
+    _monkeypatch_mirdata(monkeypatch, dataset)
+
+    medibles = construir_lista_grabaciones(
+        "medibles", tmp_path, tamano_reserva=3, semilla_reserva=20260908
+    )
+    reservados = construir_lista_grabaciones(
+        "reservado", tmp_path, tamano_reserva=3, semilla_reserva=20260908
+    )
+
+    resultado = ejecutar_barrida_peso_altura([0.0, 1.0], medibles, tmp_path)
+
+    for punto in resultado.puntos:
+        # 7 medibles, cada uno con 1 nota -- si alguna reservada
+        # hubiera participado, num_notas_medidas sería mayor.
+        assert punto.resultado_coincidencia.num_notas_medidas == len(medibles)
+    assert set(medibles) & set(reservados) == set()

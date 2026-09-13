@@ -56,6 +56,7 @@ def test_modelo_coste_por_defecto_expone_los_valores_de_research_md() -> None:
     assert m.ventana_instante_s == 0.03
     assert m.peso_desplazamiento == 1.0
     assert m.peso_cruce_cuerdas == 1.0
+    assert m.peso_altura_traste == 0.0
 
 
 def test_instante_de_una_sola_nota_no_es_un_caso_especial() -> None:
@@ -541,9 +542,16 @@ def _combinaciones_validas_bruteforce(
     return validas
 
 
-def _coste_nodo_bruteforce(combo: tuple[Posicion, ...]) -> float:
+def _coste_nodo_bruteforce(combo: tuple[Posicion, ...], modelo: ModeloCoste) -> float:
+    """Aritmética propia, independiente de `_coste_nodo` de producción
+    (Feature 008, T004 -- requisito explícito de esta tarea): si este
+    helper llamara a `_coste_nodo` de producción, un error ahí afectaría
+    ambos lados de la comparación por igual y el test pasaría en verde
+    sin detectarlo (mismo defecto que ya se cerró en la Feature 002)."""
     pisadas = [p.traste for p in combo if p.traste >= 1]
-    return float((max(pisadas) - min(pisadas)) if len(pisadas) >= 2 else 0)
+    estiramiento = float((max(pisadas) - min(pisadas)) if len(pisadas) >= 2 else 0)
+    altura = float(sum(p.traste for p in combo))
+    return estiramiento + modelo.peso_altura_traste * altura
 
 
 def _centroide_bruteforce(
@@ -574,10 +582,10 @@ def _fuerza_bruta_coste_minimo(instantes: list[Instante], modelo: ModeloCoste) -
     combinaciones_por_instante = [_combinaciones_validas_bruteforce(i, modelo) for i in instantes]
     mejor: float | None = None
     for eleccion in itertools.product(*combinaciones_por_instante):
-        costo = _coste_nodo_bruteforce(eleccion[0])
+        costo = _coste_nodo_bruteforce(eleccion[0], modelo)
         for k in range(1, len(eleccion)):
             dt = instantes[k].inicio_representativo_s - instantes[k - 1].inicio_representativo_s
-            costo += _coste_nodo_bruteforce(eleccion[k])
+            costo += _coste_nodo_bruteforce(eleccion[k], modelo)
             costo += _coste_arista_bruteforce(
                 eleccion[k - 1], eleccion[k], dt, modelo, orden_cuerdas
             )
@@ -613,6 +621,64 @@ def test_asignar_secuencia_coincide_con_fuerza_bruta_otra_secuencia_corta() -> N
     )
 
     modelo = _modelo(traste_maximo=8)
+    notas = [
+        NotaReferencia(tono_midi=41.0, inicio_s=0.0, fin_s=0.4),
+        NotaReferencia(tono_midi=64.0, inicio_s=0.2, fin_s=0.6),
+        NotaReferencia(tono_midi=48.0, inicio_s=0.25, fin_s=0.6),
+    ]
+    digitacion = asignar_secuencia(notas, modelo)
+    instantes = agrupar_en_instantes(notas, modelo)
+    esperado = _fuerza_bruta_coste_minimo(instantes, modelo)
+    assert digitacion.coste_total == pytest.approx(esperado)
+
+
+# ---------------------------------------------------------------------
+# Feature 008, T004 (US2, spec.md FR-005): la misma verificación de
+# fuerza bruta de arriba, con el término de altura de traste incluido,
+# para los valores `0`, `1` y `100` del conjunto de candidatos ya
+# declarado en research.md #3 de la Feature 008 (nunca "un valor
+# intermedio"/"un valor grande" sin fijar, `/speckit-analyze` A1).
+#
+# Requisito de independencia (verificado contra este archivo antes de
+# escribir esta tarea): `_coste_nodo_bruteforce` MUST seguir sin
+# invocar `_coste_nodo` de producción -- su propia aritmética, más
+# abajo, es la única fuente de la cifra "esperada" con la que se
+# compara `asignar_secuencia`.
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("peso_altura_traste", [0.0, 1.0, 100.0])
+def test_asignar_secuencia_coincide_con_fuerza_bruta_con_peso_altura_traste(
+    peso_altura_traste: float,
+) -> None:
+    from guitar_tabs_analysis.analytics.metrica_digitacion import (
+        agrupar_en_instantes,
+        asignar_secuencia,
+    )
+
+    modelo = _modelo(traste_maximo=5, peso_altura_traste=peso_altura_traste)
+    notas = [
+        NotaReferencia(tono_midi=45.0, inicio_s=0.0, fin_s=0.4),
+        NotaReferencia(tono_midi=50.0, inicio_s=0.5, fin_s=0.9),
+        NotaReferencia(tono_midi=55.0, inicio_s=0.55, fin_s=0.9),
+    ]
+    digitacion = asignar_secuencia(notas, modelo)
+    instantes = agrupar_en_instantes(notas, modelo)
+    esperado = _fuerza_bruta_coste_minimo(instantes, modelo)
+    assert digitacion.coste_total == pytest.approx(esperado)
+    assert digitacion.exclusiones == []
+
+
+@pytest.mark.parametrize("peso_altura_traste", [0.0, 1.0, 100.0])
+def test_asignar_secuencia_coincide_con_fuerza_bruta_otra_secuencia_con_peso_altura_traste(
+    peso_altura_traste: float,
+) -> None:
+    from guitar_tabs_analysis.analytics.metrica_digitacion import (
+        agrupar_en_instantes,
+        asignar_secuencia,
+    )
+
+    modelo = _modelo(traste_maximo=8, peso_altura_traste=peso_altura_traste)
     notas = [
         NotaReferencia(tono_midi=41.0, inicio_s=0.0, fin_s=0.4),
         NotaReferencia(tono_midi=64.0, inicio_s=0.2, fin_s=0.6),
@@ -823,6 +889,110 @@ def test_asignar_secuencia_sin_notas_da_digitacion_vacia() -> None:
     assert digitacion.posiciones == []
     assert digitacion.exclusiones == []
     assert digitacion.coste_total == 0.0
+
+
+# ---------------------------------------------------------------------
+# _coste_nodo extendido (Feature 008, T002, spec.md US1 Acceptance
+# Scenarios, contracts/digitacion.md postcondición 4' de
+# `asignar_secuencia`) -- el componente nuevo (altura de traste) se
+# prueba directamente sobre el helper privado, mismo criterio que
+# `_estiramiento`/`_centroide` ya se prueban directamente más arriba en
+# este archivo.
+# ---------------------------------------------------------------------
+
+
+def test_coste_nodo_con_peso_cero_es_igual_al_estiramiento_solo() -> None:
+    """AS3 / Edge Case de spec.md: `peso_altura_traste = 0.0` -- el
+    valor de `MODELO_COSTE_POR_DEFECTO` -- debe reproducir EXACTAMENTE
+    el comportamiento de la Feature 007 (coste de nodo = estiramiento
+    solamente). Si no coincide, es un defecto de integración del
+    componente nuevo, no una variación esperable."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _coste_nodo, _estiramiento
+
+    combo = [Posicion(cuerda="A", traste=2), Posicion(cuerda="D", traste=7)]
+    assert _coste_nodo(combo, MODELO_COSTE_POR_DEFECTO) == _estiramiento(combo)
+
+
+def test_coste_nodo_posicion_al_aire_no_aporta_coste_de_altura() -> None:
+    """AS2 / FR-003: una posición al aire (`traste == 0`) aporta coste
+    `0` de este componente para CUALQUIER valor de `peso_altura_traste`
+    -- consecuencia directa de la proporcionalidad (`peso * 0 == 0`),
+    probado con un peso deliberadamente grande para que un defecto que
+    ignore el caso `traste == 0` no pase inadvertido."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _coste_nodo
+
+    modelo = _modelo(peso_altura_traste=1000.0)
+    combo_al_aire = [Posicion(cuerda="E", traste=0)]
+    # Nota sola (sin pareja): _estiramiento ya es 0 -- el único aporte
+    # posible sería el término de altura, que también debe ser 0.
+    assert _coste_nodo(combo_al_aire, modelo) == 0.0
+
+
+def test_coste_nodo_prefiere_traste_bajo_proporcional_al_peso_declarado() -> None:
+    """AS1: entre dos posiciones candidatas de igual tono, estiramiento
+    y coste de movimiento, la de traste más bajo tiene coste total
+    menor -- en una cantidad EXACTAMENTE `peso_altura_traste *
+    (traste_alto - traste_bajo)` (FR-001), nunca solo "menor" sin
+    verificar la magnitud."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _coste_nodo
+
+    modelo = _modelo(peso_altura_traste=2.0)
+    bajo = [Posicion(cuerda="A", traste=2)]
+    alto = [Posicion(cuerda="A", traste=7)]  # misma cuerda -- aísla el efecto de la altura sola
+    costo_bajo = _coste_nodo(bajo, modelo)
+    costo_alto = _coste_nodo(alto, modelo)
+    assert costo_alto - costo_bajo == pytest.approx(2.0 * (7 - 2))
+    assert costo_bajo < costo_alto
+
+
+def test_coste_nodo_mismo_traste_distinta_cuerda_aporta_el_mismo_costo() -> None:
+    """Edge Case de spec.md (único caso límite sin cobertura señalado
+    por `/speckit-analyze`, U1): dos posiciones en el MISMO traste mas
+    distinta cuerda -- el componente de altura no referencia la cuerda
+    en su fórmula (FR-001/FR-003), así que aporta EXACTAMENTE el mismo
+    valor a ambas. Cualquier desempate entre ellas sigue siendo
+    responsabilidad exclusiva de los componentes ya existentes
+    (estiramiento/desplazamiento/cruce), nunca de este término."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import _coste_nodo
+
+    modelo = _modelo(peso_altura_traste=3.0)
+    en_mi = [Posicion(cuerda="E", traste=4)]
+    en_la = [Posicion(cuerda="A", traste=4)]
+    assert _coste_nodo(en_mi, modelo) == _coste_nodo(en_la, modelo)
+
+
+def test_coste_nodo_no_altera_pesos_de_movimiento_del_modelo() -> None:
+    """AS4: un modelo con `peso_altura_traste` distinto de cero sigue
+    teniendo `peso_desplazamiento`/`peso_cruce_cuerdas` en `1.0` -- el
+    componente nuevo no los toca (FR-002)."""
+    modelo = _modelo(peso_altura_traste=5.0)
+    assert modelo.peso_desplazamiento == 1.0
+    assert modelo.peso_cruce_cuerdas == 1.0
+
+
+def test_asignar_secuencia_peso_altura_cero_reproduce_coste_de_la_feature_007() -> None:
+    """AS3 de punta a punta: con `peso_altura_traste = 0.0`, el
+    `coste_total` de una secuencia de dos instantes de una sola nota
+    (sin estiramiento posible) es EXACTAMENTE el coste de arista ya
+    conocido de la Feature 007 -- calculado a mano aquí, sin invocar
+    ningún helper de producción, para no repetir la misma aritmética
+    que se está verificando."""
+    from guitar_tabs_analysis.analytics.metrica_digitacion import asignar_secuencia
+
+    # traste_maximo=0 fuerza que la única candidata de cada nota sea la
+    # cuerda al aire correspondiente (45.0 MIDI == "A" al aire; 40.0
+    # MIDI == "E" al aire) -- sin ambigüedad de candidatas.
+    modelo = _modelo(traste_maximo=0, peso_altura_traste=0.0)
+    notas = [
+        NotaReferencia(tono_midi=45.0, inicio_s=0.0, fin_s=0.4),
+        NotaReferencia(tono_midi=40.0, inicio_s=1.0, fin_s=1.4),
+    ]
+    digitacion = asignar_secuencia(notas, modelo)
+    # centroide1 = (traste=0, índice cuerda "A"=1); centroide2 =
+    # (traste=0, índice cuerda "E"=0); dt = 1.0.
+    # coste_arista = peso_desplazamiento*|0-0|/1 + peso_cruce*|0-1|/1 = 1.0
+    # coste de nodo de cada instante (nota sola, peso_altura=0) = 0.0
+    assert digitacion.coste_total == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------

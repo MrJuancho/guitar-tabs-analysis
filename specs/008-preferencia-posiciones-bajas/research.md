@@ -246,3 +246,99 @@ Se deja registrada aquí, no en el código: si una sesión futura necesita
 retomarla, el argumento para no elegirla ahora (un parámetro menos que
 calibrar) queda escrito y es la primera referencia a revisar antes de
 reabrir la pregunta.
+
+## 8. T009 -- resultado real de la barrida: mejora sostenida e interior en `peso_altura_traste = 0.1`, confirma la hipótesis motivadora sobre GuitarSet
+
+**Corrida real** (`just barrer-altura /home/mrjuancho/datos/guitarset`,
+mismo entorno que research.md #4): **23.46s de reloj real** para los diez
+valores candidatos sobre las 288 grabaciones medibles -- dentro de lo
+proyectado (`~25.2s`: `8.88s` de lectura + `10 × 1.63s`), sin divergencia
+significativa que documentar. `num_notas_medidas = 49535` en los DIEZ
+puntos por igual (idéntico al de research.md #14 de la Feature 007) --
+confirma, con datos reales, que la exclusión de grabaciones/instantes se
+calculó una única vez y se aplicó por igual a todos los puntos
+(contracts/digitacion.md postcondición 1 de `ejecutar_barrida_peso_altura`).
+
+**La curva completa, los diez puntos (nunca solo el ganador, FR-008):**
+
+| `peso_altura_traste` | `fraccion_coincidencia` | Δ vs. línea base (`0.618633`) | `num_notas_coincidentes` |
+|---:|---:|---:|---:|
+| `0.0`   | `0.618633` | `+0.000000` | `30644` |
+| `0.01`  | `0.642031` | `+0.023398` | `31803` |
+| `0.03`  | `0.650308` | `+0.031675` | `32213` |
+| `0.1`   | `0.652589` | `+0.033956` | `32326` |
+| `0.3`   | `0.629272` | `+0.010639` | `31171` |
+| `1.0`   | `0.587362` | `-0.031271` | `29095` |
+| `3.0`   | `0.559705` | `-0.058928` | `27725` |
+| `10.0`  | `0.543818` | `-0.074816` | `26938` |
+| `30.0`  | `0.539255` | `-0.079378` | `26712` |
+| `100.0` | `0.538851` | `-0.079782` | `26692` |
+
+**Punto de control verificado, no solo esperado**:
+`peso_altura_traste = 0.0` produce `fraccion_coincidencia = 0.618633...`,
+exactamente `30644/49535`, idéntica a la cifra ya cerrada en Principio VII
+(v1.10.0) -- confirma que el componente nuevo, apagado, reproduce la
+Feature 007 sin diferencia, incluso sobre el conjunto real completo (no
+solo sobre las secuencias sintéticas de T002).
+
+**Aplicando el criterio de mejora fijado POR ANTICIPADO en `tasks.md`
+(T009), antes de correr esta barrida** -- dos condiciones conjuntas:
+magnitud (`Δ ≥ 0.01` absoluto) y sostenimiento en al menos un vecino
+adyacente de la escala:
+
+- Los valores `0.01`, `0.03`, `0.1` y `0.3` -- CUATRO puntos
+  **consecutivos** de la escala declarada -- superan el umbral de
+  magnitud. No es un pico aislado: cada uno de los cuatro tiene al menos
+  un vecino inmediato que también lo supera (`0.01`↔`0.03`, `0.03`↔`0.1`
+  y `0.03`↔`0.1`, `0.1`↔`0.3`), así que la condición de sostenimiento se
+  cumple con margen -- un bloque contiguo de cuatro puntos, no un
+  artefacto de desempate en un único valor.
+- El máximo de la curva cae en `peso_altura_traste = 0.1`
+  (`fraccion_coincidencia = 0.652589`, `Δ = +0.033956`, más de tres veces
+  el umbral de `0.01`) -- un **óptimo INTERIOR** del rango declarado,
+  flanqueado por `0.03` (`0.650308`) y `0.3` (`0.629272`) por ambos lados,
+  nunca en el borde (`0.01` o `100.0`) -- exactamente lo que research.md
+  #3 argumentó que el rango debía permitir ver, verificado ahora con el
+  resultado real.
+- **Veredicto**: MEJORA REAL, con evidencia que cumple el criterio
+  predeclarado en ambas condiciones. La preferencia por posiciones bajas
+  SÍ mejora el parecido con el uso humano real sobre GuitarSet -- la
+  hipótesis motivadora de ADR-0002 hallazgo 4 se CONFIRMA también aquí,
+  no solo en la canción real que la originó. Ninguna discrepancia
+  GuitarSet/canción real que documentar en esta dirección (FR-010 no
+  aplica: sí hubo mejora).
+
+**Hallazgo secundario, no anticipado en el argumento de research.md #3,
+real y con evidencia -- un peso demasiado grande no solo "deja de
+ayudar", ACTIVAMENTE empeora el resultado por debajo de la línea base**:
+a partir de `peso_altura_traste = 1.0`, `fraccion_coincidencia` cae por
+DEBAJO de `0.618633` (línea base sin el componente), y seguir subiendo el
+peso (`3`, `10`, `30`, `100`) empeora monótonamente hasta `0.538851` --
+casi 8 puntos porcentuales por debajo de la línea base. La curva no es
+"sube y se aplana": es un pico angosto alrededor de `0.03`-`0.1` con caída
+en ambas direcciones -- hacia `0` (vuelve a la línea base, el componente
+apagado) y hacia valores grandes (peor que no tener el componente en
+absoluto). **Interpretación, consistente con research.md #2 (el término
+es una suma por posición, no un promedio)**: un peso grande fuerza CADA
+nota hacia el traste más bajo alcanzable sin importar el coste de
+movimiento que eso implique -- un guitarrista real no hace esto (se
+queda en una zona del mástil aunque no sea la más grave posible, para
+minimizar el desplazamiento de la MANO, no el traste de cada nota
+individual); pasado cierto punto, forzar el traste mínimo por nota
+empieza a contradecir ese comportamiento real más de lo que el modelo sin
+este componente ya lo hacía. Documentado aquí como hallazgo real -- no se
+investiga ni se corrige en esta feature (esta tarea mide y documenta, no
+recalibra), entrada para una sesión futura de recalibración de
+`peso_desplazamiento`/`peso_cruce_cuerdas` junto con este peso nuevo
+(research.md #15 de la Feature 007, ya registrado, sin aplicar).
+
+**Consecuencia explícita de FR-007/FR-009**: esta tarea NO elige `0.1`
+como el nuevo valor por defecto de `peso_altura_traste` -- esa elección,
+con la curva completa ya delante, es una decisión posterior (potencialmente
+`/speckit-constitution`, para cerrar Principio VII del hito 3 con este
+hallazgo, o una enmienda al código de esta feature) fuera de alcance de
+esta tarea. El presupuesto vigente (`0.55` sobre `fraccion_coincidencia`)
+no se recalibra aquí (FR-009) -- aunque el mejor punto medido (`0.652589`)
+ya lo superaría con margen, esa comparación no es responsabilidad de esta
+tarea.
+

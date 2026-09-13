@@ -19,10 +19,12 @@ from guitar_tabs_analysis.analytics.metrica_digitacion import (
     ModeloCoste,
     Posicion,
     PosicionAsignada,
+    PuntoBarrida,
+    ResultadoBarrida,
     ResultadoCoincidencia,
     ResultadoDigitacionGrabacion,
 )
-from guitar_tabs_analysis.digitacion.orquestador import artefacto_a_dict
+from guitar_tabs_analysis.digitacion.orquestador import artefacto_a_dict, resultado_barrida_a_dict
 from guitar_tabs_analysis.ingestion.guitarset import NotaConPosicionReal, NotaReferencia
 
 _MODELO = ModeloCoste(
@@ -34,6 +36,7 @@ _MODELO = ModeloCoste(
     ventana_instante_s=0.03,
     peso_desplazamiento=1.0,
     peso_cruce_cuerdas=1.0,
+    peso_altura_traste=0.0,
 )
 
 
@@ -86,6 +89,7 @@ def test_artefacto_a_dict_serializa_el_modelo_de_coste_completo() -> None:
         "ventana_instante_s": 0.03,
         "peso_desplazamiento": 1.0,
         "peso_cruce_cuerdas": 1.0,
+        "peso_altura_traste": 0.0,
     }
 
 
@@ -146,6 +150,67 @@ def test_artefacto_a_dict_hace_round_trip_completo_por_json() -> None:
     """`json.dumps`/`json.loads` no pierde ningún valor -- mismo patrón
     que T031 del hito 2."""
     original = artefacto_a_dict(_artefacto_completo())
+
+    reconstruido = json.loads(json.dumps(original))
+
+    assert reconstruido == original
+
+
+# ---------------------------------------------------------------------
+# resultado_barrida_a_dict (Feature 008, T007) -- mismo patrón exacto
+# que artefacto_a_dict de arriba: las claves del dict se verifican
+# literalmente, no solo su longitud (mutation testing: las cuatro
+# claves de `_punto_barrida_a_dict` sobrevivían porque ningún test
+# anterior inspeccionaba el contenido de un punto, solo `len(puntos)`).
+# ---------------------------------------------------------------------
+
+
+def _resultado_barrida_completo() -> ResultadoBarrida:
+    return ResultadoBarrida(
+        valores_candidatos=[0.0, 2.5],
+        puntos=[
+            PuntoBarrida(
+                peso_altura_traste=0.0,
+                resultado_coincidencia=ResultadoCoincidencia(
+                    fraccion_coincidencia=1.0, num_notas_medidas=1, num_notas_coincidentes=1
+                ),
+            ),
+            PuntoBarrida(
+                peso_altura_traste=2.5,
+                resultado_coincidencia=ResultadoCoincidencia(
+                    fraccion_coincidencia=0.5, num_notas_medidas=2, num_notas_coincidentes=1
+                ),
+            ),
+        ],
+    )
+
+
+def test_resultado_barrida_a_dict_serializa_valores_candidatos_y_puntos_completos() -> None:
+    contenido = resultado_barrida_a_dict(_resultado_barrida_completo())
+
+    assert contenido["valores_candidatos"] == [0.0, 2.5]
+    assert contenido["puntos"] == [
+        {
+            "peso_altura_traste": 0.0,
+            "resultado_coincidencia": {
+                "fraccion_coincidencia": 1.0,
+                "num_notas_medidas": 1,
+                "num_notas_coincidentes": 1,
+            },
+        },
+        {
+            "peso_altura_traste": 2.5,
+            "resultado_coincidencia": {
+                "fraccion_coincidencia": 0.5,
+                "num_notas_medidas": 2,
+                "num_notas_coincidentes": 1,
+            },
+        },
+    ]
+
+
+def test_resultado_barrida_a_dict_hace_round_trip_completo_por_json() -> None:
+    original = resultado_barrida_a_dict(_resultado_barrida_completo())
 
     reconstruido = json.loads(json.dumps(original))
 

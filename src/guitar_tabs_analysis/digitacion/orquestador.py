@@ -21,6 +21,7 @@ el contrato completo (T022, User Story 3).
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,8 @@ from guitar_tabs_analysis.analytics.metrica_digitacion import (
     NotaEntrada,
     Posicion,
     PosicionAsignada,
+    PuntoBarrida,
+    ResultadoBarrida,
     ResultadoCoincidencia,
     ResultadoDigitacionGrabacion,
     agregar_conjunto,
@@ -142,6 +145,71 @@ def ejecutar_digitacion(
 
 
 # ---------------------------------------------------------------------
+# ejecutar_barrida_peso_altura (Feature 008, T007, User Story 3,
+# contracts/digitacion.md postcondiciones 1-5 de esa feature,
+# research.md #4 de esa feature): lee cada grabación UNA SOLA VEZ --la
+# lectura, no la asignación, es el costo dominante y no depende del
+# peso-- y corre `asignar_secuencia`/`evaluar_coincidencia` una vez por
+# valor candidato sobre los datos ya leídos.
+# ---------------------------------------------------------------------
+
+
+def ejecutar_barrida_peso_altura(
+    valores_candidatos: list[float],
+    grabaciones: list[str],
+    root_dir: Path,
+    modelo_base: ModeloCoste = MODELO_COSTE_POR_DEFECTO,
+) -> ResultadoBarrida:
+    """Postcondición 1: lee `leer_grabacion_con_posicion_real` por cada
+    `grabacion_id` de `grabaciones` EXACTAMENTE UNA VEZ -- una
+    grabación cuya lectura falla (`GrabacionNoExisteError`) queda
+    excluida de TODOS los puntos por igual (nunca se reintenta por
+    valor candidato).
+
+    Postcondiciones 2/3: para cada valor de `valores_candidatos`, en el
+    mismo orden, construye un `ModeloCoste` igual a `modelo_base` salvo
+    `peso_altura_traste` en ese valor, corre `asignar_secuencia` +
+    `evaluar_coincidencia` sobre los datos ya leídos de cada grabación
+    no excluida, agrega con `agregar_conjunto`, y arma un
+    `PuntoBarrida`. Devuelve la curva completa -- MUST NOT invocar
+    `ejecutar_digitacion` en un bucle (relee disco innecesariamente,
+    research.md #4) ni comparar puntos entre sí para elegir un "ganador"
+    (postcondición 4, FR-007/FR-009 de la Feature 008)."""
+    leidas: list[tuple[str, list[NotaEntrada], list[Any]]] = []
+    for grabacion_id in grabaciones:
+        try:
+            notas_con_posicion_real = leer_grabacion_con_posicion_real(grabacion_id, root_dir)
+        except GrabacionNoExisteError:
+            continue
+        notas_entrada: list[NotaEntrada] = [
+            NotaEntrada(tono_midi=n.tono_midi, inicio_s=n.inicio_s, fin_s=n.fin_s)
+            for n in notas_con_posicion_real
+        ]
+        leidas.append((grabacion_id, notas_entrada, notas_con_posicion_real))
+
+    puntos: list[PuntoBarrida] = []
+    for valor in valores_candidatos:
+        modelo = dataclasses.replace(modelo_base, peso_altura_traste=valor)
+        resultados = [
+            ResultadoDigitacionGrabacion(
+                grabacion_id=grabacion_id,
+                digitacion=asignar_secuencia(notas_entrada, modelo),
+                notas_con_posicion_real=notas_con_posicion_real,
+                exclusion=None,
+            )
+            for grabacion_id, notas_entrada, notas_con_posicion_real in leidas
+        ]
+        puntos.append(
+            PuntoBarrida(
+                peso_altura_traste=valor,
+                resultado_coincidencia=agregar_conjunto(resultados),
+            )
+        )
+
+    return ResultadoBarrida(valores_candidatos=valores_candidatos, puntos=puntos)
+
+
+# ---------------------------------------------------------------------
 # Serialización de ArtefactoDigitacion -- función pura, sin tocar disco
 # (quien escribe el archivo final es `digitacion.cli`, T023). Mismo
 # patrón exacto que `deteccion.orquestador.artefacto_a_dict`.
@@ -158,6 +226,7 @@ def _modelo_coste_a_dict(modelo: ModeloCoste) -> dict[str, Any]:
         "ventana_instante_s": modelo.ventana_instante_s,
         "peso_desplazamiento": modelo.peso_desplazamiento,
         "peso_cruce_cuerdas": modelo.peso_cruce_cuerdas,
+        "peso_altura_traste": modelo.peso_altura_traste,
     }
 
 
@@ -247,4 +316,29 @@ def artefacto_a_dict(artefacto: ArtefactoDigitacion) -> dict[str, Any]:
             _resultado_digitacion_grabacion_a_dict(r) for r in artefacto.resultados_por_grabacion
         ],
         "resultado_coincidencia": _resultado_coincidencia_a_dict(artefacto.resultado_coincidencia),
+    }
+
+
+# ---------------------------------------------------------------------
+# Serialización de ResultadoBarrida (Feature 008, T007) -- función
+# pura, sin tocar disco (quien escribe el archivo final es
+# `digitacion.cli_barrido`, T008). Mismo patrón exacto que
+# `artefacto_a_dict`.
+# ---------------------------------------------------------------------
+
+
+def _punto_barrida_a_dict(punto: PuntoBarrida) -> dict[str, Any]:
+    return {
+        "peso_altura_traste": punto.peso_altura_traste,
+        "resultado_coincidencia": _resultado_coincidencia_a_dict(punto.resultado_coincidencia),
+    }
+
+
+def resultado_barrida_a_dict(resultado: ResultadoBarrida) -> dict[str, Any]:
+    """`dict` JSON-compatible con la curva completa (FR-008 de la
+    Feature 008): el conjunto de valores candidatos declarado y un
+    punto por cada uno, en el mismo orden -- nunca solo el máximo."""
+    return {
+        "valores_candidatos": resultado.valores_candidatos,
+        "puntos": [_punto_barrida_a_dict(p) for p in resultado.puntos],
     }

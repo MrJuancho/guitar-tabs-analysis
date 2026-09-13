@@ -221,6 +221,13 @@ detectar modo root_dir:
 digitar modo root_dir:
     uv run python -m guitar_tabs_analysis.digitacion.cli --modo {{ modo }} --root-dir {{ root_dir }}
 
+# Barre el peso de altura de traste del modelo de coste (Feature 008)
+# sobre las 288 grabaciones medibles -- siempre "medibles", nunca
+# "reservado" (Principio VI, sin parámetro `modo`); el conjunto de
+# valores candidatos está fijo en código, ver digitacion/cli_barrido.py.
+barrer-altura root_dir:
+    uv run python -m guitar_tabs_analysis.digitacion.cli_barrido --root-dir {{ root_dir }}
+
 # ---------------------------------------------------------------
 # Entorno
 # ---------------------------------------------------------------

@@ -14,27 +14,27 @@ nunca vuelve a tocarlo después.
 
 ## En qué quedó la última sesión
 
-Constitución v1.10.0: Principio VII cerrado para el hito 3
-(`fraccion_coincidencia=0.6186`, presupuesto `0.55`, hitos 1/2 sin
-tocar). Después, ADR-0002 (`docs/adr/`): primera prueba manual de
-extremo a extremo con una canción real (no Slakh2100 ni GuitarSet) --
-cinco hallazgos, ninguno detectable por las métricas de los tres hitos:
-(1) separación mejor de lo esperado; (2) conversión a mono descarta
-panorama estéreo real (heredado de Slakh); (3) `separar_guitarra` sin
-validar forma de entrada -- intento de reservar ~26 TB; (4) el modelo
-de coste de digitación no penaliza altura -- mismo signo que la
-asimetría de T025 (research.md #15), el más accionable; (5) el
-detector confunde octava/armónico y no ve hammer-ons, invisibles con
-GuitarSet. Solo documentación, sin corrección -- pedido explícito.
-`just gauntlet` verde (sin cambios de código).
+Feature 008 completa, T001-T011: agrega `peso_altura_traste` al modelo
+de coste de digitación (hallazgo 4 de ADR-0002) -- un cambio por
+medición, `peso_desplazamiento`/`peso_cruce_cuerdas` intactos en `1.0`.
+Barrida real de diez valores sobre las 288 medibles
+(`mediciones/barrido_altura_traste.json`): pico INTERIOR en `peso=0.1`
+(`fraccion_coincidencia=0.652589`, +0.034 sobre la línea base `0.6186`)
+-- confirma el hallazgo 4 también en GuitarSet. Pesos `>=1.0` empeoran
+POR DEBAJO de la línea base (research.md #8). Mutation testing limpio
+(solo equivalentes, `tasks.md` T011). `just gauntlet` verde (397
+tests, 99.20%).
 
 ## Qué sigue
 
-Decidir qué hacer con cada hallazgo de ADR-0002 es sesión aparte, cada
-uno con su propia medición. El más accionable (4, altura ausente en el
-modelo de coste) es el candidato más claro, junto con T025.
+Elegir el valor final de `peso_altura_traste` (candidato `0.1`, o
+recalibrar junto con `peso_desplazamiento`/`peso_cruce_cuerdas`,
+research.md #15 de la Feature 007) es sesión aparte -- esta feature
+mide, no elige (FR-007/FR-009). Hallazgos 1/2/3/5 de ADR-0002 sin
+abordar.
 
 ## Bloqueado / pendiente de decisión
 
-Los cinco hallazgos de ADR-0002. Antes: compuerta automática del `0.70`
-del hito 2; `copier update` sin commitear; licencia de Demucs sin verificar.
+Valor final de `peso_altura_traste` (ver arriba). Hallazgos 1/2/3/5 de
+ADR-0002. Antes: compuerta automática del `0.70` del hito 2; `copier
+update` sin commitear; licencia de Demucs sin verificar.

@@ -54,6 +54,7 @@ class ModeloCoste:
     ventana_instante_s: float
     peso_desplazamiento: float
     peso_cruce_cuerdas: float
+    peso_altura_traste: float
 
 
 MODELO_COSTE_POR_DEFECTO = ModeloCoste(
@@ -65,12 +66,18 @@ MODELO_COSTE_POR_DEFECTO = ModeloCoste(
     ventana_instante_s=0.03,
     peso_desplazamiento=1.0,
     peso_cruce_cuerdas=1.0,
+    peso_altura_traste=0.0,
 )
 """Instancia con los valores reales de `research.md` (#3 afinación,
 #4 rango de trastes, #6 ventana de instante, #8 límite de estiramiento,
 #9 tolerancia de tono, #13 pesos sin calibrar) -- se construye una vez
 y se pasa explícitamente a cada función que la necesita, nunca leída de
-una variable global implícita (data-model.md)."""
+una variable global implícita (data-model.md).
+
+`peso_altura_traste=0.0` (Feature 008, research.md #6 de esa feature):
+punto de control que reproduce exactamente el comportamiento de la
+Feature 007 (sin este componente) hasta que la barrida de User Story 3
+de esa feature fije el valor final con evidencia real."""
 
 
 @dataclass(frozen=True)
@@ -285,6 +292,21 @@ def _estiramiento(posiciones: list[Posicion]) -> int:
     return (max(pisadas) - min(pisadas)) if len(pisadas) >= 2 else 0
 
 
+def _coste_nodo(posiciones: list[Posicion], modelo: ModeloCoste) -> float:
+    """Coste de nodo de una combinación completa (Feature 008,
+    research.md #1/#2 de esa feature, contracts/digitacion.md
+    postcondición 4'): `estiramiento(combo) + peso_altura_traste *
+    altura(combo)`, con `altura(combo) = Σ traste de cada posición` --
+    TODAS las posiciones, incluidas las cuerdas al aire (a diferencia de
+    `_estiramiento`, que las excluye): `traste == 0` aporta `0` por
+    construcción de la propia proporcionalidad, sin necesitar un caso
+    especial. Depende únicamente de las posiciones de ESTE instante --
+    ningún término de arista, ninguna dependencia de instantes vecinos
+    (preserva la subestructura óptima de research.md #1 de la Feature
+    007, verificado en research.md #1 de esta feature)."""
+    return _estiramiento(posiciones) + modelo.peso_altura_traste * sum(p.traste for p in posiciones)
+
+
 def _centroide(posiciones: list[Posicion], orden_cuerdas: list[str]) -> tuple[float, float]:
     """Centroide (traste, índice de cuerda) de una combinación completa
     -- la "posición de la mano" usada para el coste de desplazamiento y
@@ -376,7 +398,7 @@ def asignar_secuencia(notas: list[NotaEntrada], modelo: ModeloCoste) -> Digitaci
     backptr: list[list[int | None]] = []
 
     primeras = combos_por_instante[0]
-    dp.append([float(_estiramiento([pa.posicion for pa in combo])) for combo in primeras])
+    dp.append([_coste_nodo([pa.posicion for pa in combo], modelo) for combo in primeras])
     fila_bp_inicial: list[int | None] = [None] * len(primeras)
     backptr.append(fila_bp_inicial)
 
@@ -400,7 +422,7 @@ def asignar_secuencia(notas: list[NotaEntrada], modelo: ModeloCoste) -> Digitaci
                     mejor_k = k
             assert mejor_costo is not None
             assert mejor_k is not None
-            fila_dp.append(mejor_costo + _estiramiento(posiciones_cur))
+            fila_dp.append(mejor_costo + _coste_nodo(posiciones_cur, modelo))
             fila_bp.append(mejor_k)
         dp.append(fila_dp)
         backptr.append(fila_bp)
@@ -577,3 +599,31 @@ def agregar_conjunto(resultados: list[ResultadoDigitacionGrabacion]) -> Resultad
         num_notas_medidas=num_medidas_total,
         num_notas_coincidentes=num_coincidentes_total,
     )
+
+
+# ---------------------------------------------------------------------
+# PuntoBarrida / ResultadoBarrida (Feature 008, T007, User Story 3,
+# data-model.md/contracts/digitacion.md de esa feature) -- la curva
+# completa de la barrida del peso de altura de traste, nunca solo el
+# valor ganador (FR-008).
+# ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PuntoBarrida:
+    """Un único punto de la curva: un valor candidato de
+    `peso_altura_traste` con el `ResultadoCoincidencia` medido con ese
+    valor (data-model.md de la Feature 008)."""
+
+    peso_altura_traste: float
+    resultado_coincidencia: ResultadoCoincidencia
+
+
+@dataclass(frozen=True)
+class ResultadoBarrida:
+    """La curva completa: un `PuntoBarrida` por cada valor de
+    `valores_candidatos`, en el mismo orden -- nunca solo el máximo
+    (FR-008 de la Feature 008)."""
+
+    valores_candidatos: list[float]
+    puntos: list[PuntoBarrida]
